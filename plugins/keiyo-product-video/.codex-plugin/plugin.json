@@ -1,0 +1,20 @@
+{
+  "name": "keiyo-product-video",
+  "version": "1.0.0",
+  "description": "Portable, approval-gated workflow for new TikTok product-video planning and CapCut handoff.",
+  "author": {
+    "name": "KEIYO"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "KEIYO TikTok商品動画",
+    "shortDescription": "新規TikTok商品動画を証拠・承認ゲート付きで設計",
+    "longDescription": "商品情報、素材要件、台本、承認、CapCut引き継ぎを検証可能なペイロードとして管理します。既存プロジェクトは変更しません。",
+    "developerName": "KEIYO",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Use $create-tiktok-product-video to prepare and validate a new TikTok product video payload."
+    ]
+  }
+}

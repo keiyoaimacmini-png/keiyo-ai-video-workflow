@@ -1,0 +1,20 @@
+{
+  "name": "keiyo-ai-video-workflow",
+  "interface": {
+    "displayName": "Keiyo Ai Video Workflow"
+  },
+  "plugins": [
+    {
+      "name": "keiyo-product-video",
+      "source": {
+        "source": "local",
+        "path": "./plugins/keiyo-product-video"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

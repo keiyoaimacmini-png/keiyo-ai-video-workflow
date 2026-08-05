@@ -1,0 +1,4 @@
+interface:
+  display_name: "TikTok商品動画"
+  short_description: "新規TikTok商品動画を安全に設計・検証する手順"
+  default_prompt: "Use $create-tiktok-product-video to prepare and validate a new TikTok product video payload."
