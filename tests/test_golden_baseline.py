@@ -14,6 +14,13 @@ SPEC = importlib.util.spec_from_file_location("verify_golden_baseline", REPO / "
 VERIFY = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(VERIFY)
+BUILDER_SPEC = importlib.util.spec_from_file_location(
+    "build_capcut_golden_baseline",
+    REPO / "scripts/build_capcut_golden_baseline.py",
+)
+BUILDER = importlib.util.module_from_spec(BUILDER_SPEC)
+assert BUILDER_SPEC.loader is not None
+BUILDER_SPEC.loader.exec_module(BUILDER)
 
 
 class GoldenBaselineTests(unittest.TestCase):
@@ -354,6 +361,25 @@ class GoldenBaselineTests(unittest.TestCase):
             self.assertIn("canonical JSON hash mismatch: caption-style.json", VERIFY.verify(target))
         finally:
             temp.cleanup()
+
+    def test_source_selector_uses_exact_full_slowed_derivative_range(self):
+        selector = BUILDER.source_selector(
+            "##_draftpath_placeholder_x_##/Resources/C6_IMG_3893_0-2.833_slow3s.mp4",
+            0,
+            3_000_000,
+            3_000_000,
+        )
+        self.assertEqual("IMG_3893.MOV", selector["original_filename"])
+        self.assertEqual([0.0, 2.833], selector["original_source_range_seconds"])
+
+    def test_source_selector_uses_exact_range_for_small_container_rounding(self):
+        selector = BUILDER.source_selector(
+            "##_draftpath_placeholder_x_##/Resources/C4A_IMG_3958_0-2.mp4",
+            0,
+            2_000_000,
+            2_002_000,
+        )
+        self.assertEqual([0.0, 2.0], selector["original_source_range_seconds"])
 
 
 if __name__ == "__main__":

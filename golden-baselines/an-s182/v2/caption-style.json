@@ -1,0 +1,357 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "caption_count": 10,
+  "semantic_placement": "upper_center",
+  "captions": [
+    {
+      "cut_id": "C1",
+      "target_start_seconds": 0.0,
+      "target_duration_seconds": 2.0,
+      "target_start_frame": 0,
+      "target_duration_frames": 60,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "夏の車、\n日差しがツライ…",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C2",
+      "target_start_seconds": 2.0,
+      "target_duration_seconds": 2.0,
+      "target_start_frame": 60,
+      "target_duration_frames": 60,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "車内の暑さ対策に",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C3",
+      "target_start_seconds": 4.0,
+      "target_duration_seconds": 2.0,
+      "target_start_frame": 120,
+      "target_duration_frames": 60,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "KEIYO\n傘型サンシェード",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C4",
+      "target_start_seconds": 6.0,
+      "target_duration_seconds": 3.0,
+      "target_start_frame": 180,
+      "target_duration_frames": 90,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "傘みたいに開いて\n簡単設置",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C5",
+      "target_start_seconds": 9.0,
+      "target_duration_seconds": 3.033333,
+      "target_start_frame": 270,
+      "target_duration_frames": 91,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "UVカット率\n約99％",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C6",
+      "target_start_seconds": 12.0,
+      "target_duration_seconds": 3.0,
+      "target_start_frame": 360,
+      "target_duration_frames": 90,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "チタンシルバー採用\n車内温度上昇を軽減",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C7",
+      "target_start_seconds": 15.0,
+      "target_duration_seconds": 3.0,
+      "target_start_frame": 450,
+      "target_duration_frames": 90,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "閉じてまとめる",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C8",
+      "target_start_seconds": 18.0,
+      "target_duration_seconds": 3.0,
+      "target_start_frame": 540,
+      "target_duration_frames": 90,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "折りたためて\nコンパクト収納",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C9",
+      "target_start_seconds": 21.0,
+      "target_duration_seconds": 4.0,
+      "target_start_frame": 630,
+      "target_duration_frames": 120,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "10本骨仕様",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    },
+    {
+      "cut_id": "C10",
+      "target_start_seconds": 25.0,
+      "target_duration_seconds": 4.566666,
+      "target_start_frame": 750,
+      "target_duration_frames": 137,
+      "transform": {
+        "x": 0.0,
+        "y": 0.625
+      },
+      "scale": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "text": "下のカートから\nチェックして",
+      "font_title": "none",
+      "font_file": "en.ttf",
+      "font_size": 18.0,
+      "bold": true,
+      "fill_rgb": [
+        1,
+        1,
+        1
+      ],
+      "stroke_rgb": [
+        0,
+        0,
+        0
+      ],
+      "stroke_width": 0.0599999986588955,
+      "has_shadow": false,
+      "alignment": 1,
+      "line_spacing": 0.02,
+      "line_max_width": 0.82
+    }
+  ]
+}

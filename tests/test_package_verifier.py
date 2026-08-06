@@ -88,7 +88,10 @@ class PackageVerifierTests(unittest.TestCase):
     def test_symlink_is_rejected(self):
         temp, target = self.copy_repo()
         try:
-            (target / "linked").symlink_to("README.md")
+            try:
+                (target / "linked").symlink_to("README.md")
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlink creation is unavailable on this platform: {exc}")
             self.assertTrue(any("symlink forbidden" in error for error in VERIFY.verify(target)))
         finally:
             temp.cleanup()

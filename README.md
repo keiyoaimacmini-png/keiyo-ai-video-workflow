@@ -66,6 +66,7 @@ $create-tiktok-product-video
 ```bash
 python3 scripts/verify_package.py
 python3 scripts/verify_golden_baseline.py
+python3 scripts/verify_golden_baseline_v2.py
 ./scripts/verify-release.sh
 python3 plugins/keiyo-product-video/skills/create-tiktok-product-video/scripts/validate_product_video_payload.py --self-test
 python3 -m unittest discover -s tests -v
@@ -77,6 +78,8 @@ python3 -m unittest discover -s tests -v
 
 ## Mac版ゴールデン基準
 
-`golden-baselines/an-s182/v1/`は、Macで制作したAN-S182動画の構成・素材選定・字幕・音声配置を、Windowsで再現するための基準です。素材ファイルやフレーム画像は格納せず、素材ID、ファイル名、使用範囲、sidecarのハッシュ、カットごとの意味要件だけを保持します。
+`golden-baselines/an-s182/v1/`は旧プロジェクトを記録した履歴用HOLD基準です。`golden-baselines/an-s182/v2/`が、ユーザー受入済みの現行完成Mac版`AI作成_AN-S182_2026_08_06`をWindowsで再現するための基準です。v2ではC4を`IMG_3958.MOV`、C6を`IMG_3893.MOV`として固定し、全カットのsidecar照合が`verified`です。
 
-この基準は既存プロジェクトを現行の新規動画payloadへ遡及変換するものではありません。Mac版を説明する独立した受入テストです。現在は旧プロジェクトを記録した既知のHOLDを含む評価用版であり、Mac/Windows共通の正式採用基準ではありません。専用ブランチでの公開によって既存の`v1.0.0`が変更されることもありません。
+どちらも素材ファイルやフレーム画像を格納せず、素材ID、ファイル名、使用範囲、sidecarのハッシュ、カットごとの意味要件だけを保持します。
+
+これらの基準は既存プロジェクトを現行の新規動画payloadへ遡及変換するものではありません。Mac版を説明する独立した受入テストです。v2はMac正解見本として受入済みですが、Windows環境・音声・権利確認はHOLDであり、Windows同等品質や編集・書き出しの許可を自動的に意味しません。専用ブランチでの公開によって既存の`v1.0.0`が変更されることもありません。

@@ -36,16 +36,29 @@ REQUIRED_FILES = {
     "golden-baselines/an-s182/v1/material-map.json",
     "golden-baselines/an-s182/v1/timeline.json",
     "golden-baselines/an-s182/v1/windows-reproduction.md",
+    "golden-baselines/an-s182/v2/EVIDENCE.sha256",
+    "golden-baselines/an-s182/v2/README_JA.md",
+    "golden-baselines/an-s182/v2/acceptance.json",
+    "golden-baselines/an-s182/v2/audio-layout.json",
+    "golden-baselines/an-s182/v2/baseline.manifest.json",
+    "golden-baselines/an-s182/v2/caption-style.json",
+    "golden-baselines/an-s182/v2/environment.json",
+    "golden-baselines/an-s182/v2/export-settings.json",
+    "golden-baselines/an-s182/v2/material-map.json",
+    "golden-baselines/an-s182/v2/timeline.json",
+    "golden-baselines/an-s182/v2/windows-reproduction.md",
     "MANIFEST.sha256",
     "plugins/keiyo-product-video/.codex-plugin/plugin.json",
     "scripts/bootstrap.sh",
     "scripts/build_capcut_golden_baseline.py",
     "scripts/install-sol-advisor.sh",
     "scripts/verify_golden_baseline.py",
+    "scripts/verify_golden_baseline_v2.py",
     "scripts/verify-release.sh",
     "scripts/verify_package.py",
     "tests/test_package_verifier.py",
     "tests/test_golden_baseline.py",
+    "tests/test_golden_baseline_v2.py",
     *PINNED_SKILL_HASHES,
 }
 DENIED_SUFFIXES = {
@@ -219,6 +232,24 @@ def verify(root: Path) -> list[str]:
                 )
         except Exception as exc:  # fail closed for a distribution verifier
             errors.append(f"golden baseline verifier failed: {exc}")
+    current_baseline_verifier_path = root / "scripts/verify_golden_baseline_v2.py"
+    if current_baseline_verifier_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "portable_verify_golden_baseline_v2",
+                current_baseline_verifier_path,
+            )
+            if spec is None or spec.loader is None:
+                errors.append("cannot load golden baseline v2 verifier")
+            else:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                errors.extend(
+                    f"golden baseline v2: {error}"
+                    for error in module.verify(root / "golden-baselines/an-s182/v2")
+                )
+        except Exception as exc:  # fail closed for a distribution verifier
+            errors.append(f"golden baseline v2 verifier failed: {exc}")
     return errors
 
 
