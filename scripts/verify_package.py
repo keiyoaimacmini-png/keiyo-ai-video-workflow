@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -24,13 +25,27 @@ REQUIRED_FILES = {
     ".gitignore",
     "README.md",
     "docs/INSTALL_SOL_ADVISOR_JA.md",
+    "golden-baselines/an-s182/v1/EVIDENCE.sha256",
+    "golden-baselines/an-s182/v1/README_JA.md",
+    "golden-baselines/an-s182/v1/acceptance.json",
+    "golden-baselines/an-s182/v1/audio-layout.json",
+    "golden-baselines/an-s182/v1/baseline.manifest.json",
+    "golden-baselines/an-s182/v1/caption-style.json",
+    "golden-baselines/an-s182/v1/environment.json",
+    "golden-baselines/an-s182/v1/export-settings.json",
+    "golden-baselines/an-s182/v1/material-map.json",
+    "golden-baselines/an-s182/v1/timeline.json",
+    "golden-baselines/an-s182/v1/windows-reproduction.md",
     "MANIFEST.sha256",
     "plugins/keiyo-product-video/.codex-plugin/plugin.json",
     "scripts/bootstrap.sh",
+    "scripts/build_capcut_golden_baseline.py",
     "scripts/install-sol-advisor.sh",
+    "scripts/verify_golden_baseline.py",
     "scripts/verify-release.sh",
     "scripts/verify_package.py",
     "tests/test_package_verifier.py",
+    "tests/test_golden_baseline.py",
     *PINNED_SKILL_HASHES,
 }
 DENIED_SUFFIXES = {
@@ -189,6 +204,21 @@ def verify(root: Path) -> list[str]:
             errors.append(f"pinned skill hash mismatch: {relative}")
     errors.extend(validate_json(root))
     errors.extend(forbidden_content_errors(root, files))
+    baseline_verifier_path = root / "scripts/verify_golden_baseline.py"
+    if baseline_verifier_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location("portable_verify_golden_baseline", baseline_verifier_path)
+            if spec is None or spec.loader is None:
+                errors.append("cannot load golden baseline verifier")
+            else:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                errors.extend(
+                    f"golden baseline: {error}"
+                    for error in module.verify(root / "golden-baselines/an-s182/v1")
+                )
+        except Exception as exc:  # fail closed for a distribution verifier
+            errors.append(f"golden baseline verifier failed: {exc}")
     return errors
 
 

@@ -1,0 +1,409 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "materials": [
+    {
+      "cut_id": "C1",
+      "purpose": "冒頭で夏の車内のつらさを即時に伝える",
+      "must_show": [
+        "車内の人物",
+        "暑くて苦しそうな表情または姿勢"
+      ],
+      "must_not_show": [
+        "落ち着いた表情",
+        "暑さが伝わらない中立的なリアクション"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3977.MOV",
+          "original_source_range_seconds": [
+            2.0,
+            4.0
+          ],
+          "project_resource_name": "C1_IMG_3977_2-4.8.mp4",
+          "asset_id": "A125",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 36306709,
+          "source_projection_sha256": "db6bb37b72ddba9f4d8a1d388125a0acd19594ec05c7962ce6d501fce37162ad",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "5c904863c04f6c2d26cea20f8c891213d2c0a93903a7e13141443bef80eb17e3",
+          "project_resource_size_bytes": 8476820,
+          "sidecar_json_sha256": "e3896a842c6a7c207abf657ebf6b0e719756fce2e36e5e69685003066f63a467",
+          "sidecar_md_sha256": "553879eb457daad81b08bb3bc0f0974212afe21ab79b1edf1c495c5444116ff8",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C2",
+      "purpose": "暑さへの苛立ちをC1とは別のリアクションで強める",
+      "must_show": [
+        "運転席の人物",
+        "苛立ちまたはうんざりした動作"
+      ],
+      "must_not_show": [
+        "C1と同じリアクション",
+        "笑顔だけのカット"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3976.MOV",
+          "original_source_range_seconds": [
+            6.5,
+            8.5
+          ],
+          "project_resource_name": "C2_IMG_3976_6.5-9.3.mp4",
+          "asset_id": "A124",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 70315369,
+          "source_projection_sha256": "916d41a89748a68d48980fee8131188af22bd90e05a46ebf2bfe07aa5ac9bc5f",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "d577720be6487fa3489b5cba33881fec704c1af3011cd6175a057e1da64d660e",
+          "project_resource_size_bytes": 9457146,
+          "sidecar_json_sha256": "b5993bffbc75dcbe1c2bd635d2a13ce8c810a373ddeb3e66c6980ee19ac68fee",
+          "sidecar_md_sha256": "cab7fced7e382783c39e7a4092b0b0bb4271b1e03ae483601f87f7f1b52aa038",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C3",
+      "purpose": "商品を主役として初登場させる",
+      "must_show": [
+        "屋外",
+        "商品全体",
+        "商品をカメラまたは空へ向けて開く動作"
+      ],
+      "must_not_show": [
+        "商品が見切れる",
+        "カメラと逆向きに開く",
+        "比較用の別製品"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3920.MOV",
+          "original_source_range_seconds": [
+            3.6,
+            5.6
+          ],
+          "project_resource_name": "C3_IMG_3920_outdoor_open_toward_camera_3.6-5.6.mp4",
+          "asset_id": "A057",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 21583367,
+          "source_projection_sha256": "b7573ed005b1eb1fce84e241cb3563fc88af4b7709bddbc69be66454fba61143",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "d1f691c1f13ded60335732c2879bab0b8d662e0ca4401ac80a1f93b5f14f07b8",
+          "project_resource_size_bytes": 8936883,
+          "sidecar_json_sha256": "4943fb64ffde614ae36d5fec6260b66290b9eaa21ccf7d650975a024ffe9c282",
+          "sidecar_md_sha256": "2d9b1a0a201b10955085aa775efb512574f3724d4ef10733d4516d67faea32b3",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C4",
+      "purpose": "傘のように開いてフロントガラスへ設置できることを示す",
+      "must_show": [
+        "車内",
+        "傘型の開閉動作",
+        "フロントガラスへの設置過程"
+      ],
+      "must_not_show": [
+        "完成状態だけで設置動作が見えない",
+        "比較用の別製品"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3957.MOV",
+          "original_source_range_seconds": [
+            0.4,
+            2.0
+          ],
+          "project_resource_name": null,
+          "asset_id": null,
+          "original_media_status": "hold_original_media_or_sidecar_unavailable",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": null,
+          "source_projection_sha256": null,
+          "project_resource_status": "not_applicable",
+          "project_resource_sha256": null,
+          "project_resource_size_bytes": null,
+          "sidecar_json_sha256": null,
+          "sidecar_md_sha256": null,
+          "sidecar_status": "hold_sidecar_unavailable",
+          "reproduction_source_status": "hold_original_or_sidecar_unavailable"
+        },
+        {
+          "original_filename": "IMG_3957.MOV",
+          "original_source_range_seconds": [
+            2.0,
+            3.0
+          ],
+          "project_resource_name": null,
+          "asset_id": null,
+          "original_media_status": "hold_original_media_or_sidecar_unavailable",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": null,
+          "source_projection_sha256": null,
+          "project_resource_status": "not_applicable",
+          "project_resource_sha256": null,
+          "project_resource_size_bytes": null,
+          "sidecar_json_sha256": null,
+          "sidecar_md_sha256": null,
+          "sidecar_status": "hold_sidecar_unavailable",
+          "reproduction_source_status": "hold_original_or_sidecar_unavailable"
+        }
+      ]
+    },
+    {
+      "cut_id": "C5",
+      "purpose": "設置後の内側と広いカバー範囲を示す",
+      "must_show": [
+        "設置済み商品の黒い内側",
+        "骨組み",
+        "フロントガラスの広い被覆"
+      ],
+      "must_not_show": [
+        "UVカット率を映像だけで実測したように見せる表現"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3956.MOV",
+          "original_source_range_seconds": [
+            0.2,
+            3.2
+          ],
+          "project_resource_name": null,
+          "asset_id": "A086",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 30204178,
+          "source_projection_sha256": "d5e2b4137787e9b51b6f0757b7125ff653ee73492bb64d30e33cf7040294073a",
+          "project_resource_status": "not_applicable",
+          "project_resource_sha256": null,
+          "project_resource_size_bytes": null,
+          "sidecar_json_sha256": "1810c679787f09b6e78f235bd88d371136fb006c36ab6e4ad5b40fa472ac296b",
+          "sidecar_md_sha256": "7f303f29451f3e0925d25f53481891291fd1a3e3bfd4e69f49fe0e96e0379ac4",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C6",
+      "purpose": "チタンシルバー面と車外から見た被覆状態を示す",
+      "must_show": [
+        "車外正面",
+        "銀色の面",
+        "フロントガラス全体の被覆"
+      ],
+      "must_not_show": [
+        "黒い面だけ",
+        "比較用の別製品"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3963.MOV",
+          "original_source_range_seconds": [
+            0.3,
+            3.3
+          ],
+          "project_resource_name": null,
+          "asset_id": null,
+          "original_media_status": "hold_original_media_or_sidecar_unavailable",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": null,
+          "source_projection_sha256": null,
+          "project_resource_status": "not_applicable",
+          "project_resource_sha256": null,
+          "project_resource_size_bytes": null,
+          "sidecar_json_sha256": null,
+          "sidecar_md_sha256": null,
+          "sidecar_status": "hold_sidecar_unavailable",
+          "reproduction_source_status": "hold_original_or_sidecar_unavailable"
+        }
+      ]
+    },
+    {
+      "cut_id": "C7",
+      "purpose": "閉じてまとめる動作を示す",
+      "must_show": [
+        "商品のクローズアップ",
+        "閉じるまたは折りまとめる手元"
+      ],
+      "must_not_show": [
+        "開く動作だけ",
+        "比較用の別製品"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_0374.MOV",
+          "original_source_range_seconds": [
+            0.0,
+            2.5
+          ],
+          "project_resource_name": "C7_IMG_0374_0-3.8.mp4",
+          "asset_id": "A119",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 118725738,
+          "source_projection_sha256": "8b6a7cd075c5e006ad5e5cea1b974c4f512c38730d6f81ddb91806eb4c629e20",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "d8a237ab400370c471925dc274317a084509dce94664a1ab515f84263d8131b8",
+          "project_resource_size_bytes": 6209117,
+          "sidecar_json_sha256": "0b26c3f118c77b8e6846fbf76bad9b48a8bcc4e195278a86562d248d411f0aa9",
+          "sidecar_md_sha256": "5a47cf782bb8c839322288150aa29baed4a63124bb6743c3423c111f38bf8413",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        },
+        {
+          "original_filename": "IMG_0374.MOV",
+          "original_source_range_seconds": [
+            2.4,
+            3.4
+          ],
+          "project_resource_name": "C7b_IMG_0374_2.4-5.2.mp4",
+          "asset_id": "A119",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 118725738,
+          "source_projection_sha256": "8b6a7cd075c5e006ad5e5cea1b974c4f512c38730d6f81ddb91806eb4c629e20",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "9f50656029ed4885c4feebb1f6b9c5aceea7f32e457184b1bcf05a945f83fb2b",
+          "project_resource_size_bytes": 4080761,
+          "sidecar_json_sha256": "0b26c3f118c77b8e6846fbf76bad9b48a8bcc4e195278a86562d248d411f0aa9",
+          "sidecar_md_sha256": "5a47cf782bb8c839322288150aa29baed4a63124bb6743c3423c111f38bf8413",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C8",
+      "purpose": "収納時のコンパクトさを示す",
+      "must_show": [
+        "折りたたまれた商品",
+        "手で持てるサイズ感"
+      ],
+      "must_not_show": [
+        "開いた商品",
+        "比較用の別製品"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_0373.MOV",
+          "original_source_range_seconds": [
+            68.0,
+            71.0
+          ],
+          "project_resource_name": "C8_IMG_0373_68-71.8.mp4",
+          "asset_id": "A118",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 85133412,
+          "source_projection_sha256": "8ed757222a05e4d801239481c36a3aaa2208975b09f80f0ee823172aacd694a7",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "8805b70af5e130752f8093b0627ed8bd5292c8ead7ef386a477503f08e66b503",
+          "project_resource_size_bytes": 5527849,
+          "sidecar_json_sha256": "e4c64b2c3f5bf2c4cdb37d3b7ff8077c80e71389ebdc5e57262b554a3d606e5f",
+          "sidecar_md_sha256": "0f01b78bb9d0ceb30abf9c5e762e8126ecc829a075db109088395185b6849783",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C9",
+      "purpose": "10本骨仕様を視覚的に補強する",
+      "must_show": [
+        "開いた商品",
+        "骨組みが明瞭に見える構図"
+      ],
+      "must_not_show": [
+        "骨組みが隠れている",
+        "別素材で本数が判別できない"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3958.MOV",
+          "original_source_range_seconds": [
+            0.2,
+            4.2
+          ],
+          "project_resource_name": "C9_IMG_3958_0.2-5.3.mp4",
+          "asset_id": "A088",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 16058558,
+          "source_projection_sha256": "e95934d8b5b43af828f686274f3e042a14c7d1de00fd32a674bcb51c572adac7",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "5a0d5a0f847242630d8b6950d34d269f2ce7d40e2c6cb996d706f95e02f4f8c8",
+          "project_resource_size_bytes": 19474720,
+          "sidecar_json_sha256": "5b4e5cff5b9a31080c6204dfa7ea3d0a91f2f85a74b383ffe9bc6e51ac6a6c15",
+          "sidecar_md_sha256": "d25bcf1730c14c763725f08c7fc84d833e1661052c8cbd7875bf2a001985c453",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    },
+    {
+      "cut_id": "C10",
+      "purpose": "商品を再提示し、下方向の購入導線で締める",
+      "must_show": [
+        "設置済み商品",
+        "人物の下向き指差し"
+      ],
+      "must_not_show": [
+        "商品が映らない",
+        "指差す方向が不明",
+        "CTAと逆方向の指差し"
+      ],
+      "review_flags": [
+        "人物の顔",
+        "車両ブランド",
+        "背景の建物"
+      ],
+      "assets": [
+        {
+          "original_filename": "IMG_3931.MOV",
+          "original_source_range_seconds": [
+            0.0,
+            4.7
+          ],
+          "project_resource_name": "C10_IMG_3931_0-5.5.mp4",
+          "asset_id": "A064",
+          "original_media_status": "verified_by_catalog_and_sidecar",
+          "original_media_sha256": null,
+          "original_media_sha256_status": "not_computed_to_avoid_file_provider_download",
+          "original_media_logical_size_bytes": 16474802,
+          "source_projection_sha256": "52948c3de9cb0b99ed7ed137cc309feb605341033478be1e7029f8f7b31776a5",
+          "project_resource_status": "verified",
+          "project_resource_sha256": "5c175b7eec1ad7dc0b736a52dfb2ab30d768ac9b4a64f42a1d82f4bdd1c1a07c",
+          "project_resource_size_bytes": 23249492,
+          "sidecar_json_sha256": "0166b9a9776277bafaf2ba392451dfaab2731312aeea83743bd3cd1e44f14c6a",
+          "sidecar_md_sha256": "5289ecaafdd75911b3ac1e230a58634dd01ebb1f1ea6f3d2fe2f13e289c3b1b8",
+          "sidecar_status": "verified",
+          "reproduction_source_status": "verified"
+        }
+      ]
+    }
+  ],
+  "asset_identity_policy": "asset_id_plus_filename_plus_logical_size_plus_sidecar_hashes; original media hash intentionally not recomputed",
+  "contains_media": false
+}
