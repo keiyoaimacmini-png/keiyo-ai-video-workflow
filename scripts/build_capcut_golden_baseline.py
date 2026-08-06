@@ -98,15 +98,37 @@ def resolve_material_path(raw: str, project_root: Path) -> Path | None:
     return candidate if candidate.is_absolute() else None
 
 
-def source_selector(material_path: str, source_start_us: int, source_duration_us: int) -> dict[str, Any]:
+def source_selector(
+    material_path: str,
+    source_start_us: int,
+    source_duration_us: int,
+    material_duration_us: int | None = None,
+) -> dict[str, Any]:
     basename = Path(material_path).name
     original_match = re.search(r"(IMG_\d+)", basename, re.I)
     original_name = f"{original_match.group(1).upper()}.MOV" if original_match else basename
-    snippet_range = re.search(r"_(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)\.[^.]+$", basename)
+    snippet_range = re.search(
+        r"_(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)(?:_([^.]+))?\.[^.]+$",
+        basename,
+    )
     if snippet_range:
         base_start = float(snippet_range.group(1))
-        original_start = base_start + source_start_us / 1_000_000
-        original_end = original_start + source_duration_us / 1_000_000
+        base_end = float(snippet_range.group(2))
+        modifier = snippet_range.group(3) or ""
+        if modifier.startswith("slow") and (
+            material_duration_us
+            and source_start_us == 0
+            and abs(source_duration_us - material_duration_us) <= 50_000
+        ):
+            original_start = base_start
+            original_end = base_end
+        elif modifier.startswith("slow") and material_duration_us:
+            original_span = base_end - base_start
+            original_start = base_start + original_span * source_start_us / material_duration_us
+            original_end = base_start + original_span * (source_start_us + source_duration_us) / material_duration_us
+        else:
+            original_start = base_start + source_start_us / 1_000_000
+            original_end = original_start + source_duration_us / 1_000_000
     else:
         original_start = source_start_us / 1_000_000
         original_end = original_start + source_duration_us / 1_000_000
@@ -205,6 +227,8 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--asset-root", type=Path)
     parser.add_argument("--captured-at", required=True)
+    parser.add_argument("--baseline-id", default="an-s182-mac-capcut-rakuten-v1")
+    parser.add_argument("--baseline-status", default="hold_until_user_accepts_golden_reference")
     args = parser.parse_args()
 
     draft_path = args.draft_info.resolve()
@@ -266,6 +290,7 @@ def main() -> int:
                 video_material.get("path") or "",
                 int((segment.get("source_timerange") or {}).get("start") or 0),
                 int((segment.get("source_timerange") or {}).get("duration") or 0),
+                int(video_material.get("duration") or 0) or None,
             )
             receipt = material_receipt(
                 selector["original_filename"],
@@ -432,10 +457,10 @@ def main() -> int:
     }
     baseline_manifest = {
         "schema_version": SCHEMA_VERSION,
-        "baseline_id": "an-s182-mac-capcut-rakuten-v1",
+        "baseline_id": args.baseline_id,
         "product_model": "AN-S182",
         "captured_at": args.captured_at,
-        "status": "hold_until_user_accepts_golden_reference",
+        "status": args.baseline_status,
         "source_receipt": {
             "project_name": args.project_name,
             "draft_info_sha256": sha256(draft_path),
