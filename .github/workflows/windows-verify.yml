@@ -13,9 +13,6 @@ jobs:
     name: PowerShell and Python 3.12
     runs-on: windows-latest
     timeout-minutes: 15
-    env:
-      WINDOWS_VERIFY_REPORT: ${{ runner.temp }}\windows-verification-report.json
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}\python-cache
 
     steps:
       - name: Check out repository
@@ -28,18 +25,19 @@ jobs:
 
       - name: Run fail-closed Windows verification
         shell: pwsh
-        run: >-
-          ./scripts/verify-windows.ps1
-          -ReportPath $env:WINDOWS_VERIFY_REPORT
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "windows-verification-report.json"
+          ./scripts/verify-windows.ps1 -ReportPath $reportPath
 
       - name: Parse verification report
         if: always()
         shell: pwsh
         run: |
-          if (-not (Test-Path -LiteralPath $env:WINDOWS_VERIFY_REPORT -PathType Leaf)) {
+          $reportPath = Join-Path $env:RUNNER_TEMP "windows-verification-report.json"
+          if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
             throw "Windows verification report was not created."
           }
-          $report = Get-Content -LiteralPath $env:WINDOWS_VERIFY_REPORT -Raw -Encoding utf8 | ConvertFrom-Json
+          $report = Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | ConvertFrom-Json
           if ($report.schema_version -ne "keiyo.windows-verification.v1") {
             throw "Windows verification report schema is invalid."
           }
