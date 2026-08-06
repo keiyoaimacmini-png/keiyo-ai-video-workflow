@@ -21,6 +21,8 @@ PINNED_SKILL_HASHES = {
     f"{SKILL}/scripts/validate_product_video_payload.py": "1fbcde20d22ebd92793a193c3bfc79adaf745c9c91637494724ce424826a8684",
 }
 REQUIRED_FILES = {
+    ".gitattributes",
+    ".github/workflows/windows-verify.yml",
     ".agents/plugins/marketplace.json",
     ".gitignore",
     "README.md",
@@ -49,6 +51,7 @@ REQUIRED_FILES = {
     "golden-baselines/an-s182/v2/windows-reproduction.md",
     "MANIFEST.sha256",
     "plugins/keiyo-product-video/.codex-plugin/plugin.json",
+    "scripts/bootstrap.ps1",
     "scripts/bootstrap.sh",
     "scripts/build_capcut_golden_baseline.py",
     "scripts/install-sol-advisor.sh",
@@ -56,7 +59,9 @@ REQUIRED_FILES = {
     "scripts/verify_golden_baseline_v2.py",
     "scripts/verify-release.sh",
     "scripts/verify_package.py",
+    "scripts/verify-windows.ps1",
     "tests/test_package_verifier.py",
+    "tests/test_windows_automation.py",
     "tests/test_golden_baseline.py",
     "tests/test_golden_baseline_v2.py",
     *PINNED_SKILL_HASHES,
