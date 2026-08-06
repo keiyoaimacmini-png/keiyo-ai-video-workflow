@@ -8,10 +8,9 @@ import math
 import re
 import sys
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
 
 MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4}$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -21,7 +20,10 @@ CTA = "下のカートからチェック"
 GATES = ("edit", "export", "cloud", "publish", "credit", "send")
 ROOT = {"created_at", "manifest", "manifest_ref", "product_info", "goal_axis", "patterns", "facts_used", "hypotheses", "script", "cuts", "captions", "tts", "audio", "post_set", "design_quality_qa", "risk_register", "component_hashes", "portable_setup", "delivery", "approval_gates", "routing", "openclaw_prohibition", "camee_tiktok_shop", "integrity", "cleanup_preflight"}
 ALIAS_KEYS = {"path", "source_path", "local_path", "file_path", "absolute_path", "asset_hashes", "asset_sha256", "requirements_hash", "required_media_description", "must_show", "must_not_show"}
-JST = ZoneInfo("Asia/Tokyo")
+# Japan Standard Time is permanently UTC+09:00.  A fixed offset keeps the
+# portable validator independent of the optional IANA tzdata package, which is
+# not bundled with every Windows Python installation.
+JST = timezone(timedelta(hours=9), name="Asia/Tokyo")
 GOAL_AXES = {"watch_continuation", "comment_content_coupling", "reward_stimulation"}
 SEMANTIC_ENUMS = {"subject": {"product", "hand", "person", "product_and_hand"}, "action": {"static", "hold", "press", "use", "reveal"}, "composition": {"close_up", "medium", "overhead", "wide"}, "product_visibility": {"full", "partial"}, "text_visibility": {"none", "product_label"}}
 QA_MAX = {"hook": 15, "tempo": 10, "emotion": 10, "continuation_design": 15, "save_design": 10, "comment_design": 10, "share_design": 10, "purchase_path_design": 20}

@@ -18,7 +18,7 @@ PINNED_SKILL_HASHES = {
     f"{SKILL}/SKILL.md": "4eb189bfb5f06399457c20a6d80f37e71de2835a04190b742c9e27e9dc21ae5f",
     f"{SKILL}/agents/openai.yaml": "18695ed5a17f88debe464682cd9f81cb79d94a302c81d7b2b6123347f1df081f",
     f"{SKILL}/references/payload_contract.md": "6d05f728b5fa87b842b9f3c2feeb608c773d17dd8cca8bb41c8e2ca05a7fbba6",
-    f"{SKILL}/scripts/validate_product_video_payload.py": "1fbcde20d22ebd92793a193c3bfc79adaf745c9c91637494724ce424826a8684",
+    f"{SKILL}/scripts/validate_product_video_payload.py": "de10506d1ab9ae6260df3a6d3ae43c524897cd3de643293b9a422a0f2462f6ee",
 }
 REQUIRED_FILES = {
     ".gitattributes",
