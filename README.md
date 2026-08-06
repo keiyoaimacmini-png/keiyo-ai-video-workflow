@@ -2,7 +2,7 @@
 
 別PC・別Codexアカウントへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
 
-このリポジトリにはスキル、検証器、契約書だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先、CapCutのプロジェクト状態は含めません。
+このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先、CapCutのプロジェクト状態は含めません。
 
 ## 引き継ぎの全体像
 
@@ -65,9 +65,18 @@ $create-tiktok-product-video
 
 ```bash
 python3 scripts/verify_package.py
+python3 scripts/verify_golden_baseline.py
 ./scripts/verify-release.sh
 python3 plugins/keiyo-product-video/skills/create-tiktok-product-video/scripts/validate_product_video_payload.py --self-test
 python3 -m unittest discover -s tests -v
 ```
 
 すべてPASSするまで、タグ作成・導入・共有を行いません。`MANIFEST.sha256`は配布ファイルの完全性を固定します。導入時はrelease、marketplace snapshot、installed sourceのplugin manifestとスキル4ファイルを同じmanifest hashへ照合します。
+
+`PASS_GOLDEN_BASELINE status=HOLD`は、既知のHOLDを含む基準データが改変されず、検証器がそのHOLDを正確に固定できたという完全性判定です。Mac版のゴールデン採用、Windowsでの同等品質、書き出し・公開の許可を意味しません。
+
+## Mac版ゴールデン基準
+
+`golden-baselines/an-s182/v1/`は、Macで制作したAN-S182動画の構成・素材選定・字幕・音声配置を、Windowsで再現するための基準です。素材ファイルやフレーム画像は格納せず、素材ID、ファイル名、使用範囲、sidecarのハッシュ、カットごとの意味要件だけを保持します。
+
+この基準は既存プロジェクトを現行の新規動画payloadへ遡及変換するものではありません。Mac版を説明する独立した受入テストです。現在は旧プロジェクトを記録した既知のHOLDを含む評価用版であり、Mac/Windows共通の正式採用基準ではありません。専用ブランチでの公開によって既存の`v1.0.0`が変更されることもありません。
