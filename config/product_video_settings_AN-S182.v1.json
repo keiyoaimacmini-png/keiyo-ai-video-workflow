@@ -1,0 +1,62 @@
+{
+  "schema_version": "1",
+  "status": "active",
+  "product_model": "AN-S182",
+  "cta": {
+    "text": "下からチェック！",
+    "literal_match_required": true
+  },
+  "caption_template": {
+    "mode": "uniform_all_captions",
+    "provider": "capcut",
+    "source": "official",
+    "resource_type": "text_template",
+    "resource_id": "7580304846847282485",
+    "effect_id": "7580304846847282485",
+    "display_name": "キラキラ変身",
+    "resource_readback_required": true
+  },
+  "narration": {
+    "default_voice_preset": "ホリデーツイスト",
+    "base_speed": 1.0,
+    "fallback_speed_min": 1.2,
+    "fallback_speed_max": 1.5,
+    "uniform_speed_required": true
+  },
+  "final_cut_block": {
+    "block_id": "AN-S182-final-cta-v1",
+    "reusable": true,
+    "asset_id": "A064",
+    "file_name": "IMG_3931.MOV",
+    "drive_relative_path": "AN-S182/20260715/IMG_3931.MOV",
+    "source_in": 0.0,
+    "source_out": 5.566667,
+    "range_mode": "full_source",
+    "cta_text": "下からチェック！",
+    "reuse_key_fields": [
+      "settings_sha256",
+      "common_narration_speed"
+    ],
+    "shorten_without_explicit_override": false
+  },
+  "pre_tts_gate": {
+    "freeze_text_before_generation": true,
+    "freeze_line_breaks_before_generation": true,
+    "record_character_count": true,
+    "record_estimated_speech_seconds": true,
+    "require_estimate_within_cut": true,
+    "overflow_order": [
+      "apply_one_common_tts_speed_within_fallback_range",
+      "replace_affected_cut_with_longer_verified_distinct_source",
+      "slow_affected_video_and_caption_preserving_verified_source_range"
+    ]
+  },
+  "timeline_reconciliation": {
+    "automatic": true,
+    "match_key": "cut_id",
+    "require_caption_count_equals_source_count": true,
+    "require_tts_count_equals_narration_target_caption_count": true,
+    "require_start_alignment": true,
+    "require_containment": true
+  }
+}
