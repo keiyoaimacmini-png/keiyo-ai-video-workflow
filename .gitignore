@@ -14,3 +14,8 @@ exports/
 downloads/
 .local/
 
+# Cursor product-video runtime. Never commit these artifacts.
+.runtime/
+inputs/
+outputs/
+work/

@@ -1,0 +1,34 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "source": "user_fixed_preference_and_observed_mac_export_receipt",
+  "desired_target": {
+    "ai_uhd_enabled": true,
+    "resolution": "4K",
+    "frame_rate_fps": 30,
+    "optical_flow_enabled": true,
+    "bitrate_mbps": 100,
+    "smart_hdr_enabled": true
+  },
+  "accepted_mac_export_observed": {
+    "export_performed": true,
+    "resolution_pixels": "2160x3840",
+    "frame_rate_fps": 30,
+    "bitrate_target_mbps": 100,
+    "codec": "H.264",
+    "container": "QuickTime MOV",
+    "optical_flow_enabled": true,
+    "color_space": "Rec.709 SDR",
+    "audio": "AAC stereo",
+    "duration_seconds": 29.698322,
+    "file_size_bytes": 359852413,
+    "sha256": "402fff58c91ad0b4f4fcd8fb87945c7da77bfdda0bda71f2501f9f4f10fb4282",
+    "user_confirmed_drive_playback": true,
+    "local_export_removed_after_user_approval": true
+  },
+  "unavailable_in_mac_export_ui": [
+    "AI Ultra HD",
+    "Smart HDR"
+  ],
+  "current_capcut_ui_readback": "verified_for_4k_30fps_100mbps_optical_flow_rec709_sdr",
+  "policy": "Windows must report availability and visible values; no silent fallback; export still requires separate approval"
+}

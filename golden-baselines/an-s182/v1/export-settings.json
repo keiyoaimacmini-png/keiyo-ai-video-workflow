@@ -1,0 +1,22 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "source": "user_fixed_preference",
+  "target": {
+    "ai_uhd_enabled": true,
+    "resolution": "4K",
+    "frame_rate_fps": 30,
+    "optical_flow_enabled": true,
+    "bitrate_mbps": 100,
+    "smart_hdr_enabled": true
+  },
+  "unknown": [
+    "container_format",
+    "codec",
+    "color_space",
+    "audio_codec",
+    "audio_bitrate"
+  ],
+  "current_capcut_ui_readback": "not_verified_in_this_baseline_capture",
+  "export_performed": false,
+  "policy": "verify each visible setting immediately before any separately approved export"
+}

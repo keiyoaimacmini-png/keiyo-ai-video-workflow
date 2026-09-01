@@ -2,7 +2,7 @@
 
 別PC・別Codexアカウントへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
 
-このリポジトリにはスキル、検証器、契約書だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先、CapCutのプロジェクト状態は含めません。
+このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先、CapCutのプロジェクト状態は含めません。
 
 ## 引き継ぎの全体像
 
@@ -14,6 +14,38 @@
 6. Codexで新しいタスクを開始してスキルを使う。
 
 GitHubやCodexのパスワード、Personal Access Token、OAuthコードはCodexへ貼り付けないでください。ブラウザまたはGitHub CLIの対話画面で本人が認証します。
+
+## Windows 11での1コマンド導入
+
+Windows側ではPowerShell 7（`pwsh`）、GitHub CLI、Git、Python 3.12を用意します。GitHubへのログイン、OAuth、MFA、Codexへのログインはユーザー本人が対話画面で完了してください。本スクリプトは認証情報を引数や独自の環境変数・設定ファイルとして受け取りません。
+
+最初にユーザー本人が認証し、privateリポジトリをcloneします。
+
+```powershell
+gh auth login
+gh auth status
+gh auth setup-git
+gh repo clone keiyoaimacmini-png/keiyo-ai-video-workflow
+Set-Location keiyo-ai-video-workflow
+```
+
+clone後の導入と検証は、リポジトリのルートで次の1コマンドを実行します。`<承認済みbranch>`にはWindows自動化を含むGitHub上のbranch、`<承認済みcommit SHA>`にはそのbranchの検証済み40桁SHAを指定します。既存の`v1.0.0`はこのWindows自動化より前の版なので指定しません。
+
+```powershell
+pwsh -NoProfile -File .\scripts\bootstrap.ps1 -Repo "keiyoaimacmini-png/keiyo-ai-video-workflow" -Ref "<承認済みbranch>" -ExpectedCommit "<承認済みcommit SHA>"
+```
+
+このコマンドは配布元と固定refを確認してから商品動画プラグインを導入し、Windows検証を実行します。検証結果が1件でも不一致ならPASSにせず停止します。Sol Advisorは別の公式導入工程であり、このコマンドには含まれません。
+
+導入済み環境の再検証だけを行う場合は、レポートをリポジトリ外へ指定して次の1コマンドを実行します。
+
+```powershell
+$report = Join-Path $env:TEMP "keiyo-windows-verification.json"; pwsh -NoProfile -File .\scripts\verify-windows.ps1 -ReportPath $report
+```
+
+`verify-windows.ps1`はWindows、PowerShell 7、Python 3.12を必須条件とし、package、AN-S182ゴールデン基準v2、payload self-test、Python unittestを読み取り専用で実行します。Pythonのキャッシュはリポジトリ外へ隔離し、リポジトリの変更、`__pycache__`、`.pyc`を検出した場合はfail closedで停止します。JSONレポートだけが指定先に残ります。
+
+この自動化の対象はGitHub上のportable skillの導入と検証です。Google Driveの接続・素材取得・原素材操作、CapCutの導入・編集・書き出し、音声やフォントの主観確認、クラウド保存、公開、課金、外部送信は行いません。これらは従来どおりHOLDとし、それぞれユーザーの確認または別承認が必要です。
 
 ## 前提条件
 
@@ -65,9 +97,21 @@ $create-tiktok-product-video
 
 ```bash
 python3 scripts/verify_package.py
+python3 scripts/verify_golden_baseline.py
+python3 scripts/verify_golden_baseline_v2.py
 ./scripts/verify-release.sh
 python3 plugins/keiyo-product-video/skills/create-tiktok-product-video/scripts/validate_product_video_payload.py --self-test
 python3 -m unittest discover -s tests -v
 ```
 
 すべてPASSするまで、タグ作成・導入・共有を行いません。`MANIFEST.sha256`は配布ファイルの完全性を固定します。導入時はrelease、marketplace snapshot、installed sourceのplugin manifestとスキル4ファイルを同じmanifest hashへ照合します。
+
+`PASS_GOLDEN_BASELINE status=HOLD`は、既知のHOLDを含む基準データが改変されず、検証器がそのHOLDを正確に固定できたという完全性判定です。Mac版のゴールデン採用、Windowsでの同等品質、書き出し・公開の許可を意味しません。
+
+## Mac版ゴールデン基準
+
+`golden-baselines/an-s182/v1/`は旧プロジェクトを記録した履歴用HOLD基準です。`golden-baselines/an-s182/v2/`が、ユーザー受入済みの現行完成Mac版`AI作成_AN-S182_2026_08_06`をWindowsで再現するための基準です。v2ではC4を`IMG_3958.MOV`、C6を`IMG_3893.MOV`として固定し、全カットのsidecar照合が`verified`です。
+
+どちらも素材ファイルやフレーム画像を格納せず、素材ID、ファイル名、使用範囲、sidecarのハッシュ、カットごとの意味要件だけを保持します。
+
+これらの基準は既存プロジェクトを現行の新規動画payloadへ遡及変換するものではありません。Mac版を説明する独立した受入テストです。v2はMac正解見本として受入済みですが、Windows環境・音声・権利確認はHOLDであり、Windows同等品質や編集・書き出しの許可を自動的に意味しません。専用ブランチでの公開によって既存の`v1.0.0`が変更されることもありません。

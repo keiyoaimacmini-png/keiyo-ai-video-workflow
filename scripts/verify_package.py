@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -14,23 +15,55 @@ PLUGIN_ID = "keiyo-product-video"
 MARKETPLACE_ID = "keiyo-ai-video-workflow"
 SKILL = "plugins/keiyo-product-video/skills/create-tiktok-product-video"
 PINNED_SKILL_HASHES = {
-    f"{SKILL}/SKILL.md": "4eb189bfb5f06399457c20a6d80f37e71de2835a04190b742c9e27e9dc21ae5f",
+    f"{SKILL}/SKILL.md": "a6617a8270e483c58925c78f86f01409f912a466effa296c36a1f48819f7aa76",
     f"{SKILL}/agents/openai.yaml": "18695ed5a17f88debe464682cd9f81cb79d94a302c81d7b2b6123347f1df081f",
-    f"{SKILL}/references/payload_contract.md": "6d05f728b5fa87b842b9f3c2feeb608c773d17dd8cca8bb41c8e2ca05a7fbba6",
-    f"{SKILL}/scripts/validate_product_video_payload.py": "1fbcde20d22ebd92793a193c3bfc79adaf745c9c91637494724ce424826a8684",
+    f"{SKILL}/references/payload_contract.md": "f8067b25588c9e89e9d4ab6d437d75dbae742a4116cca03a90c5b358ff7c8076",
+    f"{SKILL}/scripts/validate_product_video_payload.py": "d16605cf108c0dd219c20f1a267eafa87c350bbda5bfbad420959d1e75870477",
 }
 REQUIRED_FILES = {
+    ".gitattributes",
+    ".github/workflows/windows-verify.yml",
     ".agents/plugins/marketplace.json",
     ".gitignore",
     "README.md",
     "docs/INSTALL_SOL_ADVISOR_JA.md",
+    "golden-baselines/an-s182/v1/EVIDENCE.sha256",
+    "golden-baselines/an-s182/v1/README_JA.md",
+    "golden-baselines/an-s182/v1/acceptance.json",
+    "golden-baselines/an-s182/v1/audio-layout.json",
+    "golden-baselines/an-s182/v1/baseline.manifest.json",
+    "golden-baselines/an-s182/v1/caption-style.json",
+    "golden-baselines/an-s182/v1/environment.json",
+    "golden-baselines/an-s182/v1/export-settings.json",
+    "golden-baselines/an-s182/v1/material-map.json",
+    "golden-baselines/an-s182/v1/timeline.json",
+    "golden-baselines/an-s182/v1/windows-reproduction.md",
+    "golden-baselines/an-s182/v2/EVIDENCE.sha256",
+    "golden-baselines/an-s182/v2/README_JA.md",
+    "golden-baselines/an-s182/v2/acceptance.json",
+    "golden-baselines/an-s182/v2/audio-layout.json",
+    "golden-baselines/an-s182/v2/baseline.manifest.json",
+    "golden-baselines/an-s182/v2/caption-style.json",
+    "golden-baselines/an-s182/v2/environment.json",
+    "golden-baselines/an-s182/v2/export-settings.json",
+    "golden-baselines/an-s182/v2/material-map.json",
+    "golden-baselines/an-s182/v2/timeline.json",
+    "golden-baselines/an-s182/v2/windows-reproduction.md",
     "MANIFEST.sha256",
     "plugins/keiyo-product-video/.codex-plugin/plugin.json",
+    "scripts/bootstrap.ps1",
     "scripts/bootstrap.sh",
+    "scripts/build_capcut_golden_baseline.py",
     "scripts/install-sol-advisor.sh",
+    "scripts/verify_golden_baseline.py",
+    "scripts/verify_golden_baseline_v2.py",
     "scripts/verify-release.sh",
     "scripts/verify_package.py",
+    "scripts/verify-windows.ps1",
     "tests/test_package_verifier.py",
+    "tests/test_windows_automation.py",
+    "tests/test_golden_baseline.py",
+    "tests/test_golden_baseline_v2.py",
     *PINNED_SKILL_HASHES,
 }
 DENIED_SUFFIXES = {
@@ -189,6 +222,39 @@ def verify(root: Path) -> list[str]:
             errors.append(f"pinned skill hash mismatch: {relative}")
     errors.extend(validate_json(root))
     errors.extend(forbidden_content_errors(root, files))
+    baseline_verifier_path = root / "scripts/verify_golden_baseline.py"
+    if baseline_verifier_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location("portable_verify_golden_baseline", baseline_verifier_path)
+            if spec is None or spec.loader is None:
+                errors.append("cannot load golden baseline verifier")
+            else:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                errors.extend(
+                    f"golden baseline: {error}"
+                    for error in module.verify(root / "golden-baselines/an-s182/v1")
+                )
+        except Exception as exc:  # fail closed for a distribution verifier
+            errors.append(f"golden baseline verifier failed: {exc}")
+    current_baseline_verifier_path = root / "scripts/verify_golden_baseline_v2.py"
+    if current_baseline_verifier_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "portable_verify_golden_baseline_v2",
+                current_baseline_verifier_path,
+            )
+            if spec is None or spec.loader is None:
+                errors.append("cannot load golden baseline v2 verifier")
+            else:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                errors.extend(
+                    f"golden baseline v2: {error}"
+                    for error in module.verify(root / "golden-baselines/an-s182/v2")
+                )
+        except Exception as exc:  # fail closed for a distribution verifier
+            errors.append(f"golden baseline v2 verifier failed: {exc}")
     return errors
 
 
