@@ -1,0 +1,25 @@
+---
+name: finish-tiktok-product-video
+description: Apply the official caption template, generate and place bounded TTS, and finish a frozen product-video timeline after 粗編集OK. Use only when explicitly invoked or routed from produce-tiktok-product-video-portable at FINISHING, or for a bounded unapproved FINAL_REVIEW repair.
+---
+
+# Finish TikTok Product Video
+
+Input stage must be `FINISHING`, or `FINAL_REVIEW` with `完成・書き出しOK` still pending for a bounded repair. Exact `粗編集OK` must remain bound to the unchanged payload and execution-plan hashes. Read the parent core invariants, workflow-state contract, and `${SKILL_ROOT}/references/execution-plan-contract.md`.
+
+Read the edit-rule snapshot path registered in workflow state and verify its bytes against the rough-edit receipt. Do not rebuild it after `粗編集OK`; later rule-source changes belong to later cases unless the user explicitly reopens this case's frozen inputs.
+
+Read `${SKILL_ROOT}/references/self-repair.md` only after a real incident.
+
+## Finish sequentially
+
+1. Revalidate the actual payload and approved execution plan before any credit-consuming action.
+2. Apply the one official CapCut text template required by product settings. Read back its actual resource ID and metadata.
+3. Remove or replace each task-owned rough caption so exactly one visible final caption remains per cut. Opacity zero is not removal proof.
+4. For each narration `cut_id` in order, verify the frozen TTS input, generate once, then immediately read back clip identity, credit result, text, official preset, common speed, start/end, containment, and adjacency.
+5. Use only the plan's per-cut single same-input repair when the initial result is definitively defective or absent. Never use a third attempt or change frozen inputs.
+6. After every valid TTS clip exists, read the actual audible speech end for each cut. For every non-final cut, remove task-owned TTS trailing silence when present, then align the source clip, caption clip, and TTS clip to the same start and end frames; the next cut's three layers must start at that same shared end. Adjust only derived video playback speed, placement, and boundaries while preserving the frozen source asset, source in/out, visible action, text, and voice identity. Never repair only TTS, only source/caption, or any other two-layer subset. Do not request another checkpoint. Keep the configured canonical final visual at full duration and extend its caption through the full tail; when needed, split the canonical source at the final TTS end and keep the remainder as the tail segment.
+7. Reconcile source, caption, narration target, and TTS by `cut_id`, including exact non-final start/end equality across all three timeline layers. Preserve verified cuts while repairing one failing cut. Write and validate `product_video_nonfinal_slack_receipt.v1` with `${SKILL_ROOT}/scripts/validate_nonfinal_slack.py <receipt> --project-root <task-root>`. For an explicitly approved `narration: none` payload, record `narration_target: false`, null TTS/audible/slack fields, and null playback audio/ASR bindings while still closing source/caption continuity and the final visual/caption tail.
+8. Before handing off to final QA, inspect every cut rather than only changed cuts: prove the expected source clip still exists, its audio uses exact track/clip mute rather than gain reduction, exactly one caption remains visible, and the source renders non-black at the first valid frame, midpoint, and last valid frame. A caption/TTS pair without its source clip is an unfinished timeline even when all boundary numbers match.
+
+Hash the finished editable timeline receipt and store it as `artifacts.finished_timeline`. On the normal path, record the `FINISHING` binding and advance only to `FINAL_QA`. During a bounded unapproved `FINAL_REVIEW` repair, replace only the current `FINISHING` binding, remain at `FINAL_REVIEW`, and immediately route to all-cut final QA; the old final-QA result is no longer presentable. Do not request `完成・書き出しOK` from this skill.
