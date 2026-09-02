@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -18,7 +17,6 @@ SKILL_NAME = "produce-tiktok-product-video-portable"
 SKILL_ROOT = REPO_ROOT / ".cursor" / "skills" / SKILL_NAME
 SETTINGS_PATH = REPO_ROOT / "config" / "product_video_settings_AN-S182.v1.json"
 EXPECTED_SETTINGS_SHA256 = "a90ee56e42e8ddfcc9c4fec7970bffcc1e4396bbe6dcd37df9a2f74b399e0afa"
-DEFAULT_MATERIAL_ROOT = REPO_ROOT / ".runtime" / "product-video-inputs" / "AN-S182_コピー"
 MEDIA_SUFFIXES = {".mp4", ".mov", ".m4v", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
 REQUIRED_SKILL_FILES = (
     "SKILL.md",
@@ -32,6 +30,7 @@ REQUIRED_SKILL_FILES = (
     "references/hold-registry.md",
     "references/payload-contract.md",
     "references/portability-notes.md",
+    "references/product-and-material-contract.md",
     "references/self-repair.md",
     "stages/01-prepare-script.md",
     "stages/02-validate-script.md",
@@ -48,6 +47,7 @@ REQUIRED_SKILL_FILES = (
     "scripts/validate_timeline_integrity.py",
     "scripts/purge_local_working_media.py",
     "scripts/prepare_bulk_tts_scene_gaps.py",
+    "scripts/resolve_product_inputs.py",
 )
 SELF_TESTS = (
     "validate_product_video_payload.py",
@@ -58,6 +58,7 @@ SELF_TESTS = (
     "validate_timeline_integrity.py",
     "purge_local_working_media.py",
     "prepare_bulk_tts_scene_gaps.py",
+    "resolve_product_inputs.py",
 )
 FORBIDDEN_TEXT = (
     ".codex/",
@@ -140,9 +141,28 @@ def validate_static() -> list[str]:
     return errors
 
 
-def resolve_material_root() -> Path:
-    configured = os.environ.get("PRODUCT_VIDEO_MATERIAL_ROOT")
-    return Path(configured).expanduser() if configured else DEFAULT_MATERIAL_ROOT
+def resolve_case_inputs(product_model: str, require_materials: bool) -> tuple[list[str], dict]:
+    command = [
+        sys.executable,
+        str(SKILL_ROOT / "scripts" / "resolve_product_inputs.py"),
+        "--project-root",
+        str(REPO_ROOT),
+        "--product-model",
+        product_model,
+    ]
+    if require_materials:
+        command.append("--require-materials")
+    result = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return ["HOLD_PRODUCT_VIDEO_SETTINGS"], {}
+    if not isinstance(payload, dict):
+        return ["HOLD_PRODUCT_VIDEO_SETTINGS"], {}
+    if payload.get("status") == "READY":
+        return [], payload
+    hold = payload.get("hold")
+    return [hold if isinstance(hold, str) else "HOLD_PRODUCT_VIDEO_SETTINGS"], payload
 
 
 def validate_materials(root: Path) -> tuple[list[str], dict]:
@@ -190,6 +210,7 @@ def validate_materials(root: Path) -> tuple[list[str], dict]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--require-materials", action="store_true")
+    parser.add_argument("--product-model", default="AN-S182")
     args = parser.parse_args()
 
     static_errors = validate_static()
@@ -197,13 +218,22 @@ def main() -> int:
         print(json.dumps({"status": "FAIL", "errors": static_errors}, ensure_ascii=False, indent=2))
         return 1
 
-    material_errors, material_summary = validate_materials(resolve_material_root())
+    resolve_errors, resolved = resolve_case_inputs(args.product_model, require_materials=False)
+    if resolve_errors:
+        print(json.dumps({"status": "HOLD", "errors": resolve_errors, "resolved": resolved}, ensure_ascii=False, indent=2))
+        return 2
+
+    material_root = Path(resolved["material_root"])
+    material_errors, material_summary = validate_materials(material_root)
+    material_summary["product_model"] = args.product_model
+    material_summary["settings_path"] = resolved.get("settings_path")
+    material_summary["drive_folder_title"] = resolved.get("drive_folder_title")
     if material_errors and args.require_materials:
-        print(json.dumps({"status": "HOLD", "errors": material_errors, "materials": material_summary}, ensure_ascii=False, indent=2))
+        print(json.dumps({"status": "HOLD", "errors": material_errors, "materials": material_summary, "resolved": resolved}, ensure_ascii=False, indent=2))
         return 2
 
     status = "READY" if not material_errors else "STATIC_READY_MATERIALS_PENDING"
-    print(json.dumps({"status": status, "materials": material_summary}, ensure_ascii=False, indent=2))
+    print(json.dumps({"status": status, "materials": material_summary, "resolved": resolved}, ensure_ascii=False, indent=2))
     return 0
 
 

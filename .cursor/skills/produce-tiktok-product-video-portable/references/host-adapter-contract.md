@@ -8,6 +8,8 @@ The workflow is independent of any assistant vendor, but the host must implement
 - `PROJECT_ROOT`: trusted product-project root containing `config/` and source materials.
 - `TASK_ROOT`: new case directory contained under `<project-root>/outputs/`.
 - `RULES_ROOT`: optional local directory of active reusable production rules. If `<project-root>/config/product-video-rules` exists as a real directory, use it. If absent, omit the entire `--rules-root <rules-root>` option and generate an empty, hash-bound snapshot with the bundled snapshot builder.
+- Product settings: `<project-root>/config/product_video_settings_<product_model>.v1.json` only.
+- Material root: `PRODUCT_VIDEO_MATERIAL_ROOT` if set, otherwise `<project-root>/.runtime/product-video-inputs/<product_model>_コピー`.
 
 Never place credential, cookie, token, account, browser-session, or raw remote-object identifiers in portable payloads or ordinary logs.
 
@@ -25,7 +27,7 @@ Validator success never substitutes for live editor or storage read-back.
 
 ## Browser/editor adapter
 
-The host must be able to open and inspect the official CapCut Web editor, preserve an existing signed-in session, operate a separate new task-owned project, inspect timeline layers and exact controls, play the result, and reload the same saved project.
+The host must operate one editor for the whole case: the official CapCut Web editor, or a host-provided editor control surface that can create a separate new project, inspect timeline layers, inspect real frames, place captions and TTS, play the result, reload the same saved project, and export. Do not mix two editors in one case. CapCut official template resource IDs apply only when that editor is CapCut Web.
 
 The host must track task ownership internally without persisting sensitive tab/session values in portable artifacts. It must not close unrelated tabs or windows.
 
@@ -45,7 +47,7 @@ If the host cannot reliably hear audio, it may complete structural checks but mu
 
 ## Optional Drive adapter
 
-Use only when the original request fixed `delivery_mode: drive` and an exact destination subject/hash. The adapter must locate exactly one approved parent folder, prove no same-name collision, create one new file, and read back exact name, MIME, byte size, new object identity, parent scope, and observation time.
+Use for the default `drive` completion path, or when the original request fixed Drive 格納. The adapter must locate exactly one parent folder whose title is the verified product model, prove no same-name collision, create one new file, and read back exact name, MIME, byte size, new object identity, parent scope, and observation time. Never persist raw Drive IDs in git-tracked files. `export_only` is allowed only when the original request explicitly required local-only export.
 
 Unknown result, missing folder, multiple matching folders, collision, or mismatched read-back is a HOLD. Never overwrite, rename around a collision, or automatically retry an unknown upload.
 

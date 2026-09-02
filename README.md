@@ -2,7 +2,24 @@
 
 別PC・別Codexアカウントへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
 
-このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先、CapCutのプロジェクト状態は含めません。
+このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先ID、CapCutのプロジェクト状態は含めません。製品型番と素材は案件ごとに変わります。AN-S182はその基準製品の一例です。
+
+## 別PCで同じスキルを使う（Cursor）
+
+1. GitHubでこの**非公開**リポジトリをcloneする。パスワードやトークンをチャットへ貼らない。
+2. そのPCで使う**製品型番**を決める。別製品なら `config/product_video_settings_<MODEL>.v1.json` をその製品用に新規作成する。AN-S182の設定をコピーして型番だけ変えない。
+3. 素材は Git に入れず、`.runtime/product-video-inputs/<MODEL>_コピー` または `PRODUCT_VIDEO_MATERIAL_ROOT` に置く。
+4. Driveの格納先は、型番と同じ名前のフォルダ1つ。フォルダIDはリポジトリに書かない。
+5. 導入確認:
+
+```bash
+python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
+python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
+```
+
+6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は型番名フォルダへのDrive新規格納。
+
+詳細は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) と `.cursor/skills/produce-tiktok-product-video-portable/references/product-and-material-contract.md` を使う。
 
 ## 引き継ぎの全体像
 

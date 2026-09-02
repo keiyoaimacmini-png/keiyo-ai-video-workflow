@@ -1,6 +1,6 @@
 ---
 name: produce-tiktok-product-video-portable
-description: Provider-neutral workflow for producing one new TikTok product video through script, CapCut Web editing, final verification, export, and optional exact-scope Drive delivery with exactly three routine checkpoints.
+description: Provider-neutral workflow for producing one new TikTok product video through script, editor finishing, final verification, export, and Drive 格納 with exactly three routine checkpoints. Product, materials, and Drive folder title are per-case inputs.
 ---
 
 # Produce TikTok Product Video — Portable
@@ -16,13 +16,20 @@ Read completely:
 1. [references/core-invariants.md](references/core-invariants.md)
 2. [references/workflow-state-contract.md](references/workflow-state-contract.md)
 3. [references/host-adapter-contract.md](references/host-adapter-contract.md)
+4. [references/product-and-material-contract.md](references/product-and-material-contract.md)
 
-For every production, create a new case ID, a new task root under `<project-root>/outputs/<case-id>/`, a new workflow state, and a separate new CapCut Web project. Never reuse or overwrite an existing case, video, editor project, export, Drive object, payload, or receipt.
-
-Initialize state with the included validator:
+Product model, settings, materials, and Drive folder title are per-case inputs. Resolve them before creating a case. Do not reuse another product's settings, media, script, editor project, or Drive object.
 
 ```bash
-python3 "${SKILL_ROOT}/scripts/validate_workflow_state.py" --init-state <task-root>/product-video-workflow-state.v1.json --case-id <case-id> --product-model <model> --delivery-mode <export_only|drive>
+python3 "${SKILL_ROOT}/scripts/resolve_product_inputs.py" --project-root <project-root> --product-model <model> --require-materials
+```
+
+For every production, create a new case ID, a new task root under `<project-root>/outputs/<case-id>/`, a new workflow state, and a separate new editor project. Never reuse or overwrite an existing case, video, editor project, export, Drive object, payload, or receipt.
+
+Initialize state with the included validator. Default `delivery_mode` is `drive`. Use `export_only` only when the original request explicitly requires local-only export:
+
+```bash
+python3 "${SKILL_ROOT}/scripts/validate_workflow_state.py" --init-state <task-root>/product-video-workflow-state.v1.json --case-id <case-id> --product-model <model> --delivery-mode <drive|export_only>
 ```
 
 Validate state against actual artifact bytes before reading a stage file, before every mutation, and after recording every result:
@@ -66,7 +73,7 @@ When work cannot safely continue, select the most specific package-local code fr
 
 `FINAL_QA` may pass only when the final-QA artifact hash-binds valid non-final-slack, frame-level track-pairing, and timeline-integrity receipts. Static validators prove file and receipt closure only; they do not prove live editing, playback, export, delivery, or browser-tab state.
 
-`COMPLETE` requires a verified new export receipt. When exact Drive delivery was fixed in the original request, it also requires one verified new Drive object, exact parent-scope read-back, and closure of only task-owned browser tabs.
+`COMPLETE` requires a verified new export receipt. For the default `drive` mode it also requires one verified new Drive object in the folder titled with the verified product model, exact parent-scope read-back, and closure of only task-owned browser tabs. `export_only` still requires a destination-stored receipt that is not a local working copy.
 
 After `COMPLETE` and verified destination storage, purge this case's local working media on every machine that held a copy. Dry-run first, then execute. This standing instruction is not a fourth checkpoint.
 
