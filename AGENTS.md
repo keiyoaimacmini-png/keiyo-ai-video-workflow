@@ -7,14 +7,22 @@
 - Before creating a case, run `python3 .cursor/scripts/verify_product_video_setup.py --require-materials`. Do not continue past its HOLD status.
 - The canonical AN-S182 settings file is `config/product_video_settings_AN-S182.v1.json`. Do not infer or replace it.
 - The material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/AN-S182_コピー`.
+- When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
 
 ## Approval and safety boundary
 
 - Use only the exact routine approvals `台本OK`, `粗編集OK`, and `完成・書き出しOK`.
 - Create a new case, task root, workflow state, and CapCut Web project. Do not modify or overwrite existing projects, exports, Drive objects, payloads, receipts, or source media.
 - Keep product media, evidence frames, editable runtime artifacts, exports, credentials, cookies, tokens, account identifiers, and session identifiers out of Git, pull requests, and ordinary logs.
-- Do not open a pull request, publish an artifact, post, send externally, purchase credit, retry an unknown export/upload, overwrite, clean up, or delete unless the user separately authorizes that exact action.
+- Do not open a pull request, publish an artifact, post, send externally, purchase credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action.
 - Drive creation is allowed only when the original request fixed the exact scope and `完成・書き出しOK` is bound to the current final-QA receipt. Require exact new-file read-back.
+- After stage `COMPLETE` and verified 格納 (Drive read-back, or an `export_only` destination-stored receipt proving a durable copy that is not a local working copy), purge this case's local working media on the Cloud VM, then run the same relative purge on the operator Mac. Do not leave product materials or completed-video working copies on either machine. Keep receipts, settings, git-tracked files, originals that are still the source of record, and the Drive stored file. If the local file is the only remaining completed video, stop with `HOLD_LOCAL_WORKING_MEDIA_IS_SOLE_COPY`. After a VM purge, if this host is not the Mac, stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED`. Default is dry-run; execute only through `scripts/purge_local_working_media.py`.
+
+## 完了後のローカル削除
+
+- `完成・書き出しOK` と格納が済んだ案件だけ、Cloud VM と操作Macから素材の作業コピーと完成動画の作業コピーを消す。
+- 原本、Drive上の格納ファイル、JSONのreceipt、設定、進行中の別案件は消さない。
+- 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
 ## Cursor Desktop browser and human handoff
 
