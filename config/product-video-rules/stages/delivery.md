@@ -1,6 +1,6 @@
 # Delivery-stage rules
 
-Export once after exact `完成・書き出しOK`. Read back the new local export. When `delivery_mode` is `drive`, create one new Drive file and read it back. When `delivery_mode` is `export_only`, do not treat a working copy as stored until `destination-stored-receipt.v1.json` proves a durable copy that is not a local working copy.
+Export once after exact `完成・書き出しOK`. Read back the new local export. Default completion is Drive 格納 into the one folder titled with this product model, then exact read-back. Use `export_only` only when the original request explicitly required local-only export; then do not treat a working copy as stored until `destination-stored-receipt.v1.json` proves a durable copy that is not a local working copy. `編集が完了した` is not this approval.
 
 After `COMPLETE` and that verified 格納:
 

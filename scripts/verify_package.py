@@ -64,6 +64,7 @@ REQUIRED_FILES = {
     "tests/test_windows_automation.py",
     "tests/test_golden_baseline.py",
     "tests/test_golden_baseline_v2.py",
+    "tests/test_resolve_product_inputs.py",
     *PINNED_SKILL_HASHES,
 }
 DENIED_SUFFIXES = {
@@ -124,12 +125,33 @@ def parse_manifest(path: Path) -> tuple[dict[str, str], list[str]]:
     return entries, errors
 
 
+SKIP_DIR_PREFIXES = (
+    ".runtime/",
+    "footage/",
+    "voice/",
+    "out/",
+    "outputs/",
+    "work/",
+    "media/",
+    "exports/",
+    "downloads/",
+)
+SKIP_FILES = {
+    "CURSOR_TIKTOK_WORKFLOW.md",
+    "script.md",
+}
+
+
 def distribution_files(root: Path) -> tuple[set[str], list[str]]:
     files: set[str] = set()
     errors: list[str] = []
     for path in root.rglob("*"):
         relative = path.relative_to(root).as_posix()
         if relative == ".git" or relative.startswith(".git/"):
+            continue
+        if any(relative == prefix.rstrip("/") or relative.startswith(prefix) for prefix in SKIP_DIR_PREFIXES):
+            continue
+        if relative in SKIP_FILES:
             continue
         if path.is_symlink():
             errors.append(f"symlink forbidden: {relative}")

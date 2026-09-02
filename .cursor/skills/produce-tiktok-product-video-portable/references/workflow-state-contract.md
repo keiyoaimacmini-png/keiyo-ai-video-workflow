@@ -26,7 +26,7 @@ Reset the canonical current state to the earliest affected review stage, mark th
 - `case_id`: new case identifier, never reused;
 - `product_model`: exact verified model;
 - `stage`: one forward stage;
-- `delivery_mode`: `export_only` or `drive` as fixed by the original request;
+- `delivery_mode`: `drive` by default in this Cursor workflow. Use `export_only` only when the original request explicitly required local-only export;
 - `settings`: safe relative path plus lowercase SHA-256, or null only at `PREFLIGHT`;
 - `artifacts`: fixed keys whose values are safe relative path plus lowercase SHA-256, or null;
 - `learning_snapshots`: fixed `script`, `edit`, and `delivery` task-owned snapshot records;

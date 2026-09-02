@@ -21,7 +21,7 @@ On an unapproved review revision, record the correction first. Build a new versi
 
 ## Build the rough edit
 
-1. Verify the official `https://www.capcut.com/` Web editor. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another.
+1. Verify the official editor for this case. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another. Do not open a previous product's project.
 2. Import only selected assets. Asset upload is part of rough editing and has no extra checkpoint.
 3. Build one source per caption, change the visual at every caption boundary, use exact ranges, mute source audio unless explicitly needed, and retain the canonical final visual for its approved full range.
 4. Add the frozen captions as a single rough-text layer per cut. Do not generate TTS or apply the final template yet.

@@ -7,7 +7,7 @@
 - Inventory and hash candidate media without copying originals.
 - Compare twenty concepts internally and select the strongest executable concept.
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
-- Resolve the canonical final visual and exact Drive destination scope if the original request includes delivery.
+- Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.
 - Build and validate the canonical payload before Checkpoint 1.
 
 Run independent read-only checks in parallel where the active environment supports it. Preserve one canonical payload and one execution plan; do not duplicate them per operation.
@@ -42,7 +42,7 @@ Do not create a separate upload checkpoint.
 - Read back the exact date/model ordinal ledger immediately before export.
 - Confirm the exact name does not already exist in the output and qualifying Drive scope.
 - Export once and verify the local completed file receipt.
-- If pre-authorized, upload once and read back the new Drive file ID, exact name, MIME, byte size, parent ID, and time.
+- If pre-authorized by `完成・書き出しOK` and `delivery_mode: drive`, upload once into the folder titled with this product model and read back the new Drive file identity, exact name, MIME, byte size, parent scope, and time.
 - Close and verify only task-owned Chrome tabs after Drive read-back.
 
 Never interpret a request acknowledgement or progress display as a completed export or delivery.

@@ -12,3 +12,5 @@ After download:
 4. Trim gap silence from clip edges, then close three-layer timing with the common speed.
 
 If alignment or the detectable gaps do not close, HOLD. Do not guess cut points inside speech. Per-cut generation remains valid and does not need this gap insert.
+
+Place final captions at screen center with heavy weight, thick stroke, and a contrast band. Wrap overflowing frozen lines visually at existing punctuation; do not change wording. The last-cut tail may keep a matching centered hold after TTS ends.

@@ -21,8 +21,8 @@ On an unapproved review revision, record the correction first. Build a new versi
 
 1. Read project instructions and local project context.
 2. Build a closed material manifest. Separate verified facts, review observations, hypotheses, and not obtained; close model provenance over every available company-authoritative material and HOLD on a conflict or invalid model.
-3. Resolve exactly one model-matched product settings file and hash its actual bytes.
-4. Inventory candidate media without copying or changing originals. Record safe relative path, asset ID, media SHA-256, duration, exact observed subject/action, usable source ranges, and evidence location.
+3. Resolve exactly one model-matched product settings file for **this** `product_model` (`config/product_video_settings_<model>.v1.json`) and hash its actual bytes. If it is missing, HOLD. Do not copy another model's settings.
+4. Inventory candidate media from the resolved material root without copying or changing originals. Record safe relative path, asset ID, media SHA-256, duration, exact observed subject/action, usable source ranges, and evidence location. Do not inventory another model's folder as a substitute.
 5. Inspect the real frames needed to support each proposed line. Labels and sidecars are leads, not proof of an exact reaction, direction, stage, or completion state.
 6. Retrieve any project-required generation context. Keep selected reusable patterns and their `not_to_copy` boundaries distinct. Internally compare twenty executable concepts; do not ask the user to choose among them.
 7. Select the strongest concept that supports the full six-stage progression and one distinct source/media SHA per visible caption.

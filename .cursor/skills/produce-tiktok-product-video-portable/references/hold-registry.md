@@ -5,7 +5,8 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | Code | Use when |
 | --- | --- |
 | `HOLD_MODEL_UNVERIFIED` | Product model evidence is missing or conflicting. |
-| `HOLD_PRODUCT_VIDEO_SETTINGS` | The exact single model settings file, its bytes, or resolved values do not close. |
+| `HOLD_PRODUCT_VIDEO_SETTINGS` | The exact single model settings file, its bytes, or resolved values do not close. Do not copy another model's file. |
+| `HOLD_INPUT_MATERIALS_REQUIRED` | This model's material root is missing, unsafe, or empty. Do not reuse another model's media. |
 | `HOLD_SCRIPT_INCOMPLETE` | The six-stage script or required evidence is incomplete. |
 | `HOLD_MEDIA_NOT_MATCHED` | The claimed visible action or exact source range is not verified from real media. |
 | `HOLD_DISTINCT_ASSET_PER_CAPTION` | Visible captions do not map one-to-one to distinct asset IDs and media hashes. |
@@ -17,7 +18,7 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_AUDITORY_CONFIRMATION_REQUIRED` | The host cannot reliably complete the required full-playback listening audit. |
 | `HOLD_PRODUCTION_ORDINAL_UNVERIFIED` | The exact date/model export ledger, order, or hash does not close. |
 | `HOLD_EXPORT_OUTCOME_UNKNOWN` | One export was submitted but its result cannot be unambiguously read back. |
-| `HOLD_DRIVE_SCOPE_AMBIGUOUS` | The exact approved Drive parent is absent, duplicated, or mismatched. |
+| `HOLD_DRIVE_SCOPE_AMBIGUOUS` | The exact approved Drive parent is absent, duplicated, or mismatched. The parent must be the one folder titled with this product model. |
 | `HOLD_NAME_COLLISION` | The exact output name already exists locally or in the approved Drive scope. |
 | `HOLD_UPLOAD_OUTCOME_UNKNOWN` | One upload was submitted but its result cannot be unambiguously read back. |
 | `HOLD_TASK_TAB_IDENTITY_UNVERIFIED` | The host cannot prove which browser tabs belong only to this case. |
