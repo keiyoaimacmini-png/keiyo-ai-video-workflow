@@ -16,6 +16,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --require-materials
 
 `READY`なら準備完了です。素材がない、8件未満、壊れている、またはmedia SHA-256が8種類未満なら、既存物を変更せずHOLDします。素材、認証情報、完成動画をGitへ含めてはいけません。
 
+`完成・書き出しOK` と格納が確認できた案件は、Cloud VM と操作Macに素材の作業コピーや完成動画の作業コピーを残しません。原本とDrive上の格納ファイルとreceiptは残します。格納前の進行中ファイルは消しません。
+
 ## CursorのAgentへ渡す依頼
 
 ```text

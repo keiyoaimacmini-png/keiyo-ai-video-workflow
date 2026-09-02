@@ -67,3 +67,12 @@ When work cannot safely continue, select the most specific package-local code fr
 `FINAL_QA` may pass only when the final-QA artifact hash-binds valid non-final-slack, frame-level track-pairing, and timeline-integrity receipts. Static validators prove file and receipt closure only; they do not prove live editing, playback, export, delivery, or browser-tab state.
 
 `COMPLETE` requires a verified new export receipt. When exact Drive delivery was fixed in the original request, it also requires one verified new Drive object, exact parent-scope read-back, and closure of only task-owned browser tabs.
+
+After `COMPLETE` and verified destination storage, purge this case's local working media on every machine that held a copy. Dry-run first, then execute. This standing instruction is not a fourth checkpoint.
+
+```bash
+python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <project-root> --task-root <task-root> --case-id <case-id>
+python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <project-root> --task-root <task-root> --case-id <case-id> --execute --i-confirm-destination-stored
+```
+
+Do not delete originals, Drive stored objects, git-tracked files, JSON receipts, settings, or another case. If `delivery_mode` is `export_only`, require `destination-stored-receipt.v1.json` proving a durable copy that is not a local working copy. If this host is not the operator Mac, stop after the VM purge with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and run the same relative command on the Mac.

@@ -75,4 +75,6 @@ Portable assets include stable ID, media/sidecar SHA-256, safe POSIX relative pa
 
 `cleanup_preflight` is preflight-only and has no path, execute, delete, or unknown field. Candidates cross-check a known asset by ID/media SHA and must be hash-verified local working downloads that are not original, dependency, shared, or uncertain.
 
+After `COMPLETE` and verified destination storage, local working-media deletion is an operational purge outside this payload. It uses `scripts/purge_local_working_media.py` and never deletes originals, Drive stored objects, receipts, or the sole remaining completed video.
+
 The canonical payload also carries `goal_axis`, patterns, facts, hypotheses, audio, post set, eight-axis design QA, risk register, manifest closure, component hashes, and portable setup instructions. Each nested object is allowlisted; component hashes are validator-recomputed.
