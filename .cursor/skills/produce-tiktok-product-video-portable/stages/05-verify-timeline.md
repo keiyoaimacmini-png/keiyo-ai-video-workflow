@@ -22,7 +22,7 @@ On an unapproved review revision, use a new versioned output such as `learning-d
 Build an all-cut matrix with:
 
 - `cut_id`, source asset ID/media SHA, source in/out, and timeline start/end;
-- caption text, caption start/end, official template resource read-back, X/Y alignment, safe margins, and visible-layer count;
+- caption text, caption start/end, X/Y alignment, safe margins, and visible-layer count; official CapCut template resource read-back is optional and never required;
 - narration-target flag, TTS text/preset/common speed/start/end, track identity, and cut containment;
 - any BGM/SFX identity, timeline containment, level, and whether it obscures narration;
 - boundary-frame visual change, source-audio mute state, and observed action match;
@@ -32,7 +32,7 @@ Build an all-cut matrix with:
 
 Inspect the real player at every caption start, every caption boundary, and the final animation state. A centered coordinate in JSON is not visual proof. Exactly one visible text rendering may exist per cut. Verify the final CTA position separately.
 
-For multi-track CapCut projects, expand the timeline vertically and compare the source clip, caption clip, and TTS clip belonging to the same `cut_id` at the same playhead. Never compare a caption or source against a visually adjacent clip from another track. Treat the official template's rendered entrance/exit animation separately from clip-edge timing: a partial rendered word at a static seek frame is not proof that the clip edge is late. Overview screenshots prove track structure only; they do not prove one- or two-frame equality. Zoom until the ruler scale gives at least 8 pixels per frame, capture every three-layer head and tail boundary, use the file's real extension/MIME, and bind independently observed source and caption edges to `product_video_track_pairing_receipt.v2`; bind TTS starts/ends and the exact three-layer equality in `product_video_nonfinal_slack_receipt.v1`. Validate both receipts before claiming exact equality.
+For multi-track CapCut projects, expand the timeline vertically and compare the source clip, caption clip, and TTS clip belonging to the same `cut_id` at the same playhead. Never compare a caption or source against a visually adjacent clip from another track. Treat any caption entrance/exit animation separately from clip-edge timing: a partial rendered word at a static seek frame is not proof that the clip edge is late. Overview screenshots prove track structure only; they do not prove one- or two-frame equality. Zoom until the ruler scale gives at least 8 pixels per frame, capture every three-layer head and tail boundary, use the file's real extension/MIME, and bind independently observed source and caption edges to `product_video_track_pairing_receipt.v2`; bind TTS starts/ends and the exact three-layer equality in `product_video_nonfinal_slack_receipt.v1`. Validate both receipts before claiming exact equality.
 
 ```bash
 python3 "${SKILL_ROOT}/scripts/validate_nonfinal_slack.py" <nonfinal-slack-receipt.json> --project-root <task-root>

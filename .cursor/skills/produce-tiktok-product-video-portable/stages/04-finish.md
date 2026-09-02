@@ -1,6 +1,6 @@
 ---
 name: finish-tiktok-product-video
-description: Apply the official caption template, generate and place bounded TTS, and finish a frozen product-video timeline after 粗編集OK. Use only when explicitly invoked or routed from produce-tiktok-product-video-portable at FINISHING, or for a bounded unapproved FINAL_REVIEW repair.
+description: Finish a frozen product-video timeline after 粗編集OK with centered captions, bounded TTS, and three-layer timing. Official CapCut templates are optional.
 ---
 
 # Finish TikTok Product Video
@@ -14,7 +14,7 @@ Read `${SKILL_ROOT}/references/self-repair.md` only after a real incident.
 ## Finish sequentially
 
 1. Revalidate the actual payload and approved execution plan before any credit-consuming action.
-2. Apply the one official caption treatment required by **this** model's settings. For CapCut Web, apply that official text template and read back its actual resource ID and metadata. For a host editor adapter in this same case, apply centered, prominent, visually wrapped captions without claiming a CapCut resource read-back.
+2. Apply centered, prominent, visually wrapped captions on the case editor. Official CapCut text templates are optional. For CapCut Web, a named official text template may be applied and read back when it is actually used. For a host editor adapter in this same case, apply host-native captions or Motion Graphics without claiming a CapCut resource read-back. Never HOLD because an official CapCut template was not applied.
 3. Remove or replace each task-owned rough caption so exactly one visible final caption remains per cut. Opacity zero is not removal proof. Place those captions at screen center. If a frozen line overflows the width, wrap it visually at an existing punctuation or phrase boundary without changing characters. Keep spoken TTS text as the frozen line. The canonical final tail may keep a matching centered hold after TTS ends.
 4. For each narration `cut_id` in order, verify the frozen TTS input. Official Holiday Twist audio may be generated once per cut, or once in bulk for every frozen line. For bulk generation, paste only the frozen lines separated by a blank line; do not add ellipses or extra spoken punctuation. After the one download, align those frozen lines, insert a measured silent scene-split gap (default 600 ms, allowed 400–1200 ms) with `${SKILL_ROOT}/scripts/prepare_bulk_tts_scene_gaps.py`, then cut only at those gaps so each narration-target caption has exactly one TTS clip. Trim the gap silence from each clip edge, then immediately read back clip identity, credit result, text, official preset, common speed, start/end, containment, and adjacency. One bulk CapCut render consumes the initial generation slot for every included `cut_id`; do not also generate per-cut audio unless a cut uses its single repair reserve. This gap insert is TTS working-copy preparation, not a substitute editor.
 5. Use only the plan's per-cut single same-input repair when the initial result is definitively defective or absent. Never use a third attempt or change frozen inputs.

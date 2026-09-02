@@ -39,7 +39,7 @@ The host must inspect real rendered frames, not only timeline JSON. It must supp
 
 - first valid, representative midpoint, and last valid frame evidence for every cut;
 - frame-level source/caption/TTS boundary inspection at sufficient zoom;
-- official template resource metadata read-back;
+- caption visual proof (centered, prominent, one layer per cut); official CapCut template metadata only when that editor is CapCut Web and a template was actually applied;
 - uninterrupted full playback and same-project reload verification;
 - audible speech verification, including missing, truncated, duplicated, overlapping, or residual source audio.
 

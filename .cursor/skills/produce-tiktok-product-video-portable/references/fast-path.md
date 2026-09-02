@@ -26,7 +26,7 @@ Do not create a separate upload checkpoint.
 ## 3. Finish after `粗編集OK`
 
 - Validate the approved execution plan before any credit-consuming action.
-- Apply the one official CapCut text template and read back its real resource metadata.
+- Place centered, prominent, visually wrapped captions on the case editor. Official CapCut text templates are optional and never a HOLD.
 - For each `cut_id` in order, generate TTS once and immediately verify its timeline clip, credit change, text, preset, common speed, start, end, containment, and adjacency.
 - Enter self-repair only for the failing cut. Preserve already verified cuts.
 - Apply a settings-bounded common TTS speed when needed, then retime the derived source/caption/TTS boundaries together. Do not change source asset/range, visible action, wording, line breaks, or voice identity after approval; HOLD only when one of those frozen inputs or an out-of-settings speed would be required.

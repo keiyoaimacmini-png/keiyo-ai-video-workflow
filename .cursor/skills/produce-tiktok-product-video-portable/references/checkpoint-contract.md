@@ -22,17 +22,17 @@ Disclose these exact numbers from the execution plan:
 - the narrow task-owned defective-TTS replacement rule.
 - no post-approval source asset/range, visible-action, text/line-break, speaker, preset, pitch, or processing change; settings-bounded common TTS speed and derived video timing remain adjustable.
 
-Ask only for exact `粗編集OK`. It authorizes finishing, the official text template, the initial TTS actions, and the bounded repairs recorded in the unchanged plan hash. A repair action consumes the reserve for that cut even if the UI does not refund credits.
+Ask only for exact `粗編集OK`. It authorizes finishing, the initial TTS actions, and the bounded repairs recorded in the unchanged plan hash. Official CapCut text templates are optional. A repair action consumes the reserve for that cut even if the UI does not refund credits.
 
 Do not expose recoverable placement, category, overlap, truncation, or timing incidents as new confirmations. Diagnose and repair them under the approved plan, then summarize the material correction at Checkpoint 3. Before Checkpoint 3, every non-final cut must end its video and caption and start the next cut at the actual audible speech end within zero to one frame. The configured canonical final cut alone retains its full visual-and-caption tail.
 
 ## Checkpoint 3: final editable timeline
 
-Show the actual editable CapCut Web timeline and review location. Report the official template resource read-back, voice preset, common speed, per-cut TTS closure, timing reconciliation, all-cut source/caption/TTS presence, exact source mute, first/mid/last rendered-frame result, full playback and same-project reload result, text safe-area result, and any bounded repair actions and remaining reserve. Do not present Checkpoint 3 until the hash-bound timeline-integrity receipt validates.
+Show the actual editable timeline and review location. Report the voice preset, common speed, per-cut TTS closure, timing reconciliation, all-cut source/caption/TTS presence, exact source mute, first/mid/last rendered-frame result, full playback and same-project reload result, text safe-area result, and any bounded repair actions and remaining reserve. Do not present Checkpoint 3 until the hash-bound timeline-integrity receipt validates. Do not require official CapCut template resource read-back.
 
 When the active tool can hear reliably, complete and report the auditory audit before asking. When it cannot, explicitly ask the user to play the whole timeline at this same checkpoint and include presence, intelligibility, matching text, clean starts/ends, overlap, duplication, truncation, and spill in the Checkpoint 3 checklist. Exact `完成・書き出しOK` then confirms that checklist and authorizes export; never ask for separate `音声確認OK`.
 
-For a base-contract-valid user-explicit `narration: none` video, disclose zero narration targets, zero initial/repair/total TTS actions, and no voice or auditory checklist. Keep visual full-playback, caption safe-area, template, timing, export, and qualifying Drive checks in Checkpoint 3.
+For a base-contract-valid user-explicit `narration: none` video, disclose zero narration targets, zero initial/repair/total TTS actions, and no voice or auditory checklist. Keep visual full-playback, caption safe-area, timing, export, and qualifying Drive checks in Checkpoint 3.
 
 Ask only for exact `完成・書き出しOK`. It authorizes one new export. Unless the original request explicitly required `export_only`, it also authorizes one new Drive upload into the folder titled with this product model, exact read-back, and closure of the task-owned browser tabs after verified delivery. `編集完了` or `格納して` is not this checkpoint.
 
