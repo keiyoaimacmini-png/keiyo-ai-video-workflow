@@ -34,10 +34,12 @@ When the active tool can hear reliably, complete and report the auditory audit b
 
 For a base-contract-valid user-explicit `narration: none` video, disclose zero narration targets, zero initial/repair/total TTS actions, and no voice or auditory checklist. Keep visual full-playback, caption safe-area, template, timing, export, and qualifying Drive checks in Checkpoint 3.
 
-Ask only for exact `完成・書き出しOK`. It authorizes one new export. When the original request already contains an exact Drive request and destination subject, it also authorizes one new upload, exact read-back, and closure of the task-owned browser tabs after verified delivery.
+Ask only for exact `完成・書き出しOK`. It authorizes one new export. Unless the original request explicitly required `export_only`, it also authorizes one new Drive upload into the folder titled with this product model, exact read-back, and closure of the task-owned browser tabs after verified delivery. `編集完了` or `格納して` is not this checkpoint.
 
 An unknown export or upload outcome is not permission to submit again. Poll and read back the existing operation; if the outcome remains unknowable, HOLD for duplicate risk.
 
 ## Non-routine authority
 
-The three confirmations do not authorize posting, publishing, arbitrary external sends, credit purchase, overwriting, cleanup, deletion of existing/user/unknown material, or work on another project. Ask only when one of those genuinely becomes necessary.
+The three confirmations do not authorize posting, publishing, arbitrary external sends, credit purchase, overwriting, deletion of existing/user/unknown material, or work on another project. Ask only when one of those genuinely becomes necessary.
+
+After `COMPLETE` and verified destination storage, a standing instruction authorizes deletion of this case's local working copies only. It does not authorize deleting originals, Drive stored objects, receipts, or another case, and it is not a fourth checkpoint.
