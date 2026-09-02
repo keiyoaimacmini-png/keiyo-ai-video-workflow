@@ -21,10 +21,10 @@ On an unapproved review revision, record the correction first. Build a new versi
 
 ## Build the rough edit
 
-1. Verify the official `https://www.capcut.com/` Web editor. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another.
+1. Verify the official editor for this case. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another. Do not open a previous product's project.
 2. Import only selected assets. Asset upload is part of rough editing and has no extra checkpoint.
 3. Build one source per caption, change the visual at every caption boundary, use exact ranges, mute source audio unless explicitly needed, and retain the canonical final visual for its approved full range.
-4. Add the frozen captions as a single rough-text layer per cut. Do not generate TTS or apply the final template yet.
+4. Add the frozen captions as a single rough-text layer per cut. Do not generate TTS yet. Official CapCut text templates are optional and are not a later HOLD.
 5. Confirm the script-stage timing estimates against the real rough timeline. If wording, line breaks, common voice settings, source asset, source range, or payload hash must change, do not alter them under the existing `台本OK`; use the controlled reopen procedure and return to the revised Checkpoint 1.
 6. Verify actual rough-timeline source identity/range/timing/mute/caption closure and absence of duplicate text layers.
 

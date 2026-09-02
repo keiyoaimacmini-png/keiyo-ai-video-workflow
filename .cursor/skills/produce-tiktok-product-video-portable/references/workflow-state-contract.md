@@ -26,7 +26,7 @@ Reset the canonical current state to the earliest affected review stage, mark th
 - `case_id`: new case identifier, never reused;
 - `product_model`: exact verified model;
 - `stage`: one forward stage;
-- `delivery_mode`: `export_only` or `drive` as fixed by the original request;
+- `delivery_mode`: `drive` by default in this Cursor workflow. Use `export_only` only when the original request explicitly required local-only export;
 - `settings`: safe relative path plus lowercase SHA-256, or null only at `PREFLIGHT`;
 - `artifacts`: fixed keys whose values are safe relative path plus lowercase SHA-256, or null;
 - `learning_snapshots`: fixed `script`, `edit`, and `delivery` task-owned snapshot records;
@@ -48,6 +48,8 @@ Bind learning snapshots exactly: `PREFLIGHT` and `SCRIPT_PREPARED` to `script`; 
 Every approval record also binds one active-learning context: `台本OK` to `script`, `粗編集OK` to `edit`, and `完成・書き出しOK` to `delivery`. Pending approvals carry null artifact and learning bindings.
 
 Run the validator with `--artifact-root <task-root>` before reading a child skill, before a mutation, and after recording the result. A valid state proves artifact existence, hashes, and internal sequencing only; it does not prove external work happened.
+
+After `COMPLETE` and verified destination storage, purge this case's local working media with `scripts/purge_local_working_media.py`. Keep the state file and bound receipt JSON. Do not treat those JSON bindings as permission to keep leftover `footage/`, `voice/`, `out/`, runtime input copies, or `Downloads/<completed_video_filename>` working copies.
 
 Initialize a new state without hand-authoring its schema. The output parent must already exist and an existing file is never overwritten:
 
