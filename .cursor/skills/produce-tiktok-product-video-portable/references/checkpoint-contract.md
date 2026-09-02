@@ -40,4 +40,6 @@ An unknown export or upload outcome is not permission to submit again. Poll and 
 
 ## Non-routine authority
 
-The three confirmations do not authorize posting, publishing, arbitrary external sends, credit purchase, overwriting, cleanup, deletion of existing/user/unknown material, or work on another project. Ask only when one of those genuinely becomes necessary.
+The three confirmations do not authorize posting, publishing, arbitrary external sends, credit purchase, overwriting, deletion of existing/user/unknown material, or work on another project. Ask only when one of those genuinely becomes necessary.
+
+After `COMPLETE` and verified destination storage, a standing instruction authorizes deletion of this case's local working copies only. It does not authorize deleting originals, Drive stored objects, receipts, or another case, and it is not a fourth checkpoint.

@@ -49,6 +49,8 @@ Every approval record also binds one active-learning context: `台本OK` to `scr
 
 Run the validator with `--artifact-root <task-root>` before reading a child skill, before a mutation, and after recording the result. A valid state proves artifact existence, hashes, and internal sequencing only; it does not prove external work happened.
 
+After `COMPLETE` and verified destination storage, purge this case's local working media with `scripts/purge_local_working_media.py`. Keep the state file and bound receipt JSON. Do not treat those JSON bindings as permission to keep leftover `footage/`, `voice/`, `out/`, runtime input copies, or `Downloads/<completed_video_filename>` working copies.
+
 Initialize a new state without hand-authoring its schema. The output parent must already exist and an existing file is never overwritten:
 
 ```bash
