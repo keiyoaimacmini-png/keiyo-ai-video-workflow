@@ -42,7 +42,7 @@ AN-S182 is one current product in this repository. Its settings SHA-256 is pinne
 ## New product onboarding
 
 1. Confirm the model string and that company-authoritative materials observe only that model.
-2. Add `config/product_video_settings_<MODEL>.v1.json` with that model's CTA, official caption template, narration bounds, and canonical final-cut block. Hash the actual bytes.
+2. Add `config/product_video_settings_<MODEL>.v1.json` with that model's CTA, narration bounds, and canonical final-cut block. A named CapCut caption template is optional catalog data, not a completion requirement. Hash the actual bytes.
 3. Place this model's source media under the resolved material root. Do not commit media.
 4. Optionally add `config/product-video-rules/products/<MODEL>/` for model-specific rules. Common and stage rules already apply.
 5. On Drive, require exactly one parent folder titled `<MODEL>`. If it is missing or duplicated, `HOLD_DRIVE_SCOPE_AMBIGUOUS`.
@@ -79,9 +79,9 @@ Use this sequence on any PC that has the skill package, that product's settings 
 2. Resolve `PROJECT_ROOT` and `SKILL_ROOT`. Run `resolve_product_inputs.py` and `verify_product_video_setup.py --product-model <MODEL> --require-materials`.
 3. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Stop for exact `台本OK`.
 4. `ROUGH_EDIT`: create a **new** editor project. One distinct source per caption. Frozen captions as rough text. No TTS yet. Stop for exact `粗編集OK`.
-5. `FINISHING`: official template from **this** model's settings (or HOLD if the host cannot apply it), Holiday Twist from frozen lines, bulk scene-gap split when generated in bulk, three-layer timing, centered prominent captions.
+5. `FINISHING`: centered prominent captions on the case editor, Holiday Twist from frozen lines, bulk scene-gap split when generated in bulk, three-layer timing. Official CapCut text templates are optional and never a HOLD.
 6. `FINAL_QA`: all-cut source/caption/TTS, mute, frames, playback, reload, safe area. Stop for exact `完成・書き出しOK`. If the host cannot hear, keep auditory verification pending at this same checkpoint.
 7. `EXPORT_AND_DELIVERY`: one new export name, export once, Drive-store into the folder titled `<MODEL>`, read back. Then `COMPLETE`.
 8. Purge this case's local working media on every machine that held a copy.
 
-CapCut Web is the editor named by CapCut template resource IDs. A host editor adapter may run the same stages only when it can create a new project, inspect real frames, place captions/TTS, and export, and only for this case. Do not mix two editors in one case. Do not claim a CapCut resource read-back from a different editor.
+A host editor adapter may run the same stages when it can create a new project, inspect real frames, place captions/TTS, and export, and only for this case. Do not mix two editors in one case. Do not claim a CapCut resource read-back from a different editor. Official CapCut text templates are optional.
