@@ -24,4 +24,16 @@ Run only when `delivery_mode` is `drive` and the original request/destination su
 
 After verified Drive read-back, close only task-owned CapCut, TikTok-login, and Drive tabs and verify their absence. If ownership is unknown, leave them open and HOLD. For `export_only`, do not close tabs under the Drive-completion rule.
 
-Append the `EXPORT_AND_DELIVERY` receipt and advance to `COMPLETE` only when the required export and optional Drive evidence are complete. Never post, publish, overwrite, clean up, or delete.
+Append the `EXPORT_AND_DELIVERY` receipt and advance to `COMPLETE` only when the required export and optional Drive evidence are complete. Never post, publish, overwrite, or delete originals, Drive stored objects, receipts, or another case.
+
+## Local working-copy purge after verified storage
+
+After `COMPLETE` and verified destination storage, purge this case's local working media so product materials and completed-video copies do not remain on the Cloud VM or the operator Mac.
+
+1. Prove destination storage: Drive read-back for `delivery_mode: drive`, or `destination-stored-receipt.v1.json` for `export_only` showing a durable copy that is not a local working copy.
+2. Dry-run `scripts/purge_local_working_media.py` for this case only.
+3. Execute only with `--execute --i-confirm-destination-stored`.
+4. Keep JSON receipts, settings, git-tracked files, originals that are still the source of record, and the stored destination file.
+5. If another case is not `COMPLETE`, leave shared `footage/`, `voice/`, and `.runtime/product-video-inputs/` in place.
+6. If this host is not the operator Mac, stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and run the same relative purge there, including `Downloads/<completed_video_filename>` when that exact stored file is present.
+7. If the local file is the only remaining completed video, stop with `HOLD_LOCAL_WORKING_MEDIA_IS_SOLE_COPY`.

@@ -46,6 +46,8 @@ REQUIRED_SKILL_FILES = (
     "scripts/validate_nonfinal_slack.py",
     "scripts/validate_track_pairing.py",
     "scripts/validate_timeline_integrity.py",
+    "scripts/purge_local_working_media.py",
+    "scripts/prepare_bulk_tts_scene_gaps.py",
 )
 SELF_TESTS = (
     "validate_product_video_payload.py",
@@ -54,6 +56,8 @@ SELF_TESTS = (
     "validate_nonfinal_slack.py",
     "validate_track_pairing.py",
     "validate_timeline_integrity.py",
+    "purge_local_working_media.py",
+    "prepare_bulk_tts_scene_gaps.py",
 )
 FORBIDDEN_TEXT = (
     ".codex/",

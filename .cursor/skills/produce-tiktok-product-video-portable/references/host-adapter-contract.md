@@ -7,7 +7,7 @@ The workflow is independent of any assistant vendor, but the host must implement
 - `SKILL_ROOT`: this package directory.
 - `PROJECT_ROOT`: trusted product-project root containing `config/` and source materials.
 - `TASK_ROOT`: new case directory contained under `<project-root>/outputs/`.
-- `RULES_ROOT`: optional local directory of active reusable production rules. If absent, omit the entire `--rules-root <rules-root>` option and generate an empty, hash-bound snapshot with the bundled snapshot builder.
+- `RULES_ROOT`: optional local directory of active reusable production rules. If `<project-root>/config/product-video-rules` exists as a real directory, use it. If absent, omit the entire `--rules-root <rules-root>` option and generate an empty, hash-bound snapshot with the bundled snapshot builder.
 
 Never place credential, cookie, token, account, browser-session, or raw remote-object identifiers in portable payloads or ordinary logs.
 
