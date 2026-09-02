@@ -56,4 +56,6 @@ The TTS-input map is a JSON object keyed by the target cut set; object key order
 
 `hold` terminates that cut's event flow. A generation-request event is appended immediately after the credit-consuming request and consumes the allowance even if the outcome is unknown or failed.
 
+One bulk Holiday Twist render is a single credit-consuming request. Append `initial_generation_requested` for every included `cut_id` at that same request, sharing the source-file hash. Do not also run per-cut first attempts for those same IDs.
+
 Hash raw CapCut clip/resource identity locally; store only the SHA-256 in the portable execution plan. The verification receipt hash must cover the official project read-back, `cut_id`, task-owned status, frozen TTS input hash, timeline placement, audible result when available, and observation time. For replacement, it must cover both old and new clip identity hashes and prove the replacement was verified before the defective clip was disabled or removed.

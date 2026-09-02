@@ -18,6 +18,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --require-materials
 
 `完成・書き出しOK` と格納が確認できた案件は、Cloud VM と操作Macに素材の作業コピーや完成動画の作業コピーを残しません。原本とDrive上の格納ファイルとreceiptは残します。格納前の進行中ファイルは消しません。
 
+一括のホリデーツイスト生成では、各台本行のあいだに測った無音を入れてから、その無音でシーンごとに切ります。結合した1本のナレーションのまま尺を合わせません。
+
 ## CursorのAgentへ渡す依頼
 
 ```text
