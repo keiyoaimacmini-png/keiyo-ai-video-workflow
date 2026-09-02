@@ -2,6 +2,9 @@
   "mcpServers": {
     "opusclip": {
       "url": "https://mcp.opus.pro/mcp"
+    },
+    "chatcut": {
+      "url": "https://api.chatcut.io/api/external-mcp/mcp"
     }
   }
 }
