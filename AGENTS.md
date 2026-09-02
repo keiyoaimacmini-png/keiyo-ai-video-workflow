@@ -24,6 +24,12 @@
 - 原本、Drive上の格納ファイル、JSONのreceipt、設定、進行中の別案件は消さない。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
+## 一括ナレーションのシーン隙間
+
+- CapCut公式のホリデーツイストで台本を一括生成するときは、凍結した各行のあいだに空行だけを入れて貼る。省略記号や余計な読み上げ用の句読点は入れない。
+- ダウンロード後、行ごとの境界に測った無音（既定 600ms）を入れ、その無音で1シーン1クリップに切ってから尺を合わせる。結合した1本のままタイムラインに残さない。
+- 画面の字幕と payload の TTS 文言は凍結行のまま。一括生成は、含まれた全カットの初回TTSとして数える。
+
 ## Cursor Desktop browser and human handoff
 
 - Use the official CapCut Web origin in Chrome only when the Cursor Agent has an actual browser/editor control adapter. Never put CapCut or TikTok passwords in repository files or prompts.
