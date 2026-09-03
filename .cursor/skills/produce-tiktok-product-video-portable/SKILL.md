@@ -73,7 +73,7 @@ When work cannot safely continue, select the most specific package-local code fr
 
 `FINAL_QA` may pass only when the final-QA artifact hash-binds valid non-final-slack, frame-level track-pairing, and timeline-integrity receipts. Static validators prove file and receipt closure only; they do not prove live editing, playback, export, delivery, or browser-tab state.
 
-`COMPLETE` requires a verified new export receipt. For the default `drive` mode it also requires one verified new Drive object in the folder titled with the verified product model, exact parent-scope read-back, and closure of only task-owned browser tabs. `export_only` still requires a destination-stored receipt that is not a local working copy.
+`COMPLETE` requires a verified new export receipt. For the default `drive` mode it also requires one verified new Drive object in the folder titled with the verified product model and exact parent-scope read-back. Close only proven task-owned browser tabs after that read-back. Uncertain tab ownership is `HOLD_TASK_TAB_IDENTITY_UNVERIFIED` and does not block `COMPLETE`. `export_only` still requires a destination-stored receipt that is not a local working copy.
 
 After `COMPLETE` and verified destination storage, purge this case's local working media on every machine that held a copy. Dry-run first, then execute. This standing instruction is not a fourth checkpoint.
 
@@ -82,4 +82,4 @@ python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <pro
 python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <project-root> --task-root <task-root> --case-id <case-id> --execute --i-confirm-destination-stored
 ```
 
-Do not delete originals, Drive stored objects, git-tracked files, JSON receipts, settings, or another case. If `delivery_mode` is `export_only`, require `destination-stored-receipt.v1.json` proving a durable copy that is not a local working copy. If this host is not the operator Mac, stop after the VM purge with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and run the same relative command on the Mac.
+Do not delete originals, Drive stored objects, git-tracked files, JSON receipts, settings, or another case. If `delivery_mode` is `export_only`, require `destination-stored-receipt.v1.json` proving a durable copy that is not a local working copy. If this host is not the operator Mac, stop after the VM purge with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and tell the operator to check Finder Downloads for the exact completed filename first. Missing repo copies are not a failure. Uncertain tab ownership is `HOLD_TASK_TAB_IDENTITY_UNVERIFIED` and does not block `COMPLETE` after verified Drive read-back.

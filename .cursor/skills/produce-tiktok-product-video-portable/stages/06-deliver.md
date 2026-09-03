@@ -20,11 +20,13 @@ Export once. A request acknowledgement, progress state, toast, or unknown result
 
 ## Drive 格納
 
-Default `delivery_mode` is `drive`. Run this after the new export read-back. Locate exactly one parent folder whose title is the verified product model, reject collision, upload one new file, then read back new file identity, exact name, MIME, byte size, approved parent scope, and time. Store only the portable hashed receipt fields required by the production contract. Never write raw Drive IDs into Git.
+Default `delivery_mode` is `drive`. Run this after the new export read-back. Before export, already prove the JST ledger ordinal and that the exact name is absent from local output and the approved Drive parent.
 
-Skip Drive only when `delivery_mode` is `export_only` because the original request explicitly required local-only export. Missing or duplicate model-titled folders are `HOLD_DRIVE_SCOPE_AMBIGUOUS`. Phrases such as `編集が完了した` do not authorize this stage.
+Locate exactly one parent folder whose title is the verified product model. Upload one new file from local bytes. Do not inline the completed video as base64 in a tool argument. Prefer a local-path or upload-session ingest. If that is unavailable, upload once through the already-authenticated Drive UI into that proven parent (one new tab; do not close pre-existing tabs), then read back through the adapter. Match new file identity, exact name, MIME, byte size, approved parent scope, and time. Store only the portable hashed receipt fields required by the production contract. Never write raw Drive IDs into Git. Never create a same-name empty or path-string decoy. Do not copy the export into `Downloads/` unless the UI file picker cannot see the task `out/` file.
 
-After verified Drive read-back, close only task-owned CapCut, TikTok-login, and Drive tabs and verify their absence. If ownership is unknown, leave them open and HOLD. For `export_only`, do not close tabs under the Drive-completion rule.
+Skip Drive only when `delivery_mode` is `export_only` because the original request explicitly required local-only export. Missing or duplicate model-titled folders are `HOLD_DRIVE_SCOPE_AMBIGUOUS`. If the parent is proven but no local-byte ingest path exists, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Phrases such as `編集が完了した` do not authorize this stage.
+
+After verified Drive read-back, close only task-owned CapCut, TikTok-login, and Drive tabs and verify their absence. If ownership is unknown, leave them open and record `HOLD_TASK_TAB_IDENTITY_UNVERIFIED`; that HOLD does not block `COMPLETE`. For `export_only`, do not close tabs under the Drive-completion rule.
 
 Append the `EXPORT_AND_DELIVERY` receipt and advance to `COMPLETE` only when the required export and, for `drive`, Drive evidence are complete. Never post, publish, overwrite, or delete originals, Drive stored objects, receipts, or another case.
 
@@ -37,5 +39,5 @@ After `COMPLETE` and verified destination storage, purge this case's local worki
 3. Execute only with `--execute --i-confirm-destination-stored`.
 4. Keep JSON receipts, settings, git-tracked files, originals that are still the source of record, and the stored destination file.
 5. If another case is not `COMPLETE`, leave shared `footage/`, `voice/`, and `.runtime/product-video-inputs/` in place.
-6. If this host is not the operator Mac, stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and run the same relative purge there, including `Downloads/<completed_video_filename>` when that exact stored file is present.
+6. If this host is not the operator Mac, stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED`. Tell the operator the stored original is the Drive folder titled with this product model. On the Mac, check Finder Downloads for `Downloads/<completed_video_filename>` first, then repo-relative `outputs/<case-id>/` media and `out/<completed_video_filename>` only if those copies exist. Missing copies are not a failure.
 7. If the local file is the only remaining completed video, stop with `HOLD_LOCAL_WORKING_MEDIA_IS_SOLE_COPY`.

@@ -19,6 +19,7 @@
   "conditional_capabilities": {
     "drive_delivery": [
       "drive_create_file",
+      "drive_local_file_ingest",
       "drive_exact_parent_readback",
       "drive_collision_check"
     ]

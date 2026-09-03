@@ -9,7 +9,7 @@ Input stage must be `ROUGH_EDIT`, or `ROUGH_REVIEW` with `粗編集OK` still pen
 
 - `${SKILL_ROOT}/references/execution-plan-contract.md`
 
-Build and read the active edit-rule snapshot before opening CapCut:
+Build and read the active edit-rule snapshot before opening the case editor:
 
 ```bash
 python3 "${SKILL_ROOT}/scripts/build_rule_snapshot.py" --rules-root <rules-root> --stage edit --product-model <model> --output <task-root>/learning-edit.json
@@ -21,10 +21,10 @@ On an unapproved review revision, record the correction first. Build a new versi
 
 ## Build the rough edit
 
-1. Verify the official editor for this case. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another. Do not open a previous product's project.
-2. Import only selected assets. Asset upload is part of rough editing and has no extra checkpoint.
+1. Verify the official editor of record for this case. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another. Do not open a previous product's project. Do not create a successor CapCut Web case for Holiday Twist.
+2. Import only selected assets. When the host ingest helper accepts local files, upload in that helper's maximum batch rather than one picker pass per clip. Asset upload is part of rough editing and has no extra checkpoint.
 3. Build one source per caption, change the visual at every caption boundary, use exact ranges, mute source audio unless explicitly needed, and retain the canonical final visual for its approved full range.
-4. Add the frozen captions as a single rough-text layer per cut. Do not generate TTS yet. Official CapCut text templates are optional and are not a later HOLD.
+4. Add the frozen captions with the case editor's caption program when it has one (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Do not generate TTS yet. Official CapCut text templates are optional and are not a later HOLD.
 5. Confirm the script-stage timing estimates against the real rough timeline. If wording, line breaks, common voice settings, source asset, source range, or payload hash must change, do not alter them under the existing `台本OK`; use the controlled reopen procedure and return to the revised Checkpoint 1.
 6. Verify actual rough-timeline source identity/range/timing/mute/caption closure and absence of duplicate text layers.
 
