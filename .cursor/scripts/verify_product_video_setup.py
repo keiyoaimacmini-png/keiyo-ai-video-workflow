@@ -94,7 +94,7 @@ def validate_static() -> list[str]:
     actual_files = {
         path.relative_to(SKILL_ROOT).as_posix()
         for path in SKILL_ROOT.rglob("*")
-        if path.is_file() and not path.is_symlink()
+        if path.is_file() and not path.is_symlink() and path.suffix != ".pyc" and "__pycache__" not in path.parts
     }
     unexpected_files = actual_files - set(REQUIRED_SKILL_FILES)
     if unexpected_files:
