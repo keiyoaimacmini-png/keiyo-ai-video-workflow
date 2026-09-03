@@ -1,8 +1,14 @@
 # KEIYO AI Video Workflow
 
-別PC・別Codexアカウントへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
+別PCへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
 
-このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先ID、CapCutのプロジェクト状態は含めません。製品型番と素材は案件ごとに変わります。AN-S182はその基準製品の一例です。
+このリポジトリにはスキル、検証器、契約書、およびメディアを含まないゴールデン基準だけを格納します。商品素材、動画、データベース、アカウント情報、認証情報、Google Driveの保存先ID、CapCut / ChatCut のプロジェクト状態は含めません。製品型番と素材は案件ごとに変わります。AN-S182はその基準製品の一例です。
+
+## Cursor の本流（台本 → Drive 格納）
+
+正本スキルは `.cursor/skills/produce-tiktok-product-video-portable/` です。起動は `/produce-tiktok-product-video-portable`。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は、型番名の Drive フォルダへの新規格納です。
+
+人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。Cloud Agent の起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
 
 ## 別PCで同じスキルを使う（Cursor）
 
@@ -17,9 +23,7 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_pro
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
-6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は型番名フォルダへのDrive新規格納。
-
-詳細は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) と `.cursor/skills/produce-tiktok-product-video-portable/references/product-and-material-contract.md` を使う。
+6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。まず `台本OK` まで進めて止める。
 
 ## 引き継ぎの全体像
 
