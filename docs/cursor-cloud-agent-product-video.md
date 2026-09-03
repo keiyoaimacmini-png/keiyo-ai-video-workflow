@@ -2,6 +2,8 @@
 
 このフォルダには、CursorデスクトップアプリのCloud Agentが認識する商品動画スキルと実行環境があります。製品型番と素材は案件ごとに変わります。AN-S182はその一例です。
 
+台本から Drive 格納までの人向け通し手順は [product-video-to-drive.md](product-video-to-drive.md) です。
+
 ## 準備
 
 1. このフォルダの変更をGitリポジトリへ反映する。Cloud AgentはMac上の未反映ファイルを直接読めない。
