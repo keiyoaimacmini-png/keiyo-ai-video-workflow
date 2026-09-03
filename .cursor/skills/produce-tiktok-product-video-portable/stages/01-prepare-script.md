@@ -33,7 +33,7 @@ On an unapproved review revision, record the correction first. Build a new versi
 4. Inventory candidate media from the resolved material root without copying or changing originals. Record safe relative path, asset ID, media SHA-256, duration, exact observed subject/action, usable source ranges, and evidence location. Do not inventory another model's folder as a substitute.
 5. Inspect the real frames needed to support each proposed line. Labels and sidecars are leads, not proof of an exact reaction, direction, stage, or completion state.
 6. Retrieve any project-required generation context. Keep selected reusable patterns and their `not_to_copy` boundaries distinct. Internally compare twenty executable concepts; do not ask the user to choose among them.
-7. Select the strongest concept that supports the full six-stage progression and one distinct source/media SHA per visible caption.
+7. Select the strongest concept that supports the full six-stage progression and one distinct source/media SHA per visible caption. Optimize the narrative for TikTok mobile short-video dynamics: keep dialogue lines concise, punchy, and fast-paced (typically around 2.0s per cut, maximum 3.0s for non-final cuts), using attention-grabbing hook phrasing and intuitive, high-energy benefit statements that fit quick-scrolling viewer behavior while strictly adhering to verified facts.
 8. Read the visible dialogue straight through without stage labels. Repair unexplained jumps, unclear pronouns, and weak causal connections before selection.
 
 ## Output

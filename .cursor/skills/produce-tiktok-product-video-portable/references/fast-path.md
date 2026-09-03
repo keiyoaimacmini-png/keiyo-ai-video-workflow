@@ -5,7 +5,7 @@
 - Read project instructions and local project context once.
 - Resolve exactly one product settings file and hash it.
 - Inventory and hash candidate media without copying originals.
-- Compare twenty concepts internally and select the strongest executable concept.
+- Compare twenty concepts internally and select the strongest executable concept. Optimize the script for TikTok short-video pacing and viewer retention: ensure dialogue lines are brief and punchy (typically around 2.0s per cut, maximum 3.0s for non-final cuts), using attention-grabbing hooks and intuitive, colloquial benefit phrasing while mapping all claims to verified facts.
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
 - Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.
 - Build and validate the canonical payload before Checkpoint 1.

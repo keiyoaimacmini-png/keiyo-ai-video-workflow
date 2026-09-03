@@ -13,9 +13,6 @@ from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
-if hasattr(sys, "set_int_max_str_digits"):
-    sys.set_int_max_str_digits(200000)
-
 MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,6}$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 ASSET_RE = re.compile(r"^asset-[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
