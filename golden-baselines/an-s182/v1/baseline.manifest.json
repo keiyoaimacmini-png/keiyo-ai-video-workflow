@@ -1,0 +1,68 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "baseline_id": "an-s182-mac-capcut-rakuten-v1",
+  "product_model": "AN-S182",
+  "captured_at": "2026-08-06T10:15:00+09:00",
+  "status": "hold_until_user_accepts_golden_reference",
+  "source_receipt": {
+    "project_name": "AN-S182_TikTok_29.7s_RakutenCopy_v2_20260801",
+    "draft_info_sha256": "804ccfad4576049cb906fe420135050967eed6cf2b2e49fcbc600b369e1d608a",
+    "source_project_modified": false
+  },
+  "known_current_draft_defects": [
+    {
+      "from_cut": "C5",
+      "to_cut": "C6",
+      "overlap_frames": 1,
+      "status": "known_current_draft_defect"
+    }
+  ],
+  "observed_current_project": {
+    "project_name": "AN-S182_TikTok_29.7s_RakutenCopy_v2_20260801",
+    "canvas": {
+      "ratio": "custom",
+      "width": 1080,
+      "height": 1920,
+      "background": null
+    },
+    "fps": 30.0,
+    "duration_seconds": 29.7,
+    "duration_frames": 891,
+    "logical_cuts": 10,
+    "physical_video_segments": 12,
+    "captions": 10,
+    "tts": 10,
+    "sfx": 5,
+    "bgm": 0,
+    "source_audio_muted": true,
+    "transition_materials": 0,
+    "video_effect_materials": 0,
+    "app_version": "9.0.0",
+    "source_os": "mac"
+  },
+  "user_approved_preferences": {
+    "tts_voice_label": "ホリデーツイスト",
+    "tts_voice_english_label": "Holiday Twist",
+    "bgm": "none",
+    "caption_style": "simple_wide_upper_center_white_bold_black_outline_with_tiktok_top_clearance",
+    "current_baseline_cta": "下のカートからチェックして",
+    "future_workflow_cta": "下のカートからチェック"
+  },
+  "unverified_or_subjective": [
+    "voice_quality_and_clarity",
+    "sfx_subjective_quality",
+    "pixel_exact_cross_os_rendering",
+    "rights_and_privacy_acceptability",
+    "export_settings_persistence",
+    "retention_sales_and_comment_effect"
+  ],
+  "files": [
+    "timeline.json",
+    "material-map.json",
+    "caption-style.json",
+    "audio-layout.json",
+    "environment.json",
+    "export-settings.json",
+    "acceptance.json"
+  ]
+}

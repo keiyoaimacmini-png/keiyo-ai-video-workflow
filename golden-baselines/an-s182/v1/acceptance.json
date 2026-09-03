@@ -1,0 +1,86 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline_acceptance.v1",
+  "baseline_id": "an-s182-mac-capcut-rakuten-v1",
+  "decision": "pending_user_acceptance",
+  "machine_result": "HOLD",
+  "exact_checks": {
+    "canvas": "1080x1920",
+    "fps": 30,
+    "duration_frames": 891,
+    "logical_cut_count": 10,
+    "caption_count": 10,
+    "tts_count": 10,
+    "sfx_count": 5,
+    "bgm_count": 0,
+    "source_audio_muted": true,
+    "transition_count": 0,
+    "video_effect_count": 0,
+    "tts_voice_label": "ホリデーツイスト",
+    "tts_voice_english_label": "Holiday Twist",
+    "final_caption": "下のカートから\nチェックして"
+  },
+  "cross_os_tolerance": {
+    "exact": [
+      "cut order",
+      "frame boundaries",
+      "source filename and source range",
+      "caption strings",
+      "caption start and duration",
+      "audio placement",
+      "BGM absence",
+      "source audio mute",
+      "per-cut must_show and must_not_show"
+    ],
+    "manual_visual_review": [
+      "caption readability and TikTok top clearance",
+      "crop and subject prominence",
+      "motion continuity",
+      "TTS audibility and pronunciation",
+      "SFX subjective fit"
+    ],
+    "not_required": [
+      "pixel-identical rendering across macOS and Windows",
+      "byte-identical video export",
+      "identical font rasterization",
+      "identical encoder output"
+    ]
+  },
+  "holds": [
+    {
+      "code": "HOLD_ORIGINAL_MEDIA_UNAVAILABLE",
+      "cuts": ["C4", "C6"],
+      "detail": "IMG_3957.MOV and IMG_3963.MOV plus paired sidecars were not found in the current canonical asset catalog."
+    },
+    {
+      "code": "HOLD_CURRENT_DRAFT_CAPTION_OVERLAP",
+      "cuts": ["C5", "C6"],
+      "detail": "The current Mac draft has a one-frame overlap: C5 caption ends at frame 361 while C6 starts at frame 360."
+    },
+    {
+      "code": "HOLD_GOLDEN_REFERENCE_NOT_USER_ACCEPTED",
+      "cuts": [],
+      "detail": "The user has not yet accepted this captured Mac draft as the golden reference."
+    },
+    {
+      "code": "HOLD_SUBJECTIVE_AUDIO_NOT_AUDITIONED",
+      "cuts": [],
+      "detail": "Audio structure is verified, but voice and SFX quality have not been independently auditioned."
+    },
+    {
+      "code": "HOLD_EXPORT_SETTINGS_NOT_READ_BACK",
+      "cuts": [],
+      "detail": "The user-fixed 4K/30fps/100Mbps enhancement settings are recorded, but the current CapCut export UI was not read back and no export was performed."
+    },
+    {
+      "code": "HOLD_RIGHTS_PRIVACY_REVIEW",
+      "cuts": ["C10"],
+      "detail": "A person, vehicle brand, and background buildings are visible and require human rights/privacy review before distribution."
+    }
+  ],
+  "outcomes_not_measured": [
+    "retention",
+    "sales conversion",
+    "comment rate"
+  ],
+  "external_effects_authorized": false
+}

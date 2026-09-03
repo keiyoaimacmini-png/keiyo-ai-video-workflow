@@ -1,0 +1,86 @@
+name: Windows verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-windows:
+    name: PowerShell and Python 3.12
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run fail-closed Windows verification
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "windows-verification-report.json"
+          ./scripts/verify-windows.ps1 -ReportPath $reportPath
+
+      - name: Parse verification report
+        if: always()
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "windows-verification-report.json"
+          if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+            throw "Windows verification report was not created."
+          }
+          $report = Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($report.schema_version -ne "keiyo.windows-verification.v1") {
+            throw "Windows verification report schema is invalid."
+          }
+          if (@($report.checks).Count -ne 4) {
+            throw "Windows verification report does not contain four checks."
+          }
+          if ($report.status -ne "PASS" -or @($report.checks | Where-Object status -ne "PASS").Count -ne 0) {
+            throw "Windows verification report did not record PASS."
+          }
+          if (-not $report.environment.windows_required -or -not $report.environment.powershell_7_required) {
+            throw "Windows verification environment gate was not recorded."
+          }
+
+      - name: Require a clean repository
+        if: always()
+        shell: pwsh
+        run: |
+          $dirty = git status --porcelain=v1 --untracked-files=all
+          if ($LASTEXITCODE -ne 0) {
+            throw "git status failed."
+          }
+          if ($dirty) {
+            $dirty | Write-Error
+            throw "Verification modified the repository."
+          }
+
+      - name: Reject repository-local Python cache
+        if: always()
+        shell: pwsh
+        run: |
+          $cache = Get-ChildItem -LiteralPath . -Recurse -Force | Where-Object {
+            $_.Name -eq "__pycache__" -or $_.Name -like "*.pyc"
+          }
+          if ($cache) {
+            $cache.FullName | Write-Error
+            throw "Repository-local Python cache was generated."
+          }
+
+      - name: Upload JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-verification-report
+          path: ${{ runner.temp }}\windows-verification-report.json
+          if-no-files-found: error
+          retention-days: 14

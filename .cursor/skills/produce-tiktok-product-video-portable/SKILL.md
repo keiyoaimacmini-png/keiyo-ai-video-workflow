@@ -1,0 +1,88 @@
+---
+name: produce-tiktok-product-video-portable
+description: Provider-neutral workflow for producing one new TikTok product video through script, editor finishing, final verification, export, and Drive 格納 with exactly three routine checkpoints. Cursor runs generate the script on Gemini 3.8 Flash, then hand off to Grok 4.6 after 台本OK. Product, materials, and Drive folder title are per-case inputs.
+---
+
+# Produce TikTok Product Video — Portable
+
+Use this file as the entrypoint. Resolve `SKILL_ROOT` to the directory containing this file. Resolve `PROJECT_ROOT` to the product project's trusted root. Never infer either path.
+
+This package is assistant-provider neutral. The host must supply the capabilities in [references/host-adapter-contract.md](references/host-adapter-contract.md). A missing capability does not relax a rule: stop with the most specific HOLD state.
+
+## Always load
+
+Read completely:
+
+1. [references/core-invariants.md](references/core-invariants.md)
+2. [references/workflow-state-contract.md](references/workflow-state-contract.md)
+3. [references/host-adapter-contract.md](references/host-adapter-contract.md)
+4. [references/product-and-material-contract.md](references/product-and-material-contract.md)
+5. [references/model-routing.md](references/model-routing.md)
+
+Cursor runs of this skill use Gemini 3.8 Flash for script work and Grok 4.6 after Checkpoint 1. Classify the live assistant before `PREFLIGHT` and before entering `ROUGH_EDIT`. The parent Cloud Agent model cannot change mid-run; Checkpoint 1 is a session handoff, not a fourth approval.
+
+Product model, settings, materials, and Drive folder title are per-case inputs. Resolve them before creating a case. Do not reuse another product's settings, media, script, editor project, or Drive object.
+
+```bash
+python3 "${SKILL_ROOT}/scripts/resolve_product_inputs.py" --project-root <project-root> --product-model <model> --require-materials
+```
+
+For every production, create a new case ID, a new task root under `<project-root>/outputs/<case-id>/`, a new workflow state, and a separate new editor project. Never reuse or overwrite an existing case, video, editor project, export, Drive object, payload, or receipt.
+
+Initialize state with the included validator. Default `delivery_mode` is `drive`. Use `export_only` only when the original request explicitly requires local-only export:
+
+```bash
+python3 "${SKILL_ROOT}/scripts/validate_workflow_state.py" --init-state <task-root>/product-video-workflow-state.v1.json --case-id <case-id> --product-model <model> --delivery-mode <drive|export_only>
+```
+
+Validate state against actual artifact bytes before reading a stage file, before every mutation, and after recording every result:
+
+```bash
+python3 "${SKILL_ROOT}/scripts/validate_workflow_state.py" <task-root>/product-video-workflow-state.v1.json --artifact-root <task-root>
+```
+
+## Route exactly one stage
+
+Read only the stage file matching the current state:
+
+| Current state | Stage file | Successful next state |
+| --- | --- | --- |
+| `PREFLIGHT` | [stages/01-prepare-script.md](stages/01-prepare-script.md) | `SCRIPT_PREPARED` |
+| `SCRIPT_PREPARED` | [stages/02-validate-script.md](stages/02-validate-script.md) | `SCRIPT_REVIEW` |
+| `ROUGH_EDIT` | [stages/03-build-rough-cut.md](stages/03-build-rough-cut.md) | `ROUGH_REVIEW` |
+| `FINISHING` | [stages/04-finish.md](stages/04-finish.md) | `FINAL_QA` |
+| `FINAL_QA` | [stages/05-verify-timeline.md](stages/05-verify-timeline.md) | `FINAL_REVIEW` |
+| `EXPORT_AND_DELIVERY` | [stages/06-deliver.md](stages/06-deliver.md) | `COMPLETE` |
+
+Review states are approval boundaries, not production stages:
+
+- `SCRIPT_REVIEW`: present Checkpoint 1 **and** the Grok 4.6 handoff card from [references/model-routing.md](references/model-routing.md). Accept only exact `台本OK`, append its receipt, then advance to `ROUGH_EDIT` **only on Grok 4.6**. A Gemini 3.8 Flash session that recorded `台本OK` must stop with `HOLD_AI_MODEL_HANDOFF_REQUIRED` and must not open CapCut.
+- `ROUGH_REVIEW`: accept only exact `粗編集OK`, append its receipt, then advance to `FINISHING`.
+- `FINAL_REVIEW`: accept only exact `完成・書き出しOK`, append its receipt, then advance to `EXPORT_AND_DELIVERY`.
+
+Never infer approval, rename approval text, add a routine checkpoint, or skip a state.
+
+## Corrections and repairs
+
+A correction before approval stays at the same review state and rebuilds only affected downstream draft artifacts. A correction to an already approved frozen input uses the controlled-reopen procedure in the workflow-state contract and returns to the earliest affected existing checkpoint. Never invent a fourth checkpoint or retain a stale approval binding.
+
+A settings-bounded common TTS-speed adjustment and the derived three-layer timing closure are authorized finish-time values under `粗編集OK`. They do not reopen approval unless the speed leaves the configured range or a frozen input changes.
+
+Read [references/self-repair.md](references/self-repair.md) only after a real incident. Preserve unaffected verified cuts. Unknown export or upload outcomes are observation-only; never retry them automatically.
+
+When work cannot safely continue, select the most specific package-local code from [references/hold-registry.md](references/hold-registry.md). HOLD preserves current work and grants no new action.
+
+## Completion
+
+`FINAL_QA` may pass only when the final-QA artifact hash-binds valid non-final-slack, frame-level track-pairing, and timeline-integrity receipts. Static validators prove file and receipt closure only; they do not prove live editing, playback, export, delivery, or browser-tab state.
+
+`COMPLETE` requires a verified new export receipt. For the default `drive` mode it also requires one verified new Drive object in the folder titled with the verified product model, exact parent-scope read-back, and closure of only task-owned browser tabs. `export_only` still requires a destination-stored receipt that is not a local working copy.
+
+After `COMPLETE` and verified destination storage, purge this case's local working media on every machine that held a copy. Dry-run first, then execute. This standing instruction is not a fourth checkpoint.
+
+```bash
+python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <project-root> --task-root <task-root> --case-id <case-id>
+python3 "${SKILL_ROOT}/scripts/purge_local_working_media.py" --project-root <project-root> --task-root <task-root> --case-id <case-id> --execute --i-confirm-destination-stored
+```
+
+Do not delete originals, Drive stored objects, git-tracked files, JSON receipts, settings, or another case. If `delivery_mode` is `export_only`, require `destination-stored-receipt.v1.json` proving a durable copy that is not a local working copy. If this host is not the operator Mac, stop after the VM purge with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` and run the same relative command on the Mac.

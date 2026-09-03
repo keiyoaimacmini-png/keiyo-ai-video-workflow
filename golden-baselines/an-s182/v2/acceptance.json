@@ -1,0 +1,86 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline_acceptance.v1",
+  "baseline_id": "an-s182-mac-capcut-current-v2",
+  "decision": "user_accepted_current_mac_reference",
+  "machine_result": "HOLD",
+  "exact_checks": {
+    "canvas": "1080x1920",
+    "fps": 30,
+    "duration_frames": 891,
+    "logical_cut_count": 10,
+    "caption_count": 10,
+    "tts_count": 10,
+    "sfx_count": 5,
+    "bgm_count": 0,
+    "source_audio_muted": true,
+    "transition_count": 0,
+    "video_effect_count": 0,
+    "tts_voice_label": "ホリデーツイスト",
+    "tts_voice_english_label": "Holiday Twist",
+    "final_caption": "下のカートから\nチェックして",
+    "c4_sources": [
+      ["IMG_3958.MOV", 0.0, 2.0],
+      ["IMG_3958.MOV", 2.0, 3.0]
+    ],
+    "c6_source": ["IMG_3893.MOV", 0.0, 2.833],
+    "accepted_caption_overlap": {
+      "from_cut": "C5",
+      "to_cut": "C6",
+      "frames": 1
+    }
+  },
+  "cross_os_tolerance": {
+    "exact": [
+      "cut order",
+      "frame boundaries",
+      "source filename and source range",
+      "caption strings",
+      "caption start and duration",
+      "audio placement",
+      "BGM absence",
+      "source audio mute",
+      "per-cut must_show and must_not_show"
+    ],
+    "manual_visual_review": [
+      "caption readability and TikTok top clearance",
+      "crop and subject prominence",
+      "motion continuity",
+      "TTS audibility and pronunciation",
+      "SFX subjective fit"
+    ],
+    "not_required": [
+      "pixel-identical rendering across macOS and Windows",
+      "byte-identical video export",
+      "identical font rasterization",
+      "identical encoder output"
+    ]
+  },
+  "holds": [
+    {
+      "code": "HOLD_WINDOWS_CAPCUT_ENVIRONMENT_NOT_VERIFIED",
+      "cuts": [],
+      "detail": "Windows CapCut version, font, Holiday Twist voice, SFX availability, and project behavior must be read back before editing."
+    },
+    {
+      "code": "HOLD_WINDOWS_SUBJECTIVE_AUDIO_EQUIVALENCE_NOT_AUDITIONED",
+      "cuts": [],
+      "detail": "Mac export playback was user-confirmed, but the Windows voice and SFX result has not been auditioned."
+    },
+    {
+      "code": "HOLD_DESIRED_EXPORT_FEATURES_UNAVAILABLE_ON_MAC",
+      "cuts": [],
+      "detail": "AI Ultra HD and Smart HDR were part of the desired preset but were not exposed in the accepted Mac export UI; the accepted Mac file is Rec.709 SDR."
+    },
+    {
+      "code": "HOLD_RIGHTS_PRIVACY_REVIEW",
+      "cuts": ["C10"],
+      "detail": "A person, vehicle brand, and background buildings are visible and require human rights/privacy review before distribution."
+    }
+  ],
+  "outcomes_not_measured": [
+    "retention",
+    "sales conversion",
+    "comment rate"
+  ],
+  "external_effects_authorized": false
+}

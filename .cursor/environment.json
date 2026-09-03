@@ -1,0 +1,7 @@
+{
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "python3 .cursor/scripts/verify_product_video_setup.py"
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "baseline_id": "an-s182-mac-capcut-current-v2",
+  "product_model": "AN-S182",
+  "captured_at": "2026-08-06T18:30:25+09:00",
+  "status": "accepted_mac_reference_pending_windows_validation",
+  "source_receipt": {
+    "project_name": "AI作成_AN-S182_2026_08_06",
+    "draft_info_sha256": "2082e1306d64764648cc42b7834288fdddf07adf4861f0f19452ce2467c6fbd7",
+    "source_project_modified": false
+  },
+  "known_current_reference_characteristics": [
+    {
+      "from_cut": "C5",
+      "to_cut": "C6",
+      "overlap_frames": 1,
+      "status": "accepted_reference_characteristic"
+    }
+  ],
+  "observed_current_project": {
+    "project_name": "AI作成_AN-S182_2026_08_06",
+    "canvas": {
+      "ratio": "custom",
+      "width": 1080,
+      "height": 1920,
+      "background": null
+    },
+    "fps": 30.0,
+    "duration_seconds": 29.7,
+    "duration_frames": 891,
+    "logical_cuts": 10,
+    "physical_video_segments": 12,
+    "captions": 10,
+    "tts": 10,
+    "sfx": 5,
+    "bgm": 0,
+    "source_audio_muted": true,
+    "transition_materials": 0,
+    "video_effect_materials": 0,
+    "app_version": "9.0.0",
+    "source_os": "mac"
+  },
+  "user_approved_preferences": {
+    "tts_voice_label": "ホリデーツイスト",
+    "tts_voice_english_label": "Holiday Twist",
+    "bgm": "none",
+    "caption_style": "simple_wide_upper_center_white_bold_black_outline_with_tiktok_top_clearance",
+    "current_baseline_cta": "下のカートからチェックして",
+    "future_workflow_cta": "下のカートからチェック"
+  },
+  "unverified_or_subjective": [
+    "voice_quality_and_clarity",
+    "sfx_subjective_quality",
+    "pixel_exact_cross_os_rendering",
+    "rights_and_privacy_acceptability",
+    "windows_capcut_runtime_equivalence",
+    "retention_sales_and_comment_effect"
+  ],
+  "files": [
+    "timeline.json",
+    "material-map.json",
+    "caption-style.json",
+    "audio-layout.json",
+    "environment.json",
+    "export-settings.json",
+    "acceptance.json"
+  ]
+}

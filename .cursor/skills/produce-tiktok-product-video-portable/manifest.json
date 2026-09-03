@@ -1,0 +1,64 @@
+{
+  "schema": "portable_ai_skill_package.v1",
+  "name": "produce-tiktok-product-video-portable",
+  "version": "1.0.0",
+  "language": "ja-JP",
+  "entrypoint": "SKILL.md",
+  "runtime": {
+    "python": ">=3.10",
+    "network_required_for_editing": true
+  },
+  "required_capabilities": [
+    "read_write_task_files",
+    "sha256",
+    "run_python",
+    "browser_or_ui_control",
+    "visual_frame_inspection",
+    "audio_playback_or_human_listening_gate"
+  ],
+  "conditional_capabilities": {
+    "drive_delivery": [
+      "drive_create_file",
+      "drive_exact_parent_readback",
+      "drive_collision_check"
+    ]
+  },
+  "optional_compatibility_extensions": {
+    "openclaw_camee_routing": {
+      "payload_fields": [
+        "routing",
+        "openclaw_prohibition",
+        "camee_tiktok_shop"
+      ],
+      "strict_when_enabled": true
+    }
+  },
+  "routine_approvals": [
+    "台本OK",
+    "粗編集OK",
+    "完成・書き出しOK"
+  ],
+  "included_validators": [
+    "scripts/validate_product_video_payload.py",
+    "scripts/validate_workflow_state.py",
+    "scripts/validate_execution_plan.py",
+    "scripts/validate_nonfinal_slack.py",
+    "scripts/validate_track_pairing.py",
+    "scripts/validate_timeline_integrity.py"
+  ],
+  "included_helpers": [
+    "scripts/build_rule_snapshot.py",
+    "scripts/purge_local_working_media.py",
+    "scripts/prepare_bulk_tts_scene_gaps.py",
+    "scripts/resolve_product_inputs.py",
+    "scripts/resolve_ai_model_lane.py"
+  ],
+  "excluded_host_dependencies": [
+    "provider_specific_agent_metadata",
+    "provider_specific_project_memory",
+    "provider_specific_hooks",
+    "provider_specific_subagent_routing",
+    "provider_specific_browser_tool_names",
+    "machine_absolute_paths"
+  ]
+}

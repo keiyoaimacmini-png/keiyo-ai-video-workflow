@@ -1,0 +1,27 @@
+{
+  "schema_version": "keiyo.capcut_golden_baseline.v1",
+  "captured_source_environment": {
+    "os": "mac",
+    "capcut_version": "9.0.0",
+    "fps": 30.0,
+    "font_title": "none",
+    "font_file": "en.ttf",
+    "tts_voice_label": "ホリデーツイスト",
+    "tts_voice_english_label": "Holiday Twist",
+    "tts_voice_speaker": "ICL_en_male_oogie2",
+    "tts_resource_id": "7438551608746578449",
+    "sfx_names": [
+      "シンプルなWhoosh音",
+      "シンプルなWhoosh音",
+      "りんりん",
+      "マウスのクリック音",
+      "ポン！（口を手で叩いて鳴らす音）"
+    ]
+  },
+  "windows_policy": {
+    "missing_font": "HOLD; require human-approved visually equivalent fallback",
+    "missing_tts_voice": "HOLD; do not silently substitute another voice",
+    "missing_sfx": "HOLD; do not silently substitute another effect",
+    "capcut_version_difference": "record version and run structural plus human visual/audio comparison"
+  }
+}

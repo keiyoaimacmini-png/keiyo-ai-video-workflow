@@ -12,5 +12,13 @@ __pycache__/
 media/
 exports/
 downloads/
+footage/
+voice/
+out/
 .local/
 
+# Cursor product-video runtime. Never commit these artifacts.
+.runtime/
+inputs/
+outputs/
+work/
