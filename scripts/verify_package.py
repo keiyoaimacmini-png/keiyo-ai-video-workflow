@@ -15,10 +15,10 @@ PLUGIN_ID = "keiyo-product-video"
 MARKETPLACE_ID = "keiyo-ai-video-workflow"
 SKILL = "plugins/keiyo-product-video/skills/create-tiktok-product-video"
 PINNED_SKILL_HASHES = {
-    f"{SKILL}/SKILL.md": "a6617a8270e483c58925c78f86f01409f912a466effa296c36a1f48819f7aa76",
+    f"{SKILL}/SKILL.md": "ee1aa93f015041bd208b35b243a0bb8797ab7eef8d2f7e72310535caed4b8166",
     f"{SKILL}/agents/openai.yaml": "18695ed5a17f88debe464682cd9f81cb79d94a302c81d7b2b6123347f1df081f",
-    f"{SKILL}/references/payload_contract.md": "f8067b25588c9e89e9d4ab6d437d75dbae742a4116cca03a90c5b358ff7c8076",
-    f"{SKILL}/scripts/validate_product_video_payload.py": "d16605cf108c0dd219c20f1a267eafa87c350bbda5bfbad420959d1e75870477",
+    f"{SKILL}/references/payload_contract.md": "509a26ec9769182d65985dfdc021c6e3f3446686bb3fb4da583c2ba2a2d3f58f",
+    f"{SKILL}/scripts/validate_product_video_payload.py": "079a0728d38dc19e78a8ed1b4309986c19c390e56fff0d7c11343c245f8c0ae4",
 }
 REQUIRED_FILES = {
     ".gitattributes",
@@ -27,6 +27,8 @@ REQUIRED_FILES = {
     ".gitignore",
     "README.md",
     "docs/INSTALL_SOL_ADVISOR_JA.md",
+    "docs/cursor-cloud-agent-product-video.md",
+    "docs/product-video-to-drive.md",
     "golden-baselines/an-s182/v1/EVIDENCE.sha256",
     "golden-baselines/an-s182/v1/README_JA.md",
     "golden-baselines/an-s182/v1/acceptance.json",
