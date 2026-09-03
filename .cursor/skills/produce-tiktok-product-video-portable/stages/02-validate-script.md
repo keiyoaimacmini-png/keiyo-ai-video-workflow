@@ -31,4 +31,4 @@ Resolve every deterministic error without inventing evidence or authority.
 
 Hash the validated payload and store `artifacts.production_payload`. On the normal path, record the `SCRIPT_PREPARED` binding and advance to `SCRIPT_REVIEW`. During an unapproved `SCRIPT_REVIEW` revision, replace only that current draft binding and remain at `SCRIPT_REVIEW`.
 
-Show the selected concept, complete script, punctuation, line breaks, source asset/path, source in/out, cut duration, Unicode count, estimated read time, evidence location, and review location. Stop only for exact `台本OK`. That approval authorizes rough visual editing in a separate new CapCut Web project; it does not authorize TTS, credits, finishing, export, or Drive.
+Show the selected concept, complete script, punctuation, line breaks, source asset/path, source in/out, cut duration, Unicode count, estimated read time, evidence location, the in/mid/out frames of each proposed range, and review location. Stop only for exact `台本OK`. That approval authorizes rough visual editing in a separate new editor-of-record project; it does not authorize TTS, credits, finishing, export, or Drive.

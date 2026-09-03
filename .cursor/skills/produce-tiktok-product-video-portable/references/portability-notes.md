@@ -12,7 +12,7 @@ Removed:
 
 Retained because they are workflow requirements rather than host dependencies:
 
-- CapCut Web as the target editor;
+- CapCut Web as the usual editor of record, with an official Holiday Twist TTS sidecar when the editor of record cannot emit that preset;
 - the exact three Japanese approval texts;
 - product settings as the single source of truth;
 - exact asset/media hashes, source ranges, timing, mute, rendered-frame, playback, and reload checks;

@@ -70,6 +70,17 @@ FORBIDDEN_PATH_PATTERNS = (
     ("Linux home path", re.compile(r"/home/[^/\s]+/")),
     ("Windows home path", re.compile(r"(?i)\b[A-Z]:\\Users\\[^\\\s]+\\")),
 )
+REQUIRED_TEXT = (
+    ("SKILL.md", "does not block `COMPLETE`"),
+    ("references/hold-registry.md", "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE"),
+    ("references/host-adapter-contract.md", "Do not encode the completed video as base64"),
+    ("references/core-invariants.md", "Do not spawn a successor case to obtain Holiday Twist"),
+    ("references/fast-path.md", "Do not pause after `粗編集OK` for Path 1"),
+    ("references/checkpoint-contract.md", "in, midpoint, and out frames"),
+    ("stages/03-build-rough-cut.md", "Do not use Motion Graphics as the viewer-facing caption layer"),
+    ("stages/04-finish.md", "TTS sidecar"),
+    ("stages/06-deliver.md", "Do not inline the completed video as base64"),
+)
 
 
 def digest(path: Path) -> str:
@@ -117,6 +128,11 @@ def validate_static() -> list[str]:
         for label, pattern in FORBIDDEN_PATH_PATTERNS:
             if pattern.search(text):
                 errors.append(f"host-specific path in {path.relative_to(SKILL_ROOT)}: {label}")
+
+    for relative, needle in REQUIRED_TEXT:
+        text = (SKILL_ROOT / relative).read_text(encoding="utf-8")
+        if needle not in text:
+            errors.append(f"missing required guard text in {relative}: {needle}")
 
     if SETTINGS_PATH.is_symlink() or not SETTINGS_PATH.is_file():
         errors.append("canonical AN-S182 settings file is missing or unsafe")

@@ -55,6 +55,7 @@ This Cursor workflow's standing completion is Drive storage.
 - Initialize new cases with `delivery_mode: drive` when the original request includes 格納 / Drive / ドライブ, or when it does not explicitly require local-only export.
 - Initialize `export_only` only when the original request explicitly says 書き出しのみ / export_only / ローカルのみ.
 - Exact `完成・書き出しOK` bound to the current final-QA receipt authorizes one new export and, for `drive`, one new Drive file plus exact parent read-back.
+- Create that Drive file from local bytes. Do not inline the completed video as base64. If local-path ingest is unavailable, one authenticated Drive UI upload into the proven parent plus adapter read-back is allowed.
 - `編集が完了した` / `格納して` is not a substitute for `完成・書き出しOK`.
 - Do not upload a working copy, a ChatCut/CapCut preview, or an unverified export.
 - Do not treat a local `out/` file as 格納.
@@ -66,6 +67,7 @@ Drive receipts store only hashed identity and safe metadata. Raw Drive IDs, URLs
 These values apply to every product unless that model's settings override them:
 
 - Place viewer-facing captions at **screen center**.
+- Use the case editor's caption program (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer.
 - If a frozen line overflows the safe width, wrap it visually at an existing punctuation or phrase boundary. Do not add, delete, or reorder characters. Spoken `tts.text` stays the frozen line.
 - Make captions prominent: heavy weight, thick dark stroke, contrast band, and optional current-word highlight.
 - Keep exactly one caption layer per cut. The canonical final cut may hold its last caption through the approved tail with a matching centered overlay after TTS ends.
@@ -78,10 +80,10 @@ Use this sequence on any PC that has the skill package, that product's settings 
 1. Clone this repository. Do not commit media, exports, credentials, or Drive IDs.
 2. Resolve `PROJECT_ROOT` and `SKILL_ROOT`. Run `resolve_product_inputs.py` and `verify_product_video_setup.py --product-model <MODEL> --require-materials`.
 3. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Stop for exact `台本OK`.
-4. `ROUGH_EDIT`: create a **new** editor project. One distinct source per caption. Frozen captions as rough text. No TTS yet. Stop for exact `粗編集OK`.
-5. `FINISHING`: centered prominent captions on the case editor, Holiday Twist from frozen lines, bulk scene-gap split when generated in bulk, three-layer timing. Official CapCut text templates are optional and never a HOLD.
+4. `ROUGH_EDIT`: create a **new** editor project. Import selected assets in the host ingest helper's maximum batch. One distinct source per caption. Frozen captions on the case editor's caption program. No TTS yet. Stop for exact `粗編集OK`.
+5. `FINISHING`: centered prominent captions on the case editor's caption program, Holiday Twist from frozen lines (CapCut Text to Speech sidecar when the editor of record is not CapCut Web), bulk scene-gap split when generated in bulk, three-layer timing. Official CapCut text templates are optional and never a HOLD.
 6. `FINAL_QA`: all-cut source/caption/TTS, mute, frames, playback, reload, safe area. Stop for exact `完成・書き出しOK`. If the host cannot hear, keep auditory verification pending at this same checkpoint.
 7. `EXPORT_AND_DELIVERY`: one new export name, export once, Drive-store into the folder titled `<MODEL>`, read back. Then `COMPLETE`.
 8. Purge this case's local working media on every machine that held a copy.
 
-A host editor adapter may run the same stages when it can create a new project, inspect real frames, place captions/TTS, and export, and only for this case. Do not mix two editors in one case. Do not claim a CapCut resource read-back from a different editor. Official CapCut text templates are optional.
+A host editor adapter may run the same stages when it can create a new project, inspect real frames, place captions, and export, and only for this case. Do not mix two picture timelines. Official Holiday Twist audio may be generated on CapCut Text to Speech and imported as a working copy when the editor of record cannot emit that preset. Do not claim a CapCut resource read-back from a different editor. Official CapCut text templates are optional.

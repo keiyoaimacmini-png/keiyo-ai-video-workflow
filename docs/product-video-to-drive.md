@@ -57,11 +57,18 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
   → この案件のローカル作業コピー削除（第4の確認ではない）
 ```
 
-1 案件でエディタは 1 つ。CapCut Web か、フレーム確認・テロップ・TTS・書き出しができるホスト編集（例: ChatCut）のどちらか。混ぜない。公式 CapCut テロップテンプレは任意。
+1 案件の編集正本は 1 つ。CapCut Web か、フレーム確認・テロップ・書き出しができるホスト編集（例: ChatCut）のどちらか。タイムラインを混ぜない。公式ホリデーツイストが編集正本で出せないときは、CapCut 公式 Text to Speech で音声だけ作り、映像は入れずに編集正本へ戻す。代替ボイスや新規 CapCut 案件は作らない。公式 CapCut テロップテンプレは任意。
 
 ナレーションは公式ホリデーツイスト。一括生成するときは凍結行のあいだに空行だけを入れ、ダウンロード後に測った無音で 1 シーン 1 クリップに切る。
 
-最終テロップは画面中央。はみ出す行は句読点や意味の切れ目で見た目だけ改行し、文字は変えない。
+最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。はみ出す行は句読点や意味の切れ目で見た目だけ改行し、文字は変えない。
+
+## 時間を使わないこと
+
+- `粗編集OK` のあと、代替ボイス（Path 1）や新規 CapCut 案件（Path 2）を出さない。ホリデーツイストは編集正本で出すか、CapCut 公式 TTS の音声だけを戻す。
+- 映像を CapCut に入れ直さない。完成動画を Drive ツールの base64 にしない。書き出しを Downloads へコピーしない（ピッカーが `out/` を見られないときだけ）。
+- Checkpoint 3 で `音声確認OK` を増やさない。聴けないときは同じ停止メッセージに聴感チェックリストを載せる。
+- タブの所属が不明でも Drive 読戻し後の `COMPLETE` は止めない。Mac の作業コピー確認はまず Finder のダウンロード。
 
 ## Drive 格納
 
@@ -71,9 +78,9 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 2. その時点の JST 日付と型番の台帳を読んで序数を決める。①②は推測しない。
 3. 書き出しファイル名は `YYYY_MMDD_<MODEL>_AI作成①.mp4` 形式。同じ名前があれば止める。
 4. 書き出しは 1 回。受付や進捗だけでは成功としない。
-5. 検証済み型番と同名の親フォルダを 1 つ特定し、新規ファイルだけ作る。
+5. 検証済み型番と同名の親フォルダを 1 つ特定し、ローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。ローカルパスで渡せないときは、証明済み親へのログイン済み Drive 画面アップロード 1 回のあと、連携で読み戻す。同名の空ファイルは作らない。
 6. 名前・MIME・バイト数・親スコープ・時刻を読み戻す。Drive ID は Git に書かない。
-7. `COMPLETE` のあと、格納済みのこの案件だけ作業コピーを消す。
+7. `COMPLETE` のあと、格納済みのこの案件だけ作業コピーを消す。Mac ではまず Finder のダウンロードに完成ファイル名があるかを見る。Cloud だけで作った案件ではリポジトリ内 `outputs/` や `out/` は無いことが多い。
 
 ```bash
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id>

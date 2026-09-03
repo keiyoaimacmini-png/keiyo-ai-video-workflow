@@ -27,7 +27,9 @@ Validator success never substitutes for live editor or storage read-back.
 
 ## Browser/editor adapter
 
-The host must operate one editor for the whole case: the official CapCut Web editor, or a host-provided editor control surface that can create a separate new project, inspect timeline layers, inspect real frames, place captions and TTS, play the result, reload the same saved project, and export. Do not mix two editors in one case. CapCut official template resource IDs apply only when that editor is CapCut Web.
+The host must operate one editor of record for the whole case: the official CapCut Web editor, or a host-provided editor control surface that can create a separate new project, inspect timeline layers, inspect real frames, place captions, play the result, reload the same saved project, and export. Do not mix two picture timelines or two editor projects in one case. CapCut official template resource IDs apply only when that editor of record is CapCut Web.
+
+Official Holiday Twist is still the routine voice when the editor of record is not CapCut Web. In that case the host must generate that preset on the official CapCut Text to Speech page only, without importing picture, then import the audio working copy into the editor of record. That TTS sidecar is not a second case and not a substitute voice. Do not offer a ChatCut voice picker or a new CapCut Web project to obtain Holiday Twist.
 
 The host must track task ownership internally without persisting sensitive tab/session values in portable artifacts. It must not close unrelated tabs or windows.
 
@@ -39,7 +41,7 @@ The host must inspect real rendered frames, not only timeline JSON. It must supp
 
 - first valid, representative midpoint, and last valid frame evidence for every cut;
 - frame-level source/caption/TTS boundary inspection at sufficient zoom;
-- caption visual proof (centered, prominent, one layer per cut); official CapCut template metadata only when that editor is CapCut Web and a template was actually applied;
+- caption visual proof from composed frames (centered, prominent, one layer per cut). JSON `top` / `offsetYRatio` is not proof. Official CapCut template metadata only when that editor is CapCut Web and a template was actually applied;
 - uninterrupted full playback and same-project reload verification;
 - audible speech verification, including missing, truncated, duplicated, overlapping, or residual source audio.
 
@@ -47,7 +49,9 @@ If the host cannot reliably hear audio, it may complete structural checks but mu
 
 ## Optional Drive adapter
 
-Use for the default `drive` completion path, or when the original request fixed Drive 格納. The adapter must locate exactly one parent folder whose title is the verified product model, prove no same-name collision, create one new file, and read back exact name, MIME, byte size, new object identity, parent scope, and observation time. Never persist raw Drive IDs in git-tracked files. `export_only` is allowed only when the original request explicitly required local-only export.
+Use for the default `drive` completion path, or when the original request fixed Drive 格納. The adapter must locate exactly one parent folder whose title is the verified product model, prove no same-name collision, create one new file from local bytes, and read back exact name, MIME, byte size, new object identity, parent scope, and observation time. Never persist raw Drive IDs in git-tracked files. `export_only` is allowed only when the original request explicitly required local-only export.
+
+Do not encode the completed video as base64 in a tool argument. Do not attempt a Drive create that inlines completed-video bytes. Prefer a local-path or upload-session ingest. If that is unavailable, one already-authenticated Drive UI upload into the proven parent is allowed, then adapter read-back. Do not create a same-name empty or path-string decoy. If the parent is proven but no local-byte path exists, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`.
 
 Unknown result, missing folder, multiple matching folders, collision, or mismatched read-back is a HOLD. Never overwrite, rename around a collision, or automatically retry an unknown upload.
 

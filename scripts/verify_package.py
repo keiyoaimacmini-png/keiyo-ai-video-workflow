@@ -15,9 +15,9 @@ PLUGIN_ID = "keiyo-product-video"
 MARKETPLACE_ID = "keiyo-ai-video-workflow"
 SKILL = "plugins/keiyo-product-video/skills/create-tiktok-product-video"
 PINNED_SKILL_HASHES = {
-    f"{SKILL}/SKILL.md": "ee1aa93f015041bd208b35b243a0bb8797ab7eef8d2f7e72310535caed4b8166",
+    f"{SKILL}/SKILL.md": "71cec81235ef65260ca2bae8d4a9cf70fff64e3d80161963968eaf385c063a6a",
     f"{SKILL}/agents/openai.yaml": "18695ed5a17f88debe464682cd9f81cb79d94a302c81d7b2b6123347f1df081f",
-    f"{SKILL}/references/payload_contract.md": "509a26ec9769182d65985dfdc021c6e3f3446686bb3fb4da583c2ba2a2d3f58f",
+    f"{SKILL}/references/payload_contract.md": "a468ced2be46421cfb7b0f994fa748533d82c1f2b777756e89ad76c3768a6c62",
     f"{SKILL}/scripts/validate_product_video_payload.py": "079a0728d38dc19e78a8ed1b4309986c19c390e56fff0d7c11343c245f8c0ae4",
 }
 REQUIRED_FILES = {
