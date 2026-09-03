@@ -5,6 +5,9 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | Code | Use when |
 | --- | --- |
 | `HOLD_MODEL_UNVERIFIED` | Product model evidence is missing or conflicting. |
+| `HOLD_AI_MODEL_IDENTITY_UNVERIFIED` | The live assistant model name cannot be classified as Gemini 3.8 Flash or Grok 4.6. |
+| `HOLD_AI_MODEL_SCRIPT_LANE_REQUIRED` | Script stages (`PREFLIGHT`, `SCRIPT_PREPARED`) are not running on Gemini 3.8 Flash. |
+| `HOLD_AI_MODEL_HANDOFF_REQUIRED` | Work after `台本OK` would run on a session that is not Grok 4.6. |
 | `HOLD_PRODUCT_VIDEO_SETTINGS` | The exact single model settings file, its bytes, or resolved values do not close. Do not copy another model's file. |
 | `HOLD_INPUT_MATERIALS_REQUIRED` | This model's material root is missing, unsafe, or empty. Do not reuse another model's media. |
 | `HOLD_SCRIPT_INCOMPLETE` | The six-stage script or required evidence is incomplete. |

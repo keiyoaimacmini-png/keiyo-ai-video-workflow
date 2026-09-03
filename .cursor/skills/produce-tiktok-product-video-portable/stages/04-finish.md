@@ -5,7 +5,7 @@ description: Apply the official caption template, generate and place bounded TTS
 
 # Finish TikTok Product Video
 
-Input stage must be `FINISHING`, or `FINAL_REVIEW` with `完成・書き出しOK` still pending for a bounded repair. Exact `粗編集OK` must remain bound to the unchanged payload and execution-plan hashes. Read the parent core invariants, workflow-state contract, and `${SKILL_ROOT}/references/execution-plan-contract.md`.
+Input stage must be `FINISHING`, or `FINAL_REVIEW` with `完成・書き出しOK` still pending for a bounded repair. Exact `粗編集OK` must remain bound to the unchanged payload and execution-plan hashes. This stage requires Grok 4.6; classify with `resolve_ai_model_lane.py --stage FINISHING` before any CapCut or TTS action. Read the parent core invariants, workflow-state contract, model-routing contract, and `${SKILL_ROOT}/references/execution-plan-contract.md`.
 
 Read the edit-rule snapshot path registered in workflow state and verify its bytes against the rough-edit receipt. Do not rebuild it after `粗編集OK`; later rule-source changes belong to later cases unless the user explicitly reopens this case's frozen inputs.
 

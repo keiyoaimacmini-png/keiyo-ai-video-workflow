@@ -4,9 +4,9 @@ These are the only routine user gates. Present the exact review location and ope
 
 ## Checkpoint 1: script
 
-Show the internally selected concept, complete six-stage script, punctuation, intended line breaks, exact asset/path, source in/out, cut duration, Unicode count, estimated read time, and evidence location. Ask only for exact `台本OK`.
+Show the internally selected concept, complete six-stage script, punctuation, intended line breaks, exact asset/path, source in/out, cut duration, Unicode count, estimated read time, and evidence location. Also show the assistant-model handoff card from [model-routing.md](model-routing.md) generated with `scripts/resolve_ai_model_lane.py --print-handoff-card`. That card is orchestration, not a fourth checkpoint. Ask only for exact `台本OK`.
 
-That approval authorizes creation of a separate new CapCut Web project and the rough visual edit. Asset import into that new project is part of rough editing and does not require `CapCutアップロードOK`. It does not authorize TTS, credits, finishing, export, or Drive.
+That approval authorizes creation of a separate new CapCut Web project and the rough visual edit **on Grok 4.6**. Do not start that edit on Gemini 3.8 Flash. If `台本OK` arrives on Gemini, record it, reprint the continuation prompt with `--script-approved`, and stop with `HOLD_AI_MODEL_HANDOFF_REQUIRED`. Asset import into that new project is part of rough editing and does not require `CapCutアップロードOK`. It does not authorize TTS, credits, finishing, export, or Drive.
 
 ## Checkpoint 2: rough edit
 

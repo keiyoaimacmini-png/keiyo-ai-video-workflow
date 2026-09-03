@@ -5,7 +5,15 @@ description: Prepare the evidence-backed script package for one new TikTok produ
 
 # Prepare TikTok Product Video Script
 
-Input stage must be `PREFLIGHT`, or `SCRIPT_REVIEW` with `台本OK` still pending for a user-requested revision. Read the parent's `references/core-invariants.md` and `references/workflow-state-contract.md`, then validate the state.
+Input stage must be `PREFLIGHT`, or `SCRIPT_REVIEW` with `台本OK` still pending for a user-requested revision. Read the parent's `references/core-invariants.md`, `references/workflow-state-contract.md`, and `references/model-routing.md`, then validate the state.
+
+Classify the live assistant before concept work. `PREFLIGHT` and `SCRIPT_PREPARED` require Gemini 3.8 Flash:
+
+```bash
+python3 "${SKILL_ROOT}/scripts/resolve_ai_model_lane.py" --model "<observed-model-name>" --stage PREFLIGHT
+```
+
+A HOLD result stops this stage. Do not write a script package on Grok 4.6.
 
 Build the active script-rule snapshot before concept work, then read it completely:
 

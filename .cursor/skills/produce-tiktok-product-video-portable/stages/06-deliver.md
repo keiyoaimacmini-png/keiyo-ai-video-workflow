@@ -5,7 +5,7 @@ description: Calculate the verified export name, export once, and upload/read ba
 
 # Deliver TikTok Product Video
 
-Input stage must be `EXPORT_AND_DELIVERY` with exact `完成・書き出しOK` bound to the current final-QA artifact, delivery-rule snapshot, and authorization subjects. Read the parent core invariants and workflow-state contract.
+Input stage must be `EXPORT_AND_DELIVERY` with exact `完成・書き出しOK` bound to the current final-QA artifact, delivery-rule snapshot, and authorization subjects. This stage requires Grok 4.6; classify with `resolve_ai_model_lane.py --stage EXPORT_AND_DELIVERY` before export. Read the parent core invariants, workflow-state contract, and model-routing contract.
 
 Read the delivery-rule snapshot path registered in workflow state and verify its actual bytes against the final approval. Do not rebuild or replace it after `完成・書き出しOK`. Bind the same SHA into the `EXPORT_AND_DELIVERY` stage receipt and task-owned delivery-stage receipt.
 

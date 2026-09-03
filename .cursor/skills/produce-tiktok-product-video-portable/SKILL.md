@@ -1,6 +1,6 @@
 ---
 name: produce-tiktok-product-video-portable
-description: Provider-neutral workflow for producing one new TikTok product video through script, editor finishing, final verification, export, and Drive 格納 with exactly three routine checkpoints. Product, materials, and Drive folder title are per-case inputs.
+description: Provider-neutral workflow for producing one new TikTok product video through script, editor finishing, final verification, export, and Drive 格納 with exactly three routine checkpoints. Cursor runs generate the script on Gemini 3.8 Flash, then hand off to Grok 4.6 after 台本OK. Product, materials, and Drive folder title are per-case inputs.
 ---
 
 # Produce TikTok Product Video — Portable
@@ -17,6 +17,9 @@ Read completely:
 2. [references/workflow-state-contract.md](references/workflow-state-contract.md)
 3. [references/host-adapter-contract.md](references/host-adapter-contract.md)
 4. [references/product-and-material-contract.md](references/product-and-material-contract.md)
+5. [references/model-routing.md](references/model-routing.md)
+
+Cursor runs of this skill use Gemini 3.8 Flash for script work and Grok 4.6 after Checkpoint 1. Classify the live assistant before `PREFLIGHT` and before entering `ROUGH_EDIT`. The parent Cloud Agent model cannot change mid-run; Checkpoint 1 is a session handoff, not a fourth approval.
 
 Product model, settings, materials, and Drive folder title are per-case inputs. Resolve them before creating a case. Do not reuse another product's settings, media, script, editor project, or Drive object.
 
@@ -53,7 +56,7 @@ Read only the stage file matching the current state:
 
 Review states are approval boundaries, not production stages:
 
-- `SCRIPT_REVIEW`: accept only exact `台本OK`, append its receipt, then advance to `ROUGH_EDIT`.
+- `SCRIPT_REVIEW`: present Checkpoint 1 **and** the Grok 4.6 handoff card from [references/model-routing.md](references/model-routing.md). Accept only exact `台本OK`, append its receipt, then advance to `ROUGH_EDIT` **only on Grok 4.6**. A Gemini 3.8 Flash session that recorded `台本OK` must stop with `HOLD_AI_MODEL_HANDOFF_REQUIRED` and must not open CapCut.
 - `ROUGH_REVIEW`: accept only exact `粗編集OK`, append its receipt, then advance to `FINISHING`.
 - `FINAL_REVIEW`: accept only exact `完成・書き出しOK`, append its receipt, then advance to `EXPORT_AND_DELIVERY`.
 

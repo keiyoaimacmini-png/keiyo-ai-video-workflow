@@ -45,6 +45,10 @@ The host must inspect real rendered frames, not only timeline JSON. It must supp
 
 If the host cannot reliably hear audio, it may complete structural checks but must keep auditory status pending and expose the full listening checklist at Checkpoint 3. It must not claim completion from waveform presence alone.
 
+## Optional assistant-model identity adapter
+
+Cursor runs of this skill split script work onto Gemini 3.8 Flash and post-`台本OK` work onto Grok 4.6. The host should expose the live assistant's model display name or ID so `scripts/resolve_ai_model_lane.py` can classify it. Missing identity is `HOLD_AI_MODEL_IDENTITY_UNVERIFIED`. Changing the parent Cloud Agent model mid-run is not a required capability. Spawning a provider-specific subagent is not a required capability.
+
 ## Optional Drive adapter
 
 Use for the default `drive` completion path, or when the original request fixed Drive 格納. The adapter must locate exactly one parent folder whose title is the verified product model, prove no same-name collision, create one new file, and read back exact name, MIME, byte size, new object identity, parent scope, and observation time. Never persist raw Drive IDs in git-tracked files. `export_only` is allowed only when the original request explicitly required local-only export.
