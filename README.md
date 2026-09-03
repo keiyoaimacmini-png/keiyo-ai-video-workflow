@@ -17,7 +17,7 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_pro
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
-6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は型番名フォルダへのDrive新規格納。
+6. Cursorでこのリポジトリを開き、**Gemini 3.8 Flash** で `/produce-tiktok-product-video-portable` の新規案件を開始する。Checkpoint 1で Grok 4.6 への切替カードが出る。粗編集以降は **Grok 4.6**。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は型番名フォルダへのDrive新規格納。
 
 詳細は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) と `.cursor/skills/produce-tiktok-product-video-portable/references/product-and-material-contract.md` を使う。
 

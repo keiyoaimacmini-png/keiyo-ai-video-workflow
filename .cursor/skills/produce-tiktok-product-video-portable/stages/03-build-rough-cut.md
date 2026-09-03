@@ -5,7 +5,13 @@ description: Build and verify the rough CapCut Web timeline for a new product vi
 
 # Build TikTok Product Video Rough Cut
 
-Input stage must be `ROUGH_EDIT`, or `ROUGH_REVIEW` with `粗編集OK` still pending for a user-requested revision. Exact `台本OK` must remain bound to the current production payload and script-rule snapshot. Read the parent's core invariants, workflow-state contract, and:
+Input stage must be `ROUGH_EDIT`, or `ROUGH_REVIEW` with `粗編集OK` still pending for a user-requested revision. Exact `台本OK` must remain bound to the current production payload and script-rule snapshot. This stage requires Grok 4.6:
+
+```bash
+python3 "${SKILL_ROOT}/scripts/resolve_ai_model_lane.py" --model "<observed-model-name>" --stage ROUGH_EDIT
+```
+
+A HOLD result stops this stage. Do not open CapCut on Gemini 3.8 Flash. Read the parent's core invariants, workflow-state contract, model-routing contract, and:
 
 - `${SKILL_ROOT}/references/execution-plan-contract.md`
 

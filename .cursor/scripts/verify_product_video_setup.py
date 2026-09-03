@@ -31,6 +31,7 @@ REQUIRED_SKILL_FILES = (
     "references/payload-contract.md",
     "references/portability-notes.md",
     "references/product-and-material-contract.md",
+    "references/model-routing.md",
     "references/self-repair.md",
     "stages/01-prepare-script.md",
     "stages/02-validate-script.md",
@@ -48,6 +49,7 @@ REQUIRED_SKILL_FILES = (
     "scripts/purge_local_working_media.py",
     "scripts/prepare_bulk_tts_scene_gaps.py",
     "scripts/resolve_product_inputs.py",
+    "scripts/resolve_ai_model_lane.py",
 )
 SELF_TESTS = (
     "validate_product_video_payload.py",
@@ -59,6 +61,7 @@ SELF_TESTS = (
     "purge_local_working_media.py",
     "prepare_bulk_tts_scene_gaps.py",
     "resolve_product_inputs.py",
+    "resolve_ai_model_lane.py",
 )
 FORBIDDEN_TEXT = (
     ".codex/",

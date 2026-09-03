@@ -5,7 +5,7 @@ description: Independently verify every cut of a finished CapCut Web product-vid
 
 # Verify TikTok Product Video Timeline
 
-Input stage must be `FINAL_QA`, or `FINAL_REVIEW` with `完成・書き出しOK` still pending after a bounded repair. Read the parent core invariants and workflow-state contract.
+Input stage must be `FINAL_QA`, or `FINAL_REVIEW` with `完成・書き出しOK` still pending after a bounded repair. This stage requires Grok 4.6; classify with `resolve_ai_model_lane.py --stage FINAL_QA` before inspection. Read the parent core invariants, workflow-state contract, and model-routing contract.
 
 Use the same hash-bound edit-rule snapshot path registered in workflow state and verified during finishing. Do not read the live rule source as a replacement for the approved edit context.
 

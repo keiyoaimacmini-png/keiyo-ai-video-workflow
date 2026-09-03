@@ -77,8 +77,8 @@ Use this sequence on any PC that has the skill package, that product's settings 
 
 1. Clone this repository. Do not commit media, exports, credentials, or Drive IDs.
 2. Resolve `PROJECT_ROOT` and `SKILL_ROOT`. Run `resolve_product_inputs.py` and `verify_product_video_setup.py --product-model <MODEL> --require-materials`.
-3. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Stop for exact `台本OK`.
-4. `ROUGH_EDIT`: create a **new** editor project. One distinct source per caption. Frozen captions as rough text. No TTS yet. Stop for exact `粗編集OK`.
+3. Start the case on Gemini 3.8 Flash. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Show the Grok 4.6 handoff card. Stop for exact `台本OK`.
+4. Continue on Grok 4.6. Do not open CapCut on Gemini. `ROUGH_EDIT`: create a **new** editor project. One distinct source per caption. Frozen captions as rough text. No TTS yet. Stop for exact `粗編集OK`.
 5. `FINISHING`: official template from **this** model's settings (or HOLD if the host cannot apply it), Holiday Twist from frozen lines, bulk scene-gap split when generated in bulk, three-layer timing, centered prominent captions.
 6. `FINAL_QA`: all-cut source/caption/TTS, mute, frames, playback, reload, safe area. Stop for exact `完成・書き出しOK`. If the host cannot hear, keep auditory verification pending at this same checkpoint.
 7. `EXPORT_AND_DELIVERY`: one new export name, export once, Drive-store into the folder titled `<MODEL>`, read back. Then `COMPLETE`.

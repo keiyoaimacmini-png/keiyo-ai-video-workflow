@@ -14,6 +14,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
 - When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
+- Start a new case on **Gemini 3.8 Flash**. At Checkpoint 1, show the Grok 4.6 handoff card from `scripts/resolve_ai_model_lane.py --print-handoff-card`. After exact `台本OK`, continue only on **Grok 4.6**. A Cloud Agent parent model cannot be changed mid-run; start a new Grok 4.6 Cloud Agent with the printed continuation prompt, or switch the Desktop model picker before the next turn. Do not open CapCut on Gemini 3.8 Flash.
 
 ## Approval and safety boundary
 

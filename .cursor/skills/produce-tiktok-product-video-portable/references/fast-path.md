@@ -9,10 +9,11 @@
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
 - Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.
 - Build and validate the canonical payload before Checkpoint 1.
+- Present the Grok 4.6 handoff card with Checkpoint 1. Do not start rough editing on Gemini 3.8 Flash.
 
 Run independent read-only checks in parallel where the active environment supports it. Preserve one canonical payload and one execution plan; do not duplicate them per operation.
 
-## 2. Rough edit after `台本OK`
+## 2. Rough edit after `台本OK` on Grok 4.6
 
 - Read back the official CapCut Web editor and create a different new project.
 - Import only the selected assets and build the rough timeline.

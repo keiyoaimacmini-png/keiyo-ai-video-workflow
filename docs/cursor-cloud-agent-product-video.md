@@ -6,7 +6,7 @@
 
 1. このフォルダの変更をGitリポジトリへ反映する。Cloud AgentはMac上の未反映ファイルを直接読めない。
 2. CursorデスクトップアプリでこのGitリポジトリを選ぶ。
-3. Agent画面の実行先を`Cloud environment`にする。
+3. Agent画面の実行先を`Cloud environment`にする。**台本まで**の新規案件はモデルを **Gemini 3.8 Flash** にする。Cloud Agentの親モデルは実行中に変わらない。
 4. **その製品**の設定ファイル `config/product_video_settings_<MODEL>.v1.json` があることを確認する。無いならAN-S182を複製して型番だけ変えない。その製品用に新規作成する。
 5. 承認済み素材を `.runtime/product-video-inputs/<MODEL>_コピー` へ安全に用意する。別の場所を使う場合は `PRODUCT_VIDEO_MATERIAL_ROOT` を設定する。別製品の素材を流用しない。
 6. Cloud Agent内で次を実行する。
@@ -37,6 +37,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 既存動画、既存project、過去export、Drive原本、過去payload、過去receiptを変更・上書きしないでください。
 
 通常確認は台本OK、粗編集OK、完成・書き出しOKの3種類だけです。
+Checkpoint 1ではGrok 4.6への切替カードも出してください。Gemini 3.8 Flashのまま粗編集へ進まないでください。
 完成・書き出しOKのあと、型番名のDriveフォルダへ新規ファイルとして格納してください。
 まずCheckpoint 1の台本OKまで進めて停止してください。
 ```
@@ -48,6 +49,8 @@ AN-S182の例:
 商品設定はconfig/product_video_settings_AN-S182.v1.jsonです。
 素材は.runtime/product-video-inputs/AN-S182_コピーです。
 ```
+
+`台本OK` のあと、Cloud Agentなら **Grok 4.6** の新しいAgentを起こし、Checkpoint 1が出した続きプロンプトを渡します。Desktopなら次のメッセージの前にモデルピッカーを Grok 4.6 へ切り替えます。Gemini 3.8 Flash のまま粗編集やCapCut操作へ進みません。
 
 ## エディタ操作について
 
