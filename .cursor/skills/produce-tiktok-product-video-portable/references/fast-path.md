@@ -5,7 +5,7 @@
 - Read project instructions and local project context once.
 - Resolve exactly one product settings file and hash it.
 - Inventory and hash candidate media without copying originals.
-- In this Cursor Cloud workflow, draft the twenty-candidate comparison and selected dialogue with Gemini 3.8 Flash (`gemini-3.8-flash` via `scripts/draft_script_with_gemini.py`) using `GEMINI_API_KEY`. Do not paste the key. If the key is missing, `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE`. Other hosts compare twenty concepts internally.
+- In this Cursor Cloud workflow, draft the twenty-candidate comparison and selected dialogue in official Gemini Web chat at `https://gemini.google.com/`, using the existing Chrome Google session the same way CapCut uses Chrome. Prefer Gemini 3.8 Flash in the picker when visible. Do not call the Gemini API. If the origin or browser adapter is missing, `HOLD_GEMINI_WEB_NOT_VERIFIED`. If login, CAPTCHA, 2FA, or account choice is required, `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. Other hosts compare twenty concepts internally.
 - Inspect in, midpoint, and out frames of each proposed source range against the claimed visible action. Do not default to the first N seconds of a usable take.
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
 - Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.

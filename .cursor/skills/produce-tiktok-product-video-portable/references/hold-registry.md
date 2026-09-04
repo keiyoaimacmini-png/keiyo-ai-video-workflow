@@ -13,6 +13,8 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_FINAL_VISUAL_NOT_VERIFIED` | The configured canonical final asset/range/tail cannot be verified. |
 | `HOLD_CAPCUT_WEB_NOT_VERIFIED` | Official editor origin, intended project, or editable timeline identity is not verified. |
 | `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED` | Login needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond existing session/autofill. |
+| `HOLD_GEMINI_WEB_NOT_VERIFIED` | Official Gemini Web origin `https://gemini.google.com/` or a usable Chrome browser/editor adapter is not verified for the Checkpoint 1 script draft. Do not call the Gemini API as a substitute. |
+| `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` | Gemini Web login needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond the existing Chrome Google session or saved autofill. Same handoff as CapCut: the user operates through Cursor Desktop. Never paste passwords or API keys. |
 | `HOLD_TTS_ALLOWANCE_EXHAUSTED` | Another TTS action would exceed the approved plan or per-cut reserve. |
 | `HOLD_AUDITORY_CONFIRMATION_REQUIRED` | The host cannot reliably complete the required full-playback listening audit. |
 | `HOLD_PRODUCTION_ORDINAL_UNVERIFIED` | The exact date/model export ledger, order, or hash does not close. |
@@ -28,6 +30,5 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` | The Cloud VM working copies are gone, and the operator Mac still needs the same relative purge. User-facing check is Finder Downloads for the exact completed filename first; repo `outputs/<case-id>/` media and `out/<filename>` only if present. Missing copies are not a failure. |
 | `HOLD_BULK_TTS_LINE_ALIGNMENT_UNVERIFIED` | Bulk TTS cannot be split because frozen-line alignment is missing, mismatched, overlapping, or past the audio end. |
 | `HOLD_BULK_TTS_SCENE_GAPS_UNVERIFIED` | The working copy does not contain one detectable silent scene-split gap per frozen-line boundary. |
-| `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE` | This Cursor workflow requires `GEMINI_API_KEY` or `GOOGLE_API_KEY` in the host environment for the Checkpoint 1 script draft, or the Gemini 3.8 Flash API call failed. Do not paste the key into chat, Git, or logs. |
 
 The payload contract also uses `AWAITING_USER_AUDITORY_CONFIRMATION`; treat it as equivalent to `HOLD_AUDITORY_CONFIRMATION_REQUIRED` at the orchestration layer without changing a stored schema value.

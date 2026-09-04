@@ -20,7 +20,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY`なら準備完了です。素材がない、8件未満、壊れている、またはmedia SHA-256が8種類未満なら、既存物を変更せずHOLDします。素材、認証情報、完成動画をGitへ含めてはいけません。
 
-この Cursor Cloud 運用の台本下書きは Gemini 3.8 Flash API（`gemini-3.8-flash`）です。Google AI Studio で作ったキーは、Cloud Agent の環境シークレット `GEMINI_API_KEY` に入れたあと、新しい Agent 実行から使えます。チャットへ貼りません。この VM にキーが無いときは `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE` で止まります。
+この Cursor Cloud 運用の台本下書きは公式 Gemini Web（`https://gemini.google.com/`）のチャットです。CapCut Web と同じく Chrome の既存ログインを使い、API キーは使いません。ログインや 2FA が必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` で止まり、Cursor Desktop から操作します。
 
 `完成・書き出しOK` のあとの既定完了は、型番名のDriveフォルダへの新規格納です。格納が確認できた案件は、Cloud VM と操作Macに素材の作業コピーや完成動画の作業コピーを残しません。原本とDrive上の格納ファイルとreceiptは残します。格納前の進行中ファイルは消しません。`編集が完了した` だけでは書き出しもDriveも行いません。
 

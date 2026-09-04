@@ -67,7 +67,6 @@ REQUIRED_FILES = {
     "tests/test_golden_baseline.py",
     "tests/test_golden_baseline_v2.py",
     "tests/test_resolve_product_inputs.py",
-    "tests/test_draft_script_with_gemini.py",
     *PINNED_SKILL_HASHES,
 }
 DENIED_SUFFIXES = {

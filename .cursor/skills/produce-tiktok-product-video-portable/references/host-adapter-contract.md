@@ -33,7 +33,7 @@ Official Holiday Twist is still the routine voice when the editor of record is n
 
 The host must track task ownership internally without persisting sensitive tab/session values in portable artifacts. It must not close unrelated tabs or windows.
 
-If login is lost, use only the official site and an already-authorized browser session or saved autofill. Do not display, read, copy, log, or export credentials, cookies, or tokens. Account ambiguity, CAPTCHA, 2FA, recovery, or new consent requires `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`.
+If login is lost, use only the official site and an already-authorized browser session or saved autofill. Do not display, read, copy, log, or export credentials, cookies, or tokens. For CapCut or TikTok, account ambiguity, CAPTCHA, 2FA, recovery, or new consent requires `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. For the Checkpoint 1 Gemini Web draft, open only `https://gemini.google.com/` and treat the same conditions as `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. Missing Gemini origin or browser adapter is `HOLD_GEMINI_WEB_NOT_VERIFIED`. Do not call the Gemini API for that draft. Never put Google, Gemini, CapCut, or TikTok passwords in repository files or prompts.
 
 ## Visual and audio evidence adapter
 

@@ -30,7 +30,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY` 以外なら案件を作らず止まる。
 
-この Cursor Cloud 運用では台本下書きに Gemini 3.8 Flash API（`gemini-3.8-flash`）を使う。キーは Cloud Agent 環境の `GEMINI_API_KEY` だけ。Google AI Studio 側にあるだけでは、この VM からは使えない。チャットや Git に貼らない。
+この Cursor Cloud 運用では台本下書きに公式 Gemini Web（`https://gemini.google.com/`）のチャットを使う。CapCut と同じ Chrome セッション方式。API キーは使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 ## 通常確認は 3 つだけ
 
