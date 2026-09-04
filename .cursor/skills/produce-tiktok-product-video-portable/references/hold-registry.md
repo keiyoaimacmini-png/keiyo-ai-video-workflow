@@ -28,5 +28,6 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` | The Cloud VM working copies are gone, and the operator Mac still needs the same relative purge. User-facing check is Finder Downloads for the exact completed filename first; repo `outputs/<case-id>/` media and `out/<filename>` only if present. Missing copies are not a failure. |
 | `HOLD_BULK_TTS_LINE_ALIGNMENT_UNVERIFIED` | Bulk TTS cannot be split because frozen-line alignment is missing, mismatched, overlapping, or past the audio end. |
 | `HOLD_BULK_TTS_SCENE_GAPS_UNVERIFIED` | The working copy does not contain one detectable silent scene-split gap per frozen-line boundary. |
+| `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE` | This Cursor workflow requires `GEMINI_API_KEY` or `GOOGLE_API_KEY` in the host environment for the Checkpoint 1 script draft, or the Gemini 3.8 Flash API call failed. Do not paste the key into chat, Git, or logs. |
 
 The payload contract also uses `AWAITING_USER_AUDITORY_CONFIRMATION`; treat it as equivalent to `HOLD_AUDITORY_CONFIRMATION_REQUIRED` at the orchestration layer without changing a stored schema value.

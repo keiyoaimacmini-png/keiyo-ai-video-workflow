@@ -24,12 +24,18 @@ On an unapproved review revision, record the correction first. Build a new versi
 3. Resolve exactly one model-matched product settings file for **this** `product_model` (`config/product_video_settings_<model>.v1.json`) and hash its actual bytes. If it is missing, HOLD. Do not copy another model's settings.
 4. Inventory candidate media from the resolved material root without copying or changing originals. Record safe relative path, asset ID, media SHA-256, duration, exact observed subject/action, usable source ranges, and evidence location. Do not inventory another model's folder as a substitute.
 5. Inspect the real frames needed to support each proposed line. Labels and sidecars are leads, not proof of an exact reaction, direction, stage, or completion state. For the proposed source in/out, inspect the in, midpoint, and out frames and confirm they show the claimed visible action. Do not default to the first N seconds of a usable take.
-6. Retrieve any project-required generation context. Keep selected reusable patterns and their `not_to_copy` boundaries distinct. Internally compare twenty executable concepts; do not ask the user to choose among them.
-7. Select the strongest concept that supports the full six-stage progression and one distinct source/media SHA per visible caption.
+6. Retrieve any project-required generation context. Keep selected reusable patterns and their `not_to_copy` boundaries distinct. In this Cursor Cloud workflow, after the material inventory exists, write a key-free brief and draft with Gemini 3.8 Flash (`gemini-3.8-flash`):
+
+```bash
+python3 "${SKILL_ROOT}/scripts/draft_script_with_gemini.py" --brief <task-root>/gemini-script-brief.v1.json --output <task-root>/gemini-script-draft.v1.json
+```
+
+Read `GEMINI_API_KEY` or `GOOGLE_API_KEY` from the environment only. Never paste, log, or commit the key. A key that exists only in Google AI Studio is not enough until this host environment has the secret. If the key is missing or the API call fails, `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE`. Do not fall back to another model for that draft. Other hosts without this key still compare twenty executable concepts internally. Do not ask the user to choose among concepts.
+7. Select the strongest concept that supports the full six-stage progression and one distinct source/media SHA per visible caption. Gemini must not invent media SHA values or source in/out; bind those from inspected frames.
 8. Read the visible dialogue straight through without stage labels. Repair unexplained jumps, unclear pronouns, and weak causal connections before selection.
 
 ## Output
 
-Create one `product_video_script_package.v1` containing the closed material manifest and model provenance, selected concept, twenty-candidate comparison summary, project generation-context provenance and `not_to_copy`, verified facts/evidence, complete ordered dialogue, exact punctuation and line breaks, cut IDs, source asset/path and SHA, source in/out, cut duration, Unicode count, estimated read time, settings SHA, active-rule snapshot SHA, and canonical final-cut binding.
+Create one `product_video_script_package.v1` containing the closed material manifest and model provenance, selected concept, twenty-candidate comparison summary, project generation-context provenance and `not_to_copy`, verified facts/evidence, complete ordered dialogue, exact punctuation and line breaks, cut IDs, source asset/path and SHA, source in/out, cut duration, Unicode count, estimated read time, settings SHA, active-rule snapshot SHA, and canonical final-cut binding. Persist the Gemini draft receipt when that path ran, without storing the API key.
 
 Hash the package and store it as `artifacts.script_package`. On the normal path, record the `PREFLIGHT` binding and advance to `SCRIPT_PREPARED`. During an unapproved `SCRIPT_REVIEW` revision, replace only the current `PREFLIGHT` draft binding, remain at `SCRIPT_REVIEW`, and route the revised package through script validation again. Do not request approval from this skill and do not open or mutate CapCut.

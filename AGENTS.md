@@ -16,6 +16,13 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
 - When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
 
+## Gemini 3.8 Flash 台本
+
+- この Cursor Cloud 運用では、Checkpoint 1 の台本案を Gemini 3.8 Flash API（`gemini-3.8-flash`）で下書きする。Cursor の外部モデル枠は使わない。
+- キーは環境変数 `GEMINI_API_KEY`（または `GOOGLE_API_KEY`）だけから読む。Google AI Studio にキーがあるだけでは足りない。チャット、Git、receipt、ログに貼らない。
+- キーが無い、または API が失敗したら `HOLD_GEMINI_SCRIPT_API_UNAVAILABLE`。別モデルへフォールバックしない。
+- 素材の SHA と in/out は Gemini に作らせない。実フレーム確認のあと、このスキルが payload に結ぶ。
+
 ## Approval and safety boundary
 
 - Use only the exact routine approvals `台本OK`, `粗編集OK`, and `完成・書き出しOK`. `編集が完了した` or `格納して` does not replace `完成・書き出しOK`.

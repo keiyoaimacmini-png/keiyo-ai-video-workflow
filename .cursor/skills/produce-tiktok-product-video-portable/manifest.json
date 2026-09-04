@@ -51,7 +51,8 @@
     "scripts/build_rule_snapshot.py",
     "scripts/purge_local_working_media.py",
     "scripts/prepare_bulk_tts_scene_gaps.py",
-    "scripts/resolve_product_inputs.py"
+    "scripts/resolve_product_inputs.py",
+    "scripts/draft_script_with_gemini.py"
   ],
   "excluded_host_dependencies": [
     "provider_specific_agent_metadata",
