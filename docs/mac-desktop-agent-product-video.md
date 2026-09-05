@@ -23,7 +23,26 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 一括のホリデーツイスト生成では、各台本行のあいだに測った無音を入れてから、その無音でシーンごとに切ります。結合した 1 本のナレーションのまま尺を合わせません。最終テロップは画面中央で、案件エディタの字幕プログラムを使い、はみ出す行は見た目だけ改行します。`粗編集OK` のあと Path 1 / Path 2 では止めません。Drive 格納は完成動画を base64 にせず、ローカルバイトまたはログイン済み画面アップロード 1 回です。
 
-## ブラウザ
+## 台本（Gemini 3.8 Flash / Chrome）
+
+Cursor の親モデルは切り替えない。台本は Gemini API でも Cursor 内蔵ブラウザでも作らない。
+
+1. 素材点検と実フレーム確認は、この Mac の Desktop Agent が行う。
+2. キー無し brief から貼り付け文を出す。
+
+```bash
+python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemini_web_prompt.py --brief <task-root>/gemini-web-brief.v1.json
+```
+
+3. この Mac の **Google Chrome.app** で `https://gemini.google.com/` を新規チャットで開く。
+4. モデルピッカーで **Gemini 3.8 Flash** を選び、その表示を読み戻す。別モデルなら止める。
+5. 貼り付け文だけを送り、返ってきた台詞と20案要約だけを台本パッケージへ写す。
+6. SHA と in/out は Gemini に作らせず、実フレーム確認のあとスキルが結ぶ。
+7. `台本OK` まで止める。その後の粗編集も、同じこの Mac の Desktop Agent で続ける。
+
+エージェントは Chrome.app のウィンドウを直接操作できない。ログイン済み Chrome へ貼る作業はオペレーターが行う。ログイン、CAPTCHA、2FA は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
+
+## ブラウザ（CapCut など）
 
 エージェントが操作できるのは、ホストが渡す **エージェント制御ブラウザ**（Cursor 内蔵ブラウザ）です。この Mac の **Google Chrome.app** のウィンドウ、タブ、保存済みログインは使えません。CapCut / TikTok のログイン済みセッションは引き継がれません。
 
@@ -50,6 +69,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 既存動画、既存project、過去export、Drive原本、過去payload、過去receiptを変更・上書きしないでください。
 
 通常確認は台本OK、粗編集OK、完成・書き出しOKの3種類だけです。
+Checkpoint 1 の台本は、このMacのChromeの公式Gemini Web（https://gemini.google.com/）でGemini 3.8 Flashに作らせてください。
+Cursorの親モデル切替とGemini APIは使わないでください。
 完成・書き出しOKのあと、型番名のDriveフォルダへ新規ファイルとして格納してください。
 まずCheckpoint 1の台本OKまで進めて停止してください。
 ```

@@ -37,7 +37,7 @@ Official Holiday Twist is still the routine voice when the editor of record is n
 
 The host must track task ownership internally without persisting sensitive tab/session values in portable artifacts. It must not close unrelated tabs or windows.
 
-If login is lost, use only the official site and an already-authorized browser session or saved autofill. Do not display, read, copy, log, or export credentials, cookies, or tokens. Account ambiguity, CAPTCHA, 2FA, recovery, or new consent requires `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`.
+If login is lost, use only the official site and an already-authorized browser session or saved autofill. Do not display, read, copy, log, or export credentials, cookies, or tokens. For CapCut or TikTok, account ambiguity, CAPTCHA, 2FA, recovery, or new consent requires `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. For the Checkpoint 1 script draft, open only `https://gemini.google.com/` in this Mac's Google Chrome.app. Do not use the agent-controlled browser as a substitute for that Chrome session. Do not switch the Cursor parent model to write the script. Select Gemini 3.8 Flash and read that label back; any other picker value is `HOLD_GEMINI_MODEL_NOT_VERIFIED`. Treat login, CAPTCHA, 2FA, recovery, or new consent as `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. Missing Chrome Gemini origin is `HOLD_GEMINI_WEB_NOT_VERIFIED`; write the key-free paste prompt with `scripts/render_gemini_web_prompt.py` so the operator can finish the chat in Chrome. Do not call the Gemini API for that draft. Never put Google, Gemini, CapCut, or TikTok passwords in repository files or prompts.
 
 ## Visual and audio evidence adapter
 

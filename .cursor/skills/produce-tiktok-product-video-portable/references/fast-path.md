@@ -5,7 +5,7 @@
 - Read project instructions and local project context once.
 - Resolve exactly one product settings file and hash it.
 - Inventory and hash candidate media without copying originals.
-- Compare twenty concepts internally and select the strongest executable concept.
+- Draft the twenty-candidate comparison and selected dialogue in official Gemini Web at `https://gemini.google.com/` in this Mac's Google Chrome.app. Select Gemini 3.8 Flash and read that label back. Do not switch the Cursor parent model. Do not call the Gemini API. Render the paste prompt with `scripts/render_gemini_web_prompt.py`. If Chrome.app cannot be used, `HOLD_GEMINI_WEB_NOT_VERIFIED`. If login, CAPTCHA, 2FA, or account choice is required, `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. If the picker is not Gemini 3.8 Flash, `HOLD_GEMINI_MODEL_NOT_VERIFIED`.
 - Inspect in, midpoint, and out frames of each proposed source range against the claimed visible action. Do not default to the first N seconds of a usable take.
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
 - Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.

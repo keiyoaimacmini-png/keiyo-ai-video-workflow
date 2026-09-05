@@ -10,7 +10,7 @@
 
 正本スキルは `.cursor/skills/produce-tiktok-product-video-portable/` です。起動は `/produce-tiktok-product-video-portable`。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は、型番名の Drive フォルダへの新規格納です。
 
-人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。この Mac での起動文は [docs/mac-desktop-agent-product-video.md](docs/mac-desktop-agent-product-video.md) です。Cloud Agent 向けの旧起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
+人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。この Mac での起動文は [docs/mac-desktop-agent-product-video.md](docs/mac-desktop-agent-product-video.md) です。台本は Cursor のモデル切替ではなく、この Mac の Chrome でログイン済みの Gemini 3.8 Flash に作らせます。Cloud Agent 向けの旧起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
 
 ## 別PCで同じスキルを使う（Cursor）
 

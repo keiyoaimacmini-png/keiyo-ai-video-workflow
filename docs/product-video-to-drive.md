@@ -8,9 +8,11 @@ Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive �
 
 ## 本番ホストとブラウザ（Ver2）
 
-本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。
+本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。Cursor の親モデル切替はしない。
 
-エージェントが操作できるブラウザは Cursor 内蔵ブラウザであり、この Mac の Google Chrome.app ではない。Chrome.app の CapCut / TikTok ログインは引き継がない。ログイン、CAPTCHA、2FA が出たら止めてユーザーが操作する。
+台本は、この Mac の **Google Chrome.app** でログイン済みの公式 Gemini Web に作らせる。モデルは **Gemini 3.8 Flash**。Cursor 内蔵ブラウザは Chrome.app のログインを共有しないので、台本には使わない。エージェントが Chrome.app を操作できないときは、貼り付け文を残してユーザーが Chrome で実行する。
+
+CapCut 用にエージェントが操作できるブラウザは Cursor 内蔵ブラウザである。ログイン、CAPTCHA、2FA が出たら止めてユーザーが操作する。
 
 ## 使わないもの
 
@@ -38,6 +40,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY` 以外なら案件を作らず止まる。
 
+この枝では台本下書きに、この Mac の Google Chrome.app で開いた公式 Gemini Web（`https://gemini.google.com/`）を使う。ピッカーは Gemini 3.8 Flash。Cursor の親モデル切替と Gemini API は使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+
 ## 通常確認は 3 つだけ
 
 | 確認 | 許可すること | 許可しないこと |
@@ -52,8 +56,9 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ```text
 準備
-  → PREFLIGHT（素材点検・20案比較・台本パッケージ）
-  → SCRIPT_PREPARED（payload 検証）
+  → PREFLIGHT（素材点検・実フレーム確認）
+  → このMacのChromeのGemini 3.8 Flashで台本下書き（20案はGemini内、APIなし）
+  → SCRIPT_PREPARED（payload 検証。SHA と in/out は実フレームから結ぶ）
   → SCRIPT_REVIEW  …… 台本OK
   → ROUGH_EDIT（新規エディタ、1テロップ1素材、TTSなし）
   → ROUGH_REVIEW  …… 粗編集OK

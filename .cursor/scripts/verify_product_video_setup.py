@@ -48,6 +48,7 @@ REQUIRED_SKILL_FILES = (
     "scripts/purge_local_working_media.py",
     "scripts/prepare_bulk_tts_scene_gaps.py",
     "scripts/resolve_product_inputs.py",
+    "scripts/render_gemini_web_prompt.py",
 )
 SELF_TESTS = (
     "validate_product_video_payload.py",
@@ -59,6 +60,7 @@ SELF_TESTS = (
     "purge_local_working_media.py",
     "prepare_bulk_tts_scene_gaps.py",
     "resolve_product_inputs.py",
+    "render_gemini_web_prompt.py",
 )
 FORBIDDEN_TEXT = (
     ".codex/",
@@ -80,6 +82,10 @@ REQUIRED_TEXT = (
     ("stages/03-build-rough-cut.md", "Do not use Motion Graphics as the viewer-facing caption layer"),
     ("stages/04-finish.md", "TTS sidecar"),
     ("stages/06-deliver.md", "Do not inline the completed video as base64"),
+    ("references/hold-registry.md", "HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED"),
+    ("stages/01-prepare-script.md", "gemini.google.com"),
+    ("stages/01-prepare-script.md", "Gemini 3.8 Flash"),
+    ("references/host-adapter-contract.md", "Gemini 3.8 Flash"),
 )
 
 

@@ -18,6 +18,14 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
 - When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
 
+## Gemini Web 台本（Cursor のモデルは切り替えない）
+
+- Checkpoint 1 の台本案は、この Mac の **Google Chrome.app** で公式 Gemini Web（`https://gemini.google.com/`）の新規チャットに作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY` は使わない。
+- 使用モデルはピッカーで **Gemini 3.8 Flash** と読み戻す。Auto / Pro / 別の Flash には落とさない。違う表示なら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。
+- エージェント制御ブラウザは Chrome.app のログインを共有しない。Chrome を操作できないときは `HOLD_GEMINI_WEB_NOT_VERIFIED` とし、`scripts/render_gemini_web_prompt.py` の貼り付け文を task に残す。オペレーターがログイン済み Chrome へ貼り、返ってきた台詞だけを戻す。
+- ログイン、CAPTCHA、2FA、アカウント選択は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワード、クッキー、トークン、API キーをリポジトリ、プロンプト、receipt、ログに置かない。
+- 素材の SHA と in/out は Gemini に作らせない。実フレーム確認のあと、このスキルが payload に結ぶ。
+
 ## Approval and safety boundary
 
 - Use only the exact routine approvals `台本OK`, `粗編集OK`, and `完成・書き出しOK`. `編集が完了した` or `格納して` does not replace `完成・書き出しOK`.
@@ -51,7 +59,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 ## Cursor Desktop browser and human handoff
 
 - Production host is this Mac's Cursor Desktop Agent. Do not use Cloud Agent for picture, captions, export, or Drive 格納.
-- The agent-controlled browser is not Google Chrome.app. Do not assume CapCut or TikTok sessions saved in Chrome.app. Use the official CapCut Web origin in the agent-controlled browser only when that adapter exists. A host editor adapter (for example ChatCut) may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut or TikTok passwords in repository files or prompts.
-- When login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED` so the user can operate on this Mac.
+- Checkpoint 1 dialogue is drafted in this Mac's Google Chrome.app at `https://gemini.google.com/` with Gemini 3.8 Flash. The agent-controlled browser is not Google Chrome.app and must not be used as a substitute for that logged-in Gemini session.
+- Use the official CapCut Web origin in the agent-controlled browser only when that adapter exists. A host editor adapter (for example ChatCut) may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
+- When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Gemini Web needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`.
 - If the Cursor Agent lacks the browser/editor, rendered-frame, or audio capability required by the host-adapter contract, stop with the matching HOLD instead of claiming the edit is complete.
 - If the Agent cannot reliably hear the full timeline, keep auditory verification pending at Checkpoint 3 and ask the user to listen on the same desktop. Do not add a fourth checkpoint.

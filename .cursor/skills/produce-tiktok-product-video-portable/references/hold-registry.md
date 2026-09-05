@@ -13,6 +13,9 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_FINAL_VISUAL_NOT_VERIFIED` | The configured canonical final asset/range/tail cannot be verified. |
 | `HOLD_CAPCUT_WEB_NOT_VERIFIED` | Official editor origin, intended project, or editable timeline identity is not verified. |
 | `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED` | Login needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond existing session/autofill. |
+| `HOLD_GEMINI_WEB_NOT_VERIFIED` | Official Gemini Web origin `https://gemini.google.com/` was not used in this Mac's Google Chrome.app for the Checkpoint 1 script draft. The agent-controlled Cursor browser is not a substitute. Do not copy cookies. Do not call the Gemini API. Leave the rendered paste prompt in the task file so the operator can paste it in Chrome. |
+| `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` | Gemini Web login on this Mac's Chrome.app needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond the existing session. Never paste passwords or API keys. |
+| `HOLD_GEMINI_MODEL_NOT_VERIFIED` | The live Gemini Web picker is not exactly Gemini 3.8 Flash. Do not use Auto, Pro, Flash-Lite, or another Flash label. |
 | `HOLD_TTS_ALLOWANCE_EXHAUSTED` | Another TTS action would exceed the approved plan or per-cut reserve. |
 | `HOLD_AUDITORY_CONFIRMATION_REQUIRED` | The host cannot reliably complete the required full-playback listening audit. |
 | `HOLD_PRODUCTION_ORDINAL_UNVERIFIED` | The exact date/model export ledger, order, or hash does not close. |
