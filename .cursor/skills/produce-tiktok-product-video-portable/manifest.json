@@ -1,7 +1,7 @@
 {
   "schema": "portable_ai_skill_package.v1",
   "name": "produce-tiktok-product-video-portable",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "language": "ja-JP",
   "entrypoint": "SKILL.md",
   "runtime": {

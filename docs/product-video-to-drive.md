@@ -2,7 +2,15 @@
 
 Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive フォルダへ新規格納するまでの流れです。実行の正本は `.cursor/skills/produce-tiktok-product-video-portable/SKILL.md` です。この文書は人向けの地図です。
 
+枝 `v2/mac-local` では、本番ホストは操作 Mac 上の Cursor Desktop Agent です。Cloud Agent では作りません。この Mac での起動文は [mac-desktop-agent-product-video.md](mac-desktop-agent-product-video.md) です。
+
 製品型番・設定・素材・Drive フォルダ名は案件ごとに変わります。AN-S182 はその一例です。
+
+## 本番ホストとブラウザ（Ver2）
+
+本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。
+
+エージェントが操作できるブラウザは Cursor 内蔵ブラウザであり、この Mac の Google Chrome.app ではない。Chrome.app の CapCut / TikTok ログインは引き継がない。ログイン、CAPTCHA、2FA が出たら止めてユーザーが操作する。
 
 ## 使わないもの
 
@@ -80,14 +88,14 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 4. 書き出しは 1 回。受付や進捗だけでは成功としない。
 5. 検証済み型番と同名の親フォルダを 1 つ特定し、ローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。ローカルパスで渡せないときは、証明済み親へのログイン済み Drive 画面アップロード 1 回のあと、連携で読み戻す。同名の空ファイルは作らない。
 6. 名前・MIME・バイト数・親スコープ・時刻を読み戻す。Drive ID は Git に書かない。
-7. `COMPLETE` のあと、格納済みのこの案件だけ作業コピーを消す。Mac ではまず Finder のダウンロードに完成ファイル名があるかを見る。Cloud だけで作った案件ではリポジトリ内 `outputs/` や `out/` は無いことが多い。
+7. `COMPLETE` のあと、格納済みのこの案件だけ、**この Mac** の作業コピーを消す。まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/<case-id>/` と `out/` を確認する。無いコピーを失敗にしない。
 
 ```bash
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id>
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id> --execute --i-confirm-destination-stored
 ```
 
-原本、Drive 上の格納ファイル、JSON receipt、設定、進行中の別案件は消さない。Cloud VM で消したあとは操作 Mac でも同じ相対パスを消す。
+原本、Drive 上の格納ファイル、JSON receipt、設定、進行中の別案件は消さない。本番がこの Mac なら、消す対象もこの Mac だけである。Cloud VM で作った旧案件だけ、VM 側を消したあとに操作 Mac でも同じ相対パスを確認する。
 
 `export_only` は、依頼が明示的にローカルのみ／書き出しのみのときだけ。その場合も作業コピーを格納扱いにしない。
 
@@ -107,7 +115,7 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 1. この非公開リポジトリを clone する。チャットにパスワードやトークンを貼らない。
 2. その PC の製品型番用設定と素材コピーを用意する。
 3. 上の `READY` 確認を通す。
-4. Cursor で `/produce-tiktok-product-video-portable` を起動し、まず `台本OK` まで進めて止める。
+4. Cursor で枝 `v2/mac-local` を開き、実行先をその PC の Desktop Agent にする。`/produce-tiktok-product-video-portable` を起動し、まず `台本OK` まで進めて止める。
 
 依頼例:
 
@@ -137,4 +145,5 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 | 製品・素材・Drive | `references/product-and-material-contract.md` |
 | 3 確認 | `references/checkpoint-contract.md` |
 | 格納 | `stages/06-deliver.md` |
-| Cloud Agent 起動 | [cursor-cloud-agent-product-video.md](cursor-cloud-agent-product-video.md) |
+| この Mac 起動（Ver2） | [mac-desktop-agent-product-video.md](mac-desktop-agent-product-video.md) |
+| Cloud Agent 起動（Ver1） | [cursor-cloud-agent-product-video.md](cursor-cloud-agent-product-video.md) |

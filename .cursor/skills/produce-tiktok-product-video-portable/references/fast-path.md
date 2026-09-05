@@ -63,4 +63,4 @@ Do not spend a turn on work that already failed this product:
 - Do not copy the export into Downloads unless the picker cannot see `out/`.
 - Do not add `音声確認OK`. Put the Japanese listening checklist in the Checkpoint 3 stop message.
 - Do not delay `COMPLETE` for unknown tab ownership. Leave those tabs open.
-- On the operator Mac, check Finder Downloads for the exact completed filename first. Missing repo `outputs/` or `out/` copies are not a failure.
+- On this Mac, check Finder Downloads for the exact completed filename first, then repo `outputs/` and `out/` only if those copies exist. Missing copies are not a failure.

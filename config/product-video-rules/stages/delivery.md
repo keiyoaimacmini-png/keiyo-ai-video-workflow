@@ -19,7 +19,7 @@ After `COMPLETE` and that verified 格納:
 1. Dry-run `scripts/purge_local_working_media.py` for this case only.
 2. Execute only with `--execute --i-confirm-destination-stored`.
 3. Remove this case's local working media, including completed-video copies, from the machine that runs the script.
-4. If this host is not the operator Mac, stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED`. Tell the operator the stored original is the Drive model-titled folder; on the Mac check Finder Downloads for the exact completed filename first, then repo-relative `outputs/<case-id>/` media and `out/<completed_video_filename>` only if those copies exist. Missing copies are not a failure.
+4. If this host is not the operator Mac, purge this host first, then stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED`. Tell the operator the stored original is the Drive model-titled folder; on the Mac check Finder Downloads for the exact completed filename first, then repo-relative `outputs/<case-id>/` media and `out/<completed_video_filename>` only if those copies exist. Missing copies are not a failure.
 5. Keep receipts, settings, originals that are still the source of record, and the stored destination file.
 
 Uncertain browser-tab ownership is `HOLD_TASK_TAB_IDENTITY_UNVERIFIED`. Leave those tabs open. That HOLD does not block `COMPLETE` after verified Drive read-back.

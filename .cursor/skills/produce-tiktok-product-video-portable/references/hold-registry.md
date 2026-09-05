@@ -25,7 +25,7 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | `HOLD_NEW_AUTHORITY_REQUIRED` | A required action is outside the frozen approvals and no more specific code applies. |
 | `HOLD_POST_COMPLETE_PURGE_NOT_DUE` | A local working-media purge was requested before `COMPLETE` and bound `完成・書き出しOK`. |
 | `HOLD_LOCAL_WORKING_MEDIA_IS_SOLE_COPY` | Purging would delete the only remaining completed video or an unverified destination. |
-| `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` | The Cloud VM working copies are gone, and the operator Mac still needs the same relative purge. User-facing check is Finder Downloads for the exact completed filename first; repo `outputs/<case-id>/` media and `out/<filename>` only if present. Missing copies are not a failure. |
+| `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED` | This host is not the operator Mac (for example a Cloud VM). After this host's working copies are purged, the operator Mac still needs the same relative purge. User-facing check is Finder Downloads for the exact completed filename first; repo `outputs/<case-id>/` media and `out/<filename>` only if present. Missing copies are not a failure. |
 | `HOLD_BULK_TTS_LINE_ALIGNMENT_UNVERIFIED` | Bulk TTS cannot be split because frozen-line alignment is missing, mismatched, overlapping, or past the audio end. |
 | `HOLD_BULK_TTS_SCENE_GAPS_UNVERIFIED` | The working copy does not contain one detectable silent scene-split gap per frozen-line boundary. |
 

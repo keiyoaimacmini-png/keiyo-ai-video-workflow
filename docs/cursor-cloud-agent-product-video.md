@@ -1,4 +1,6 @@
-# CursorデスクトップアプリからCloud Agentを使う
+# CursorデスクトップアプリからCloud Agentを使う（Ver1 / 非本番）
+
+枝 `v2/mac-local` の本番ホストは Cloud Agent ではありません。操作 Mac 上の Cursor Desktop で作る手順は [mac-desktop-agent-product-video.md](mac-desktop-agent-product-video.md) です。この文書はタグ `v1.0.0` / Cloud VM 向けの起動文として残します。
 
 このフォルダには、CursorデスクトップアプリのCloud Agentが認識する商品動画スキルと実行環境があります。製品型番と素材は案件ごとに変わります。AN-S182はその一例です。
 

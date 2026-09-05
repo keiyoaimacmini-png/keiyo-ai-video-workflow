@@ -13,6 +13,10 @@ The workflow is independent of any assistant vendor, but the host must implement
 
 Never place credential, cookie, token, account, browser-session, or raw remote-object identifiers in portable payloads or ordinary logs.
 
+## Production host (v2)
+
+Default production is the operator Mac desktop agent that can read local materials under the trusted project root. A remote cloud VM is not the default host. The agent-controlled browser is not the user's everyday browser application; do not assume CapCut or TikTok sessions saved there. If a required login cannot complete from the agent-controlled browser, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`.
+
 ## Filesystem and process adapter
 
 The host must be able to:

@@ -28,6 +28,7 @@ REQUIRED_FILES = {
     "README.md",
     "docs/INSTALL_SOL_ADVISOR_JA.md",
     "docs/cursor-cloud-agent-product-video.md",
+    "docs/mac-desktop-agent-product-video.md",
     "docs/product-video-to-drive.md",
     "golden-baselines/an-s182/v1/EVIDENCE.sha256",
     "golden-baselines/an-s182/v1/README_JA.md",

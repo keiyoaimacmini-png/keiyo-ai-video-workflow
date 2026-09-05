@@ -12,6 +12,6 @@ When official Holiday Twist narration is generated in bulk, paste frozen lines s
 
 One editor of record per case. Official Holiday Twist audio may be generated on CapCut Text to Speech and brought back as a working copy when the case editor cannot emit that preset. Do not mix two picture timelines. Do not spawn a successor case for voice.
 
-Local `footage/`, `voice/`, `out/`, `.runtime/product-video-inputs/`, case media under `outputs/<case-id>/`, and `Downloads/<completed_video_filename>` are working copies. After `COMPLETE` and verified destination storage, they must not remain on the Cloud VM or the operator Mac.
+Local `footage/`, `voice/`, `out/`, `.runtime/product-video-inputs/`, case media under `outputs/<case-id>/`, and `Downloads/<completed_video_filename>` are working copies. After `COMPLETE` and verified destination storage, they must not remain on the production host. Ver2 production host is the operator Mac.
 
 Do not delete a local completed video when it is the only remaining copy. Do not delete shared working copies while another case is not `COMPLETE`. Do not add a fourth checkpoint for this purge.

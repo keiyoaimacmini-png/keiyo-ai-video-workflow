@@ -6,9 +6,11 @@
 
 ## Cursor の本流（台本 → Drive 格納）
 
+枝 `v2/mac-local` の本番ホストは、**操作 Mac 上の Cursor Desktop Agent** です。Cloud Agent / Cloud VM では作りません。タグ `v1.0.0` と `main` の Cloud 手順は残します。
+
 正本スキルは `.cursor/skills/produce-tiktok-product-video-portable/` です。起動は `/produce-tiktok-product-video-portable`。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は、型番名の Drive フォルダへの新規格納です。
 
-人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。Cloud Agent の起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
+人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。この Mac での起動文は [docs/mac-desktop-agent-product-video.md](docs/mac-desktop-agent-product-video.md) です。Cloud Agent 向けの旧起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
 
 ## 別PCで同じスキルを使う（Cursor）
 
@@ -23,7 +25,7 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_pro
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
-6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。まず `台本OK` まで進めて止める。
+6. Cursorでこのリポジトリの枝 `v2/mac-local` を開き、実行先をこの Mac の Desktop Agent にする。`/produce-tiktok-product-video-portable` で新規案件を開始する。まず `台本OK` まで進めて止める。
 
 ## 引き継ぎの全体像
 
