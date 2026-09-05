@@ -30,7 +30,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY` 以外なら案件を作らず止まる。
 
-この Cursor Cloud 運用では台本下書きに公式 Gemini Web（`https://gemini.google.com/`）のチャットを使う。CapCut と同じ Chrome セッション方式。API キーは使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+この Cursor 運用では台本下書きに公式 Gemini Web（`https://gemini.google.com/`）のチャットを使う。Chrome セッションは **いまのマシンだけ**（Cloud VM と操作Macは別）。API キーは使わない。物理マシンで続ける手順は [cursor-desktop-product-video.md](cursor-desktop-product-video.md)。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 ## 通常確認は 3 つだけ
 
@@ -140,3 +140,4 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 | 3 確認 | `references/checkpoint-contract.md` |
 | 格納 | `stages/06-deliver.md` |
 | Cloud Agent 起動 | [cursor-cloud-agent-product-video.md](cursor-cloud-agent-product-video.md) |
+| 物理マシン（Cursor Desktop） | [cursor-desktop-product-video.md](cursor-desktop-product-video.md) |
