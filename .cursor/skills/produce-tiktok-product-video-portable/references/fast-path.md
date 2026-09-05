@@ -5,7 +5,7 @@
 - Read project instructions and local project context once.
 - Resolve exactly one product settings file and hash it.
 - Inventory and hash candidate media without copying originals.
-- Compare twenty concepts internally and select the strongest executable concept.
+- In this Cursor workflow, draft the twenty-candidate comparison and selected dialogue in official Gemini Web chat at `https://gemini.google.com/` on **this host's Chrome** (Cloud Agent VM or Cursor Desktop on the operator physical machine). Prefer Gemini 3.8 Flash in the picker when visible; otherwise the visible Flash. Render the paste prompt with `scripts/render_gemini_web_prompt.py`. Do not call the Gemini API. A session on the other machine does not transfer. If the origin or browser adapter is missing, `HOLD_GEMINI_WEB_NOT_VERIFIED`. If login, CAPTCHA, 2FA, or account choice is required, `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. Other hosts compare twenty concepts internally.
 - Inspect in, midpoint, and out frames of each proposed source range against the claimed visible action. Do not default to the first N seconds of a usable take.
 - Verify the six-stage script and one distinct source asset/media SHA per caption.
 - Resolve the canonical final visual from **this** model's settings. Default Drive destination is the one folder titled with this product model unless the original request explicitly required `export_only`.

@@ -3,7 +3,7 @@
 ## Required workflow
 
 - For full product-video production, invoke `/produce-tiktok-product-video-portable` from `.cursor/skills/produce-tiktok-product-video-portable/` and follow its `SKILL.md`.
-- Human-readable flow through Drive 格納: `docs/product-video-to-drive.md`.
+- Human-readable flow through Drive 格納: `docs/product-video-to-drive.md`. Physical-machine continuation: `docs/cursor-desktop-product-video.md`.
 - Resolve `PROJECT_ROOT` to the repository root and `SKILL_ROOT` to `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable`.
 - Resolve **this case's** product model, settings, and material root before creating a case. Do not reuse another product's settings, media, script, editor project, or Drive object.
 
@@ -15,6 +15,24 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
 - When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
+
+## Gemini Web 台本
+
+- Checkpoint 1 の台本案は公式 Gemini Web（`https://gemini.google.com/`）のチャットで下書きする。ホストはこの Cloud Agent VM、または操作Mac上の Cursor Desktop。Gemini API と `GEMINI_API_KEY` は使わない。Cursor の外部モデル枠も使わない。
+- Chrome の Google セッションは **いま動いているマシンだけ**。Cloud VM でログイン済みでも、物理Macへは移らない。クッキー、トークン、プロファイルをコピーしない。
+- モデル選択に Gemini 3.8 Flash が見えるときはそれを選ぶ。無ければ表示中の Flash。パスワード、クッキー、トークン、API キーをリポジトリ、プロンプト、receipt、ログに置かない。
+- 貼る文面は `scripts/render_gemini_web_prompt.py` が task のキー無し brief から出す。公式オリジンやこのホストのブラウザ操作が無いときは `HOLD_GEMINI_WEB_NOT_VERIFIED`。ログイン、CAPTCHA、2FA、アカウント選択が必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+- 素材の SHA と in/out は Gemini に作らせない。実フレーム確認のあと、このスキルが payload に結ぶ。
+
+## 物理マシン（Cursor Desktop）で続ける
+
+- いまの会話が Cloud Agent のときは、「このMac」は灰色で押せない。切り替えられない。台本を作り直してよいので、エディタ側の **新しい** Agent チャットで `/produce-tiktok-product-video-portable` を使う。Set up Environment は押さない。
+- Cloud Agent の続きを操作Macで動かすときは、Cursor デスクトップアプリでこのリポジトリを開き、Agent の実行先を **このマシン** にする。`Cloud environment` のままにしない。
+- 先に Git をこのブランチへ更新する。Cloud VM の未コミット作業は Mac から見えない。
+- 素材は Git に入っていない。このMacの `.runtime/product-video-inputs/<MODEL>_コピー`（または `PRODUCT_VIDEO_MATERIAL_ROOT`）で `verify_product_video_setup.py --require-materials` が `READY` になること。
+- `/produce-tiktok-product-video-portable` で **新しい** case を作る。完成済み案件や Cloud VM 上の Gemini タブは再開・流用しない。
+- 公式 Gemini Web は **このMacの Chrome** で開く。新規チャット。brief を貼り、返ってきた台詞だけを台本パッケージへ写す。
+- 人向け手順は `docs/cursor-desktop-product-video.md`。Cloud の会話で「このMac」を頼まれたら、案件を作らずその手順だけ返す。
 
 ## Approval and safety boundary
 
@@ -48,7 +66,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ## Cursor Desktop browser and human handoff
 
-- Use the official CapCut Web origin in Chrome only when the Cursor Agent has an actual browser/editor control adapter. A host editor adapter may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut or TikTok passwords in repository files or prompts.
-- When login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED` so the user can operate through Cursor Desktop.
+- Use the official CapCut Web origin in Chrome only when the Cursor Agent has an actual browser/editor control adapter **on this host**. Use official Gemini Web (`https://gemini.google.com/`) the same way for the Checkpoint 1 script draft, also on this host's Chrome. A host editor adapter may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
+- When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Gemini Web needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. If the current host is Cloud Agent, the operator continues on Cursor Desktop on the physical machine. If the current host is already that Desktop, the operator uses this machine's Chrome.
 - If the Cursor Agent lacks the browser/editor, rendered-frame, or audio capability required by the host-adapter contract, stop with the matching HOLD instead of claiming the edit is complete.
 - If the Agent cannot reliably hear the full timeline, keep auditory verification pending at Checkpoint 3 and ask the user to listen on the same desktop. Do not add a fourth checkpoint.

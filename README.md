@@ -8,7 +8,7 @@
 
 正本スキルは `.cursor/skills/produce-tiktok-product-video-portable/` です。起動は `/produce-tiktok-product-video-portable`。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は、型番名の Drive フォルダへの新規格納です。
 
-人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。Cloud Agent の起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
+人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。物理マシン（Cursor Desktop）の続きは [docs/cursor-desktop-product-video.md](docs/cursor-desktop-product-video.md) です。Cloud Agent の起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
 
 ## 別PCで同じスキルを使う（Cursor）
 
@@ -23,7 +23,7 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_pro
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
-6. Cursorでこのリポジトリを開き、`/produce-tiktok-product-video-portable` で新規案件を開始する。まず `台本OK` まで進めて止める。
+6. Cursorでこのリポジトリを開き、実行先をこのマシンにして `/produce-tiktok-product-video-portable` で新規案件を開始する。まず `台本OK` まで進めて止める。手順は [docs/cursor-desktop-product-video.md](docs/cursor-desktop-product-video.md)。
 
 ## 引き継ぎの全体像
 

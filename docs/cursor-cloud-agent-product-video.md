@@ -2,7 +2,7 @@
 
 このフォルダには、CursorデスクトップアプリのCloud Agentが認識する商品動画スキルと実行環境があります。製品型番と素材は案件ごとに変わります。AN-S182はその一例です。
 
-台本から Drive 格納までの人向け通し手順は [product-video-to-drive.md](product-video-to-drive.md) です。
+台本から Drive 格納までの人向け通し手順は [product-video-to-drive.md](product-video-to-drive.md) です。操作Macで続ける場合は [cursor-desktop-product-video.md](cursor-desktop-product-video.md) です。
 
 ## 準備
 
@@ -19,6 +19,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 ```
 
 `READY`なら準備完了です。素材がない、8件未満、壊れている、またはmedia SHA-256が8種類未満なら、既存物を変更せずHOLDします。素材、認証情報、完成動画をGitへ含めてはいけません。
+
+この Cursor 運用の台本下書きは公式 Gemini Web（`https://gemini.google.com/`）のチャットです。Chrome のログインは **そのマシンだけ** です。Cloud VM で開いた Gemini は操作Macへ移りません。物理マシンで続ける手順は [cursor-desktop-product-video.md](cursor-desktop-product-video.md) です。API キーは使いません。ログインや 2FA が必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` です。
 
 `完成・書き出しOK` のあとの既定完了は、型番名のDriveフォルダへの新規格納です。格納が確認できた案件は、Cloud VM と操作Macに素材の作業コピーや完成動画の作業コピーを残しません。原本とDrive上の格納ファイルとreceiptは残します。格納前の進行中ファイルは消しません。`編集が完了した` だけでは書き出しもDriveも行いません。
 
