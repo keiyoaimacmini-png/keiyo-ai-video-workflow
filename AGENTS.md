@@ -26,12 +26,13 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ## 物理マシン（Cursor Desktop）で続ける
 
+- いまの会話が Cloud Agent のときは、「このMac」は灰色で押せない。切り替えられない。台本を作り直してよいので、エディタ側の **新しい** Agent チャットで `/produce-tiktok-product-video-portable` を使う。Set up Environment は押さない。
 - Cloud Agent の続きを操作Macで動かすときは、Cursor デスクトップアプリでこのリポジトリを開き、Agent の実行先を **このマシン** にする。`Cloud environment` のままにしない。
 - 先に Git をこのブランチへ更新する。Cloud VM の未コミット作業は Mac から見えない。
 - 素材は Git に入っていない。このMacの `.runtime/product-video-inputs/<MODEL>_コピー`（または `PRODUCT_VIDEO_MATERIAL_ROOT`）で `verify_product_video_setup.py --require-materials` が `READY` になること。
 - `/produce-tiktok-product-video-portable` で **新しい** case を作る。完成済み案件や Cloud VM 上の Gemini タブは再開・流用しない。
 - 公式 Gemini Web は **このMacの Chrome** で開く。新規チャット。brief を貼り、返ってきた台詞だけを台本パッケージへ写す。
-- 人向け手順は `docs/cursor-desktop-product-video.md`。
+- 人向け手順は `docs/cursor-desktop-product-video.md`。Cloud の会話で「このMac」を頼まれたら、案件を作らずその手順だけ返す。
 
 ## Approval and safety boundary
 

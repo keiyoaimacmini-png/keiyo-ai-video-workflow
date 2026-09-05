@@ -1,8 +1,33 @@
-# Cursor Desktop（物理マシン）で商品動画を続ける
+# Cursor Desktop（このMac）で台本を作り直す
 
-Cloud Agent VM の Chrome セッションは、操作Macへ移りません。続きは Cursor デスクトップアプリで、**このマシン**を実行先にして動かします。
+## 「このMac」が灰色で押せないとき
 
-正本は `.cursor/skills/produce-tiktok-product-video-portable/SKILL.md` です。人向けの全体地図は [product-video-to-drive.md](product-video-to-drive.md) です。Cloud 側の起動文は [cursor-cloud-agent-product-video.md](cursor-cloud-agent-product-video.md) です。
+今見ている会話が雲（Cloud）で始まっていると、**このMacは選べません。壊れではありません。** 途中から切り替えられない、という仕組みです。緑の Set up Environment も押さなくて大丈夫です（雲の準備ボタンです）。
+
+台本は作り直して構いません。やり方はこれだけです。
+
+1. コードが見える、いつもの Cursor 画面を開く（この雲の会話ではなくてよい）
+2. **新しい** Agent のチャットを始める
+3. そこに下の文章を貼って送る
+
+```text
+/produce-tiktok-product-video-portable
+
+このMacで、新しい台本から始めてください。
+雲の会話は使わないでください。
+
+製品はAN-S182です。
+新しい案件として、台本OKまで進めて止めてください。
+台本は、このMacのChromeのGeminiで作ってください。
+```
+
+新しい会話でも灰色なら、Agents（雲）の画面ではなく、フォルダが開いているエディタ側のチャットを使ってください。そちらがこのMacで動きます。
+
+---
+
+Cloud Agent の Chrome ログインは Mac へ移りません。続きは **このマシン** の Cursor Desktop で、新しい案件として動かします。
+
+正本は `.cursor/skills/produce-tiktok-product-video-portable/SKILL.md` です。全体地図は [product-video-to-drive.md](product-video-to-drive.md) です。
 
 ## 使わないもの
 
