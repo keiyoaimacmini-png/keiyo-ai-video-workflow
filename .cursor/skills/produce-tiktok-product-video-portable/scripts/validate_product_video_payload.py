@@ -30,8 +30,34 @@ SEMANTIC_KEYS = ("subject", "action", "composition", "product_visibility", "text
 SEMANTIC_ENUMS = {"action": {"static", "hold", "press", "use", "reveal"}, "composition": {"close_up", "medium", "overhead", "wide"}, "product_visibility": {"none", "full", "partial"}, "text_visibility": {"none", "product_label"}}
 QA_MAX = {"hook": 15, "tempo": 10, "emotion": 10, "continuation_design": 15, "save_design": 10, "comment_design": 10, "share_design": 10, "purchase_path_design": 20}
 NARRATIVE_ROLES = ("problem_or_hook", "product", "use_or_change", "result", "problem_resolution", "cta")
+HEAT_HOOK_RE = re.compile(r"暑|熱すぎ|熱い")
+REST_HOOK_RE = re.compile(r"仮眠|休めない|眠れない")
+LOOKS_ONLY_RE = re.compile(r"銀色|黒色|黒い内側|外からは|見た目")
+SUN_BLOCK_ONLY_RE = re.compile(r"日差しが入ってこない|日差しが入らない|光が入らない|光が入ってこない")
+HEAT_SOLUTION_RE = re.compile(r"暑さ|熱さ|焼かれ|しのげ|防げ|止められ|凌げ|遮れ")
+REST_SOLUTION_RE = re.compile(r"休め|仮眠|眠れる|休息")
 ORDINAL_MARKERS = ("①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮", "⑯", "⑰", "⑱", "⑲", "⑳")
 VIDEO_MIME_BY_EXTENSION = {"mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm"}
+
+
+def first_role_dialogue(scripts, role):
+    for record in scripts:
+        if isinstance(record, dict) and record.get("narrative_role") == role:
+            text = record.get("dialogue")
+            if isinstance(text, str):
+                return text
+    return ""
+
+
+def hook_resolution_arc_errors(hook, resolution):
+    errors = []
+    if HEAT_HOOK_RE.search(hook):
+        looks_or_sun = LOOKS_ONLY_RE.search(resolution) or SUN_BLOCK_ONLY_RE.search(resolution)
+        if looks_or_sun or not HEAT_SOLUTION_RE.search(resolution):
+            errors.append("problem_resolution must present a solution to the same heat problem named in the hook; looks or blocked sunlight alone is result, not a close")
+    if REST_HOOK_RE.search(hook) and not REST_SOLUTION_RE.search(resolution):
+        errors.append("problem_resolution must present a solution to the same rest problem named in the hook")
+    return errors
 
 
 def canonical(value):
@@ -578,6 +604,7 @@ def check_narration_alignment(payload, cuts, cut_ids, errors):
     compressed_roles = [role for index, role in enumerate(roles) if index == 0 or role != roles[index - 1]]
     if compressed_roles != list(NARRATIVE_ROLES):
         errors.append("script must complete problem_or_hook, product, use_or_change, result, problem_resolution, CTA in order")
+    errors.extend(hook_resolution_arc_errors(first_role_dialogue(scripts, "problem_or_hook"), first_role_dialogue(scripts, "problem_resolution")))
 
     if mode == "none":
         if policy.get("user_explicit") is not True or not policy.get("receipt").strip() or policy.get("timing_strategy") != "not_applicable" or policy.get("common_speed") is not None or policy.get("overflow_cut_ids") != [] or policy.get("overflow_reason") != "" or policy.get("overflow_evidence") != []:
@@ -767,7 +794,11 @@ def check_component_hashes(payload, errors):
     hashes = payload.get("component_hashes")
     keys = {"manifest_sha256", "favorite_context_sha256", "script_sha256", "cuts_sha256", "captions_sha256", "tts_sha256"}
     unknown(hashes, keys, "component_hashes", errors)
-    expected = {"manifest_sha256": digest(payload.get("manifest")), "favorite_context_sha256": digest({"goal_axis": payload.get("goal_axis"), "patterns": payload.get("patterns")}), "script_sha256": digest(payload.get("script")), "cuts_sha256": digest(payload.get("cuts")), "captions_sha256": digest(payload.get("captions")), "tts_sha256": digest(payload.get("tts"))}
+    try:
+        expected = {"manifest_sha256": digest(payload.get("manifest")), "favorite_context_sha256": digest({"goal_axis": payload.get("goal_axis"), "patterns": payload.get("patterns")}), "script_sha256": digest(payload.get("script")), "cuts_sha256": digest(payload.get("cuts")), "captions_sha256": digest(payload.get("captions")), "tts_sha256": digest(payload.get("tts"))}
+    except (OverflowError, TypeError, ValueError):
+        errors.append("component_hashes must equal canonical component hashes")
+        return
     if not isinstance(hashes, dict) or hashes != expected:
         errors.append("component_hashes must equal canonical component hashes")
 
@@ -1167,8 +1198,30 @@ def self_test():
         refresh_hash_bindings(payload)
         return payload
 
+    def apply_dialogues(payload, lines):
+        for index, text in enumerate(lines):
+            payload["script"][index]["dialogue"] = text
+            payload["captions"][index]["text"] = text
+            payload["tts"][index]["text"] = text
+            review = payload["script_review_receipt"]["cuts"][index]
+            review["dialogue"] = text
+            review["unicode_codepoint_count"] = len(text)
+        payload["component_hashes"]["script_sha256"] = digest(payload["script"])
+        payload["component_hashes"]["captions_sha256"] = digest(payload["captions"])
+        payload["component_hashes"]["tts_sha256"] = digest(payload["tts"])
+        refresh_hash_bindings(payload)
+        return payload
+
     if decimal_duration(9.8, 15.366667) != decimal_duration(0.0, 5.566667):
         raise AssertionError("decimal timestamp duration comparison failed")
+    if not hook_resolution_arc_errors("車の中、暑すぎない？", "正面からの日差しが入ってこない。"):
+        raise AssertionError("heat hook closed only by blocked sunlight was accepted")
+    if not hook_resolution_arc_errors("車の中、暑すぎない？", "外からは銀色に見える。"):
+        raise AssertionError("heat hook closed only by looks was accepted")
+    if hook_resolution_arc_errors("車の中、暑すぎない？", "これで車内の暑さをしのげる。"):
+        raise AssertionError("heat hook with a heat solution was rejected")
+    if hook_resolution_arc_errors("困りごとを提示", "困りごとの解消を確認"):
+        raise AssertionError("generic fixture hook/resolution was rejected")
     pending = fixture()
     pending["delivery"]["export_status"] = "pending"
     pending["delivery"].pop("export_receipt")
@@ -1316,6 +1369,9 @@ def self_test():
     pending_credit_broadened["approval_gates"]["credit"]["max_first_attempt_tts_count"] = 999
     refresh_hash_bindings(pending_credit_broadened)
     cases.extend([("reject broadened pending edit plan", pending_edit_broadened, True), ("reject broadened pending credit plan", pending_credit_broadened, True)])
+    heat_false_close = apply_dialogues(fixture(), ("車の中、暑すぎない？", "傘みたいなサンシェード。", "ガラスに押し当てるだけ。", "外からは銀色に見える。", "正面からの日差しが入ってこない。", CTA))
+    heat_solution = apply_dialogues(fixture(), ("車の中、暑すぎない？", "傘みたいなサンシェード。", "ガラスに押し当てるだけ。", "外からは銀色に見える。", "これで車内の暑さをしのげる。", CTA))
+    cases.extend([("reject heat hook closed only by blocked sunlight", heat_false_close, True), ("valid heat hook with a heat solution", heat_solution, False)])
     script_checkpoint = fixture()
     script_checkpoint["approval_gates"]["edit"].update(status="approved", receipt="台本OK", explicit_approval=True, checkpoint="script", authorized_actions=["rough_visual_edit"])
     rough_checkpoint = fixture()

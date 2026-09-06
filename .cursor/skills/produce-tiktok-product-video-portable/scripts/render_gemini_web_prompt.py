@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Render a key-free Gemini Web paste prompt from a local brief.
+"""Render a key-free Gemini paste prompt from a local brief.
 
 No network. No API keys. The host pastes the printed text into official
-Gemini Web on this Mac's Chrome after frame inventory.
+Gemini.app on this Mac after frame inventory.
 """
 
 from __future__ import annotations
@@ -84,7 +84,13 @@ def render_prompt(brief: dict[str, Any]) -> str:
         f"- 台詞の流れは {', '.join(NARRATIVE_ROLES)} の6段。省略・逆順禁止。\n"
         f"- CTAの台詞は完全一致で {CTA_TEXT}\n"
         "- 画面・音声に製品型番を出さない。\n"
-        "- 各行は検証済み事実と usable_shots の観察内容だけで書く。推測しない。\n"
+        "- 台詞はTikTokで耳に入る短い話し言葉。視聴者に話しかける。\n"
+        "- 映像の説明文、手順書、「〜します」調の実況は禁止。\n"
+        "- 各行は短く一文。隣の行と口語でつながる。フックは最初で止まる理由がある。\n"
+        "- problem_or_hook は視聴者の困りごと。result は設置後に見える変化。problem_resolution はフックと同じ困りごとの解決案を提示する。result の言い換えで終わらせない。\n"
+        "- 暑さのフックを、銀色・内側が黒い・日差しが入ってこない、だけでは回収しない。解決案はその暑さに対してどうなるかを、検証済み事実の範囲で言う。温度の数値は作らない。\n"
+        "- 検証済み事実と usable_shots の観察内容だけを口語に言い換える。推測しない。\n"
+        "- 効能・数値・他社比較・未確認の感情は作らない。既存動画の文言はコピーしない。\n"
         "- 素材の SHA や in/out 秒は作らない。役割と台詞だけ返す。\n"
         f"- 内部の製品型番は {product_model}。台詞には書かない。\n"
         "返す形式: selected_concept、twenty_candidate_summary（20件）、"
@@ -112,6 +118,11 @@ def self_test() -> int:
     prompt = render_prompt(good)
     check("cta-in-prompt", CTA_TEXT in prompt)
     check("six-roles", all(role in prompt for role in NARRATIVE_ROLES))
+    check("spoken-tiktok", "短い話し言葉" in prompt)
+    check("closes-hook", "同じ困りごとの解決案を提示する" in prompt)
+    check("not-looks-only", "result の言い換えで終わらせない" in prompt)
+    check("heat-not-sun-only", "日差しが入ってこない、だけでは回収しない" in prompt)
+    check("no-procedure", "手順書" in prompt)
     check("no-secret", "AIza" not in prompt)
     try:
         load_brief(json.dumps({**good, "usable_shots": [{"asset_id": "a", "observed_action": "x", "sha256": "abc"}]}))

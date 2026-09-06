@@ -20,11 +20,26 @@ Export once. A request acknowledgement, progress state, toast, or unknown result
 
 ## Drive 格納
 
-Default `delivery_mode` is `drive`. Run this after the new export read-back. Before export, already prove the JST ledger ordinal and that the exact name is absent from local output and the approved Drive parent.
+Default `delivery_mode` is `drive`. Run this after the new export read-back in the same turn. Before export, already prove the JST ledger ordinal and that the exact name is absent from local output and the approved Drive parent. Do not rebuild bound receipts or hunt a browser UI.
 
-Locate exactly one parent folder whose title is the verified product model. Upload one new file from local bytes. Do not inline the completed video as base64 in a tool argument. Prefer a local-path or upload-session ingest. If that is unavailable, upload once through the already-authenticated Drive UI into that proven parent (one new tab; do not close pre-existing tabs), then read back through the adapter. Match new file identity, exact name, MIME, byte size, approved parent scope, and time. Store only the portable hashed receipt fields required by the production contract. Never write raw Drive IDs into Git. Never create a same-name empty or path-string decoy. Do not copy the export into `Downloads/` unless the UI file picker cannot see the task `out/` file.
+Locate exactly one parent folder whose title is the verified product model. Upload one new file from local bytes. Do not inline the completed video as base64 in a tool argument.
 
-Skip Drive only when `delivery_mode` is `export_only` because the original request explicitly required local-only export. Missing or duplicate model-titled folders are `HOLD_DRIVE_SCOPE_AMBIGUOUS`. If the parent is proven but no local-byte ingest path exists, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Phrases such as `編集が完了した` do not authorize this stage.
+Drive ingest, in order:
+
+1. Prove exactly one parent folder titled with this product model and no same-name file (adapter search is enough; do not screenshot Drive).
+2. Create the new file with `${SKILL_ROOT}/scripts/upload_drive_local_file.py` from the local export path. Bytes stay on the filesystem and HTTPS; they never enter a chat or tool argument.
+
+```bash
+python3 "${SKILL_ROOT}/scripts/upload_drive_local_file.py" --project-root <project-root> --local-path <export-path> --title <completed_video_filename> --parent-title <model> --mime-type video/mp4
+```
+
+3. Read back through the Drive adapter: exact name, MIME, byte size, new identity, parent scope, and time at or after export.
+4. If the helper HOLDs for missing runtime OAuth, stop with `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Tell the operator to place a Desktop OAuth client at `.runtime/drive-oauth-client.json` and run the same script with `--login` from the repository root in Terminal, not from the home directory. Do not run `--login` from the agent. Do not screenshot, OCR, Accessibility-hunt, or click-hunt Google Chrome.app. Do not use Google Drive for desktop, a local sync mount, rclone, or the agent-controlled browser.
+5. Chrome.app Drive Web file-picker upload is last-resort only when the helper cannot run *and* the operator is already in that authenticated picker targeting the proven parent. One drop, then adapter read-back. If that UI is not already ready, HOLD; do not spend a turn driving Chrome.
+
+Missing or duplicate model-titled folders are `HOLD_DRIVE_SCOPE_AMBIGUOUS`. Drive login, CAPTCHA, 2FA, recovery, or account choice for an already-open Chrome session is `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`. Match new file identity, exact name, MIME, byte size, approved parent scope, and time. Store only the portable hashed receipt fields required by the production contract. Never write raw Drive IDs into Git. Never create a same-name empty or path-string decoy. Do not copy the export into `Downloads/`.
+
+Skip Drive only when `delivery_mode` is `export_only` because the original request explicitly required local-only export. If the parent is proven but no local-byte ingest path exists, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Phrases such as `編集が完了した` do not authorize this stage.
 
 After verified Drive read-back, close only task-owned CapCut, TikTok-login, and Drive tabs and verify their absence. If ownership is unknown, leave them open and record `HOLD_TASK_TAB_IDENTITY_UNVERIFIED`; that HOLD does not block `COMPLETE`. For `export_only`, do not close tabs under the Drive-completion rule.
 

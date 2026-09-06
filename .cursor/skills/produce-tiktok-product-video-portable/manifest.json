@@ -52,7 +52,8 @@
     "scripts/purge_local_working_media.py",
     "scripts/prepare_bulk_tts_scene_gaps.py",
     "scripts/resolve_product_inputs.py",
-    "scripts/render_gemini_web_prompt.py"
+    "scripts/render_gemini_web_prompt.py",
+    "scripts/upload_drive_local_file.py"
   ],
   "excluded_host_dependencies": [
     "provider_specific_agent_metadata",

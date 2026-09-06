@@ -37,6 +37,7 @@ MEDIA_SUFFIXES = {
     ".aac",
     ".flac",
     ".aiff",
+    ".heic",
 }
 SHARED_RELATIVE_ROOTS = (
     "footage",
@@ -234,7 +235,8 @@ def collect_candidates(
             label = posix_relative(project_root, path) if contained_in(project_root, path) else path.name
             skipped.append({"path": label, "reason": "bound_receipt"})
             return
-        if path.suffix.lower() not in MEDIA_SUFFIXES:
+        name = path.name.lower()
+        if path.suffix.lower() not in MEDIA_SUFFIXES and not name.endswith(".asset.json") and not name.endswith(".asset.md"):
             return
         if contained_in(project_root, path) and is_git_tracked(project_root, path):
             skipped.append({"path": posix_relative(project_root, path), "reason": "git_tracked"})
@@ -283,6 +285,12 @@ def collect_candidates(
                     skipped.append({"path": f"Downloads/{completed_filename}", "reason": "sha256_mismatch"})
                 else:
                     consider(download)
+
+    if not skip_shared:
+        for path in home_downloads.glob("CapCut_TTS_*"):
+            if path.is_symlink() or not path.is_file():
+                continue
+            consider(path)
 
     unique: list[Path] = []
     seen: set[Path] = set()

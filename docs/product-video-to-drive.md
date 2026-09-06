@@ -10,7 +10,9 @@ Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive �
 
 本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。Cursor の親モデル切替はしない。
 
-台本は、この Mac の **Google Chrome.app** でログイン済みの公式 Gemini Web に作らせる。モデルは **Gemini 3.8 Flash**。Cursor 内蔵ブラウザは Chrome.app のログインを共有しないので、台本には使わない。エージェントが Chrome.app を操作できないときは、貼り付け文を残してユーザーが Chrome で実行する。
+台本は、この Mac のログイン済み **Gemini.app** に作らせる。モデルは **Gemini 3.8 Flash**。Google Chrome.app と Cursor 内蔵ブラウザは台本には使わない。エージェントが Gemini.app を操作できないときは、貼り付け文を残してユーザーが Gemini.app で実行する。
+
+完成動画の格納はローカルパスヘルパー（`scripts/upload_drive_local_file.py`）から行い、Drive 連携で読み戻す。原本確認や素材取得が連携でできないときだけ、同じ Chrome.app の公式 Drive Web（`https://drive.google.com/`）を使う。Google Drive デスクトップアプリは使わない。Cursor 内蔵ブラウザは代用しない。Chrome をスクショ探索しない。
 
 CapCut 用にエージェントが操作できるブラウザは Cursor 内蔵ブラウザである。ログイン、CAPTCHA、2FA が出たら止めてユーザーが操作する。
 
@@ -40,14 +42,14 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY` 以外なら案件を作らず止まる。
 
-この枝では台本下書きに、この Mac の Google Chrome.app で開いた公式 Gemini Web（`https://gemini.google.com/`）を使う。ピッカーは Gemini 3.8 Flash。Cursor の親モデル切替と Gemini API は使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+この枝では台本下書きに、この Mac のログイン済み Gemini.app を使う。ピッカーは Gemini 3.8 Flash。Cursor の親モデル切替と Gemini API は使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 ## 通常確認は 3 つだけ
 
 | 確認 | 許可すること | 許可しないこと |
 | --- | --- | --- |
-| `台本OK` | 新規エディタ project での粗視覚編集 | TTS、クレジット、仕上げ、書き出し、Drive |
-| `粗編集OK` | 仕上げ、ホリデーツイスト TTS（計画どおりの初回） | 凍結した台詞・素材範囲の変更、クレジット購入 |
+| `台本OK` | 台詞・6段構成・フックの困りごとに対する解決案の確定。新規エディタでの粗視覚編集の開始 | 素材6本のロック、TTS、クレジット、仕上げ、書き出し、Drive |
+| `粗編集OK` | 素材範囲の確定、仕上げ、ホリデーツイスト TTS（計画どおりの初回） | 凍結した台詞の変更、クレジット購入 |
 | `完成・書き出しOK` | 新規書き出し 1 回と、既定では Drive 新規格納 1 回 | 投稿、上書き、不明結果の再実行 |
 
 `編集が完了した` や `格納して` は `完成・書き出しOK` の代わりにならない。
@@ -56,12 +58,13 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ```text
 準備
-  → PREFLIGHT（素材点検・実フレーム確認）
-  → このMacのChromeのGemini 3.8 Flashで台本下書き（20案はGemini内、APIなし）
-  → SCRIPT_PREPARED（payload 検証。SHA と in/out は実フレームから結ぶ）
-  → SCRIPT_REVIEW  …… 台本OK
+  → PREFLIGHT（素材台帳。この時点では6本を決めない）
+  → このMacのGemini.appのGemini 3.8 Flashで台本下書き（20案はGemini内、APIなし）
+  → 台詞が決まってから、その行を支える範囲だけ実フレーム確認して SHA と in/out を結ぶ
+  → SCRIPT_PREPARED（payload 検証）
+  → SCRIPT_REVIEW  …… 台本OK（見せるのは台詞。カット表では止めない）
   → ROUGH_EDIT（新規エディタ、1テロップ1素材、TTSなし）
-  → ROUGH_REVIEW  …… 粗編集OK
+  → ROUGH_REVIEW  …… 粗編集OK（ここで絵を確定）
   → FINISHING（中央テロップ、ホリデーツイスト、3レイヤ揃え）
   → FINAL_QA（全カット検証・再生・再読込）
   → FINAL_REVIEW  …… 完成・書き出しOK
@@ -79,7 +82,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 ## 時間を使わないこと
 
 - `粗編集OK` のあと、代替ボイス（Path 1）や新規 CapCut 案件（Path 2）を出さない。ホリデーツイストは編集正本で出すか、CapCut 公式 TTS の音声だけを戻す。
-- 映像を CapCut に入れ直さない。完成動画を Drive ツールの base64 にしない。書き出しを Downloads へコピーしない（ピッカーが `out/` を見られないときだけ）。
+- 映像を CapCut に入れ直さない。完成動画を Drive ツールの base64 にしない。書き出しを Downloads へコピーしない。Gemini.app や Chrome.app をスクショ・OCR・クリック探索しない。
 - Checkpoint 3 で `音声確認OK` を増やさない。聴けないときは同じ停止メッセージに聴感チェックリストを載せる。
 - タブの所属が不明でも Drive 読戻し後の `COMPLETE` は止めない。Mac の作業コピー確認はまず Finder のダウンロード。
 
@@ -91,7 +94,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 2. その時点の JST 日付と型番の台帳を読んで序数を決める。①②は推測しない。
 3. 書き出しファイル名は `YYYY_MMDD_<MODEL>_AI作成①.mp4` 形式。同じ名前があれば止める。
 4. 書き出しは 1 回。受付や進捗だけでは成功としない。
-5. 検証済み型番と同名の親フォルダを 1 つ特定し、ローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。ローカルパスで渡せないときは、証明済み親へのログイン済み Drive 画面アップロード 1 回のあと、連携で読み戻す。同名の空ファイルは作らない。
+5. 検証済み型番と同名の親フォルダを 1 つ特定し、`scripts/upload_drive_local_file.py` でローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。ヘルパーが OAuth 不足なら止めて Terminal で `--login`。Chrome.app をスクショ探索しない。Google Drive デスクトップアプリは使わない。同名の空ファイルは作らない。
 6. 名前・MIME・バイト数・親スコープ・時刻を読み戻す。Drive ID は Git に書かない。
 7. `COMPLETE` のあと、格納済みのこの案件だけ、**この Mac** の作業コピーを消す。まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/<case-id>/` と `out/` を確認する。無いコピーを失敗にしない。
 
@@ -135,6 +138,7 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 既存動画、既存 project、過去 export、Drive 原本、過去 payload、過去 receipt を変更・上書きしないでください。
 
 通常確認は 台本OK、粗編集OK、完成・書き出しOK の 3 種類だけです。
+完成動画の格納は scripts/upload_drive_local_file.py を使ってください。Google Driveデスクトップアプリは使わないでください。
 完成・書き出しOK のあと、型番名の Drive フォルダへ新規ファイルとして格納してください。
 まず Checkpoint 1 の台本OK まで進めて停止してください。
 ```

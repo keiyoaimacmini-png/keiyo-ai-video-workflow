@@ -7,8 +7,8 @@ Before export, read the JST date/model ledger and prove no exact-name collision 
 Drive ingest, in order:
 
 1. Prove exactly one parent folder titled with this product model and no same-name file.
-2. Create one new file from local bytes. Do not inline the completed video as base64 in a tool argument.
-3. If the Drive adapter cannot take a local path or upload session, upload once through the already-authenticated Drive UI into that proven parent, then read back through the adapter.
+2. Create one new file from local bytes with `scripts/upload_drive_local_file.py`. Do not inline the completed video as base64 in a tool argument.
+3. Read back through the Drive adapter. If the helper HOLDs for missing runtime OAuth, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE` and ask the operator to run `--login` in Terminal. Do not screenshot, OCR, or click-hunt Chrome.app. Do not use Google Drive for desktop.
 4. Match exact name, MIME, byte size, new identity, parent scope, and time at or after export.
 5. Never create a same-name empty or path-string decoy. Never retry an unknown upload.
 

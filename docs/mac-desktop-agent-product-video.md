@@ -21,26 +21,30 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `完成・書き出しOK` のあとの既定完了は、型番名の Drive フォルダへの新規格納です。格納が確認できた案件は、**この Mac** に素材の作業コピーや完成動画の作業コピーを残しません。原本と Drive 上の格納ファイルと receipt は残します。格納前の進行中ファイルは消しません。`編集が完了した` だけでは書き出しも Drive も行いません。
 
-一括のホリデーツイスト生成では、各台本行のあいだに測った無音を入れてから、その無音でシーンごとに切ります。結合した 1 本のナレーションのまま尺を合わせません。最終テロップは画面中央で、案件エディタの字幕プログラムを使い、はみ出す行は見た目だけ改行します。`粗編集OK` のあと Path 1 / Path 2 では止めません。Drive 格納は完成動画を base64 にせず、ローカルバイトまたはログイン済み画面アップロード 1 回です。
+一括のホリデーツイスト生成では、各台本行のあいだに測った無音を入れてから、その無音でシーンごとに切ります。結合した 1 本のナレーションのまま尺を合わせません。最終テロップは画面中央で、案件エディタの字幕プログラムを使い、はみ出す行は見た目だけ改行します。`粗編集OK` のあと Path 1 / Path 2 では止めません。Drive 格納は完成動画を base64 にせず、`scripts/upload_drive_local_file.py` でローカルバイトから上げて連携で読み戻します。Chrome.app をスクショ探索しません。Google Drive デスクトップアプリは使いません。
 
-## 台本（Gemini 3.8 Flash / Chrome）
+## 台本（Gemini 3.8 Flash / Gemini.app）
 
-Cursor の親モデルは切り替えない。台本は Gemini API でも Cursor 内蔵ブラウザでも作らない。
+Cursor の親モデルは切り替えない。台本は Gemini API でも Cursor 内蔵ブラウザでも Chrome でも作らない。
 
-1. 素材点検と実フレーム確認は、この Mac の Desktop Agent が行う。
+1. 素材台帳はこの Mac の Desktop Agent が作る。この時点では6本を決めない。
 2. キー無し brief から貼り付け文を出す。
 
 ```bash
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemini_web_prompt.py --brief <task-root>/gemini-web-brief.v1.json
 ```
 
-3. この Mac の **Google Chrome.app** で `https://gemini.google.com/` を新規チャットで開く。
+3. この Mac のログイン済み **Gemini.app** を開く。オペレーターが今の画面でやれと言ったときは、すでに開いているチャットを使う。
 4. モデルピッカーで **Gemini 3.8 Flash** を選び、その表示を読み戻す。別モデルなら止める。
 5. 貼り付け文だけを送り、返ってきた台詞と20案要約だけを台本パッケージへ写す。
-6. SHA と in/out は Gemini に作らせず、実フレーム確認のあとスキルが結ぶ。
+6. SHA と in/out は Gemini に作らせない。台詞が決まってから、その行を支える範囲だけ実フレーム確認してスキルが結ぶ。`台本OK` で見せるのは台詞と、フックの困りごとに対する解決案。絵の確定は `粗編集OK`。
 7. `台本OK` まで止める。その後の粗編集も、同じこの Mac の Desktop Agent で続ける。
 
-エージェントは Chrome.app のウィンドウを直接操作できない。ログイン済み Chrome へ貼る作業はオペレーターが行う。ログイン、CAPTCHA、2FA は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
+Gemini.app を操作できないときは貼り付け文を残し、オペレーターがログイン済み Gemini.app へ貼る。ログイン、CAPTCHA、2FA は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
+
+## Drive（Chrome Web）
+
+完成動画の格納は `scripts/upload_drive_local_file.py` で行う。原本確認や素材の作業コピーが連携でできないときだけ、この Mac の **Google Chrome.app** で `https://drive.google.com/` にログインして行う。Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。Cursor 内蔵ブラウザは Chrome の Google ログインを共有しないので代用しない。必要な Chrome Drive を開けないときは `HOLD_DRIVE_WEB_NOT_VERIFIED`。ログインや 2FA が必要なら `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`。フォルダ URL はリポジトリに書かない。Chrome をスクショ探索しない。
 
 ## ブラウザ（CapCut など）
 
@@ -69,8 +73,9 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemi
 既存動画、既存project、過去export、Drive原本、過去payload、過去receiptを変更・上書きしないでください。
 
 通常確認は台本OK、粗編集OK、完成・書き出しOKの3種類だけです。
-Checkpoint 1 の台本は、このMacのChromeの公式Gemini Web（https://gemini.google.com/）でGemini 3.8 Flashに作らせてください。
+Checkpoint 1 の台本は、このMacのログイン済みGemini.appでGemini 3.8 Flashに作らせてください。
 Cursorの親モデル切替とGemini APIは使わないでください。
+完成動画の格納はscripts/upload_drive_local_file.pyを使ってください。Google Driveデスクトップアプリは使わないでください。
 完成・書き出しOKのあと、型番名のDriveフォルダへ新規ファイルとして格納してください。
 まずCheckpoint 1の台本OKまで進めて停止してください。
 ```

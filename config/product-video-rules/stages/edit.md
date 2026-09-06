@@ -2,7 +2,7 @@
 
 Official Holiday Twist is the only routine voice. Generate from frozen caption/script wording after `粗編集OK`. Do not offer a ChatCut substitute voice, a voice-identity reopen, or a new CapCut Web case to obtain that preset.
 
-The case has one editor of record for picture, captions, mute, and export. If that editor cannot emit the CapCut official Holiday Twist preset, generate the audio on the official CapCut Text to Speech page only (frozen lines separated by a blank line, one bulk render). Do not import picture into CapCut. Import the downloaded audio working copy into the case editor. This TTS sidecar is not a second editor and does not create a successor case.
+The case has one editor of record for picture, captions, mute, and export. If that editor cannot emit the CapCut official Holiday Twist preset, generate the audio on the official CapCut Text to Speech page only (frozen lines separated by a blank line, one bulk render). Do not import picture into CapCut. After clicking オーディオのみ, do not ask the operator to save the file: wait for a new `CapCut_TTS_*` in this Mac's `~/Downloads`, copy it into the case TTS working directory, then split. Do not use the embedded-browser save dialog, do not regenerate, and do not click さらに編集. Import the downloaded audio working copy into the case editor. This TTS sidecar is not a second editor and does not create a successor case.
 
 Bulk generation is allowed as one CapCut render of every frozen narration line. Paste those lines with a blank line between them. Do not insert ellipses, extra spoken punctuation, or filler words.
 

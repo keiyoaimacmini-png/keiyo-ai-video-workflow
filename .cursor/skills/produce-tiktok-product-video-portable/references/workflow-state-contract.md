@@ -16,7 +16,15 @@ No other transition accepts or creates a routine approval.
 
 ## Controlled reopen after a user correction
 
-Normal work never moves backward. A user correction that changes an already approved frozen input is the only reopen trigger. Before resetting the current state, preserve its exact bytes as a new versioned task-owned state file and hash a small reopen receipt containing the old state SHA-256, affected checkpoint, and observation time. Do not overwrite or delete the prior state or artifacts.
+Normal work never moves backward. A user correction that changes an already approved frozen input is the only reopen trigger. Frozen inputs are split by checkpoint:
+
+- `台本OK` freezes spoken dialogue, punctuation, script line breaks, six-stage order, and claimed facts.
+- `粗編集OK` freezes source assets, source ranges, picture, voice/preset, and the execution plan.
+- `完成・書き出しOK` freezes export and Drive 格納.
+
+A picture-only correction (source asset or in/out) that keeps the `台本OK` visible-content hash does not reopen Checkpoint 1. While `粗編集OK` is still pending, write a new versioned production payload, point `artifacts.production_payload` at it, and update `approvals.script.bound_artifact_sha256` in the same write. Ask for `粗編集OK` on the revised picture, not `台本OK` again.
+
+Before a true reopen, preserve the current state's exact bytes as a new versioned task-owned state file and hash a small reopen receipt containing the old state SHA-256, affected checkpoint, and observation time. Do not overwrite or delete the prior state or artifacts.
 
 Reset the canonical current state to the earliest affected review stage, mark that checkpoint and every downstream approval pending, clear downstream current work bindings, and keep unrelated upstream approval bindings unchanged. Rebuild only the affected artifacts and request the same exact checkpoint text again. This is a revision of an existing checkpoint, not a new routine checkpoint type. Do not reopen merely to fix a task-owned placement defect already authorized by the current plan.
 
@@ -39,7 +47,7 @@ The same actual-file rule applies to `learning_snapshots`. `script` is required 
 
 Each stage receipt contains only `sequence`, `completed_stage`, `artifact_sha256`, `learning_snapshot_sha256`, and offset-aware `observed_at`. Never store browser/account/session identifiers in it.
 
-`stage_receipts` represent the current validated work, not an immutable history ledger. While the next checkpoint is still pending, a user-requested correction may replace only the affected downstream artifact and its current stage binding. Once an approval is recorded, its bound artifact and learning snapshot are immutable; changing either requires explicitly reopening that approval scope. Never alter an already approved upstream artifact as an incidental repair.
+`stage_receipts` represent the current validated work, not an immutable history ledger. While the next checkpoint is still pending, a user-requested correction may replace only the affected downstream artifact and its current stage binding. Once an approval is recorded, its bound artifact and learning snapshot are immutable except for the picture-only `production_payload` rebind allowed above while `粗編集OK` is still pending. Changing dialogue, facts, or stage order after `台本OK` still requires explicitly reopening that approval scope. Never alter an already approved upstream artifact as an incidental repair.
 
 Bind work-stage receipts exactly: `PREFLIGHT` to `script_package`, `SCRIPT_PREPARED` to `production_payload`, `ROUGH_EDIT` to `rough_edit`, `FINISHING` to `finished_timeline`, `FINAL_QA` to `final_qa`, and `EXPORT_AND_DELIVERY` to `export`. Bind approvals exactly: `台本OK` to `production_payload`, `粗編集OK` to `execution_plan`, and `完成・書き出しOK` to `final_qa`.
 

@@ -55,6 +55,11 @@ class RenderGeminiWebPromptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("下からチェック！", result.stdout)
         self.assertIn("problem_or_hook", result.stdout)
+        self.assertIn("短い話し言葉", result.stdout)
+        self.assertIn("同じ困りごとの解決案を提示する", result.stdout)
+        self.assertIn("result の言い換えで終わらせない", result.stdout)
+        self.assertIn("日差しが入ってこない、だけでは回収しない", result.stdout)
+        self.assertIn("手順書", result.stdout)
         self.assertNotIn("AIza", result.stdout)
 
     def test_rejects_source_hash_fields(self) -> None:
