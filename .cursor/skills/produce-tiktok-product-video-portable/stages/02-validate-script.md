@@ -27,6 +27,17 @@ python3 ${SKILL_ROOT}/scripts/validate_product_video_payload.py payload.json --s
 
 Resolve every deterministic error without inventing evidence or authority.
 
+## Craft gate
+
+Before presenting Checkpoint 1, write `<task-root>/craft-script.v1.json` from the spoken lines. Then run:
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-v3/scripts/validate_craft_quality.py" \
+  --project-root <project-root> --product-model <model> --surface script --artifact <task-root>/craft-script.v1.json
+```
+
+`HOLD_CRAFT_QUALITY` blocks `台本OK`. Repair the spoken lines and rerun. Do not present Checkpoint 1 because the payload schema passed.
+
 ## Checkpoint 1
 
 Hash the validated payload and store `artifacts.production_payload`. On the normal path, record the `SCRIPT_PREPARED` binding and advance to `SCRIPT_REVIEW`. During an unapproved `SCRIPT_REVIEW` revision, replace only that current draft binding and remain at `SCRIPT_REVIEW`.

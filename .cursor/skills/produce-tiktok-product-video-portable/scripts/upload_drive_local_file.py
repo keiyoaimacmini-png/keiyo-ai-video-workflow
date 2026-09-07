@@ -278,17 +278,22 @@ def locate_parent(token: str, parent_title: str, http: HttpFn) -> str | dict[str
     )
     data = drive_get_json(token, f"{FILES_URI}?{params}", http)
     files = data.get("files")
-    if not isinstance(files, list) or len(files) != 1:
+    if not isinstance(files, list):
         return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
-    row = files[0]
-    if not isinstance(row, dict):
+    # Drive name queries are case-insensitive; the product-model folder title is exact.
+    exact = [
+        row
+        for row in files
+        if isinstance(row, dict)
+        and row.get("name") == parent_title
+        and row.get("mimeType") == FOLDER_MIME
+        and not row.get("trashed")
+        and isinstance(row.get("id"), str)
+        and row["id"]
+    ]
+    if len(exact) != 1:
         return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
-    parent_id = row.get("id")
-    name = row.get("name")
-    mime = row.get("mimeType")
-    if not isinstance(parent_id, str) or name != parent_title or mime != FOLDER_MIME or row.get("trashed"):
-        return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
-    return parent_id
+    return exact[0]["id"]
 
 
 def collision_exists(token: str, parent_id: str, title: str, http: HttpFn) -> bool:
@@ -686,6 +691,70 @@ def self_test() -> int:
         http=_ScriptedHttp([HttpResponse(200, {}, json.dumps({"files": []}).encode("utf-8"))]),
     )
     check("scope-hold", ambiguous.get("hold") == HOLD_SCOPE)
+
+    mixed_case = locate_parent(
+        "ya29.self-test-token",
+        "AN-S182",
+        _ScriptedHttp(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    json.dumps(
+                        {
+                            "files": [
+                                {
+                                    "id": "z" * 33,
+                                    "name": "an-s182",
+                                    "mimeType": FOLDER_MIME,
+                                    "trashed": False,
+                                },
+                                {
+                                    "id": parent_id,
+                                    "name": "AN-S182",
+                                    "mimeType": FOLDER_MIME,
+                                    "trashed": False,
+                                },
+                            ]
+                        }
+                    ).encode("utf-8"),
+                )
+            ]
+        ),
+    )
+    check("exact-case-parent", mixed_case == parent_id)
+
+    duplicate_exact = locate_parent(
+        "ya29.self-test-token",
+        "AN-S182",
+        _ScriptedHttp(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    json.dumps(
+                        {
+                            "files": [
+                                {
+                                    "id": parent_id,
+                                    "name": "AN-S182",
+                                    "mimeType": FOLDER_MIME,
+                                    "trashed": False,
+                                },
+                                {
+                                    "id": "w" * 33,
+                                    "name": "AN-S182",
+                                    "mimeType": FOLDER_MIME,
+                                    "trashed": False,
+                                },
+                            ]
+                        }
+                    ).encode("utf-8"),
+                )
+            ]
+        ),
+    )
+    check("duplicate-exact-scope", isinstance(duplicate_exact, dict) and duplicate_exact.get("hold") == HOLD_SCOPE)
 
     renamed = upload_local_file(
         project_root=root,

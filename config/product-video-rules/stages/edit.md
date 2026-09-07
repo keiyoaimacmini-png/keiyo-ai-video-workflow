@@ -2,20 +2,18 @@
 
 Official Holiday Twist is the only routine voice. Generate from frozen caption/script wording after `粗編集OK`. Do not offer a ChatCut substitute voice, a voice-identity reopen, or a new CapCut Web case to obtain that preset.
 
-The case has one editor of record for picture, captions, mute, and export. If that editor cannot emit the CapCut official Holiday Twist preset, generate the audio on the official CapCut Text to Speech page only (frozen lines separated by a blank line, one bulk render). Do not import picture into CapCut. After clicking オーディオのみ, do not ask the operator to save the file: wait for a new `CapCut_TTS_*` in this Mac's `~/Downloads`, copy it into the case TTS working directory, then split. Do not use the embedded-browser save dialog, do not regenerate, and do not click さらに編集. Import the downloaded audio working copy into the case editor. This TTS sidecar is not a second editor and does not create a successor case.
+The case has one editor of record for picture, captions, mute, and export. If that editor cannot emit the CapCut official Holiday Twist preset, generate the audio on the official CapCut Text to Speech page only, one frozen line per narration-target cut. Do not paste every frozen line into one bulk render. Do not import picture into CapCut. After each result card exists, capture its media URL (`video`/`audio` currentSrc, typically `mime_type=audio_mpeg`) into the case TTS working directory with `scripts/capture_capcut_result_audio.py`. Do not click オーディオのみ. Do not use Finder, OS, or embedded-browser save dialogs. Do not wait for `~/Downloads/CapCut_TTS_*`. Do not ask the operator to press Save. If a save dialog appears, dismiss or ignore it and capture the result-card bytes instead. Do not regenerate a successful cut, and do not click さらに編集. Import that working copy into the case editor as that cut's TTS clip. This TTS sidecar is not a second editor and does not create a successor case.
 
-Bulk generation is allowed as one CapCut render of every frozen narration line. Paste those lines with a blank line between them. Do not insert ellipses, extra spoken punctuation, or filler words.
+Routine generation is one CapCut render per narration-target cut. Paste only that cut's frozen line. Do not insert ellipses, extra spoken punctuation, filler words, or blank-line scene separators as generation input. Each successful per-cut render consumes that cut's initial generation slot.
 
-After download:
+After capture:
 
-1. Align each frozen line to the bulk audio.
-2. Insert a measured silent scene-split gap, default 600 ms, allowed 400–1200 ms, using `scripts/prepare_bulk_tts_scene_gaps.py`.
-3. Cut only at those gaps so each narration-target caption has exactly one TTS clip.
-4. Trim gap silence from clip edges, then close three-layer timing with the common speed.
+1. Place that working copy as the cut's single TTS clip.
+2. Close three-layer timing from that cut's audible speech end and the common speed.
+3. Do not leave one combined narration clip on the timeline.
+4. Do not use `scripts/prepare_bulk_tts_scene_gaps.py` on the routine path.
 
-If alignment or the detectable gaps do not close, HOLD. Do not guess cut points inside speech. Per-cut generation remains valid and does not need this gap insert.
-
-Do not shorten source or caption clips to match an isolated per-cut TTS file that is shorter than the bulk-aligned speech window. Three-layer ends follow the audible speech end of the bulk-aligned clip.
+If a cut's speech cannot be read back, HOLD. Do not guess cut points inside speech. Align each cut to that frozen line's audible end. Trim unused picture head and tail so the remaining frames are the claimed action; do not speed the read-aloud so the showcase is unused.
 
 Place final captions with the case editor's caption program (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Place them at screen center with heavy weight, thick stroke, and a contrast band. Wrap overflowing frozen lines visually at existing punctuation; do not change wording. The last-cut tail may keep a matching centered hold after TTS ends.
 

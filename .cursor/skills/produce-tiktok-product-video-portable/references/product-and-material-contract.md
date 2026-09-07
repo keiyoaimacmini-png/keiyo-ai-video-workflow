@@ -23,7 +23,7 @@ Never copy another product's settings, script, cuts, captions, TTS, CapCut/ChatC
 | Material root | `PRODUCT_VIDEO_MATERIAL_ROOT` if set, else `.runtime/product-video-inputs/<product_model>_コピー` | Reuse another model's media, Git-tracked media, or a previous case's import staging |
 | Canonical final cut | The `final_cut_block` inside that model's settings file | Borrow another model's CTA clip or range |
 | Caption template / voice | That model's `caption_template` and `narration` | Keep a previous project's template, font, or voice identity |
-| Drive parent | Exactly one folder whose **title** is the verified `product_model` | Hard-code Drive IDs, URLs, or a folder named for a different model |
+| Drive parent | Exactly one folder whose **title** matches the verified `product_model` in exact case | Hard-code Drive IDs, URLs, or a folder named for a different model |
 | Case / editor project | New case ID, new `outputs/<case-id>/`, new editor project | Reuse or overwrite an existing project, export, or receipt |
 
 Resolve those inputs before creating a case:
@@ -55,7 +55,7 @@ This Cursor workflow's standing completion is Drive storage.
 - Initialize new cases with `delivery_mode: drive` when the original request includes 格納 / Drive / ドライブ, or when it does not explicitly require local-only export.
 - Initialize `export_only` only when the original request explicitly says 書き出しのみ / export_only / ローカルのみ.
 - Exact `完成・書き出しOK` bound to the current final-QA receipt authorizes one new export and, for `drive`, one new Drive file plus exact parent read-back.
-- Create that Drive file from local bytes. Do not inline the completed video as base64. If local-path ingest is unavailable, one authenticated Drive UI upload into the proven parent plus adapter read-back is allowed.
+- Create that Drive file from local bytes with `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not inline the completed video as base64. Do not open Chrome.app for 格納. If the helper HOLDs, stop; do not fall through to a Drive Web UI loop.
 - `編集が完了した` / `格納して` is not a substitute for `完成・書き出しOK`.
 - Do not upload a working copy, a ChatCut/CapCut preview, or an unverified export.
 - Do not treat a local `out/` file as 格納.
@@ -81,7 +81,7 @@ Use this sequence on any PC that has the skill package, that product's settings 
 2. Resolve `PROJECT_ROOT` and `SKILL_ROOT`. Run `resolve_product_inputs.py` and `verify_product_video_setup.py --product-model <MODEL> --require-materials`.
 3. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Stop for exact `台本OK`.
 4. `ROUGH_EDIT`: create a **new** editor project. Import selected assets in the host ingest helper's maximum batch. One distinct source per caption. Frozen captions on the case editor's caption program. No TTS yet. Stop for exact `粗編集OK`.
-5. `FINISHING`: centered prominent captions on the case editor's caption program, Holiday Twist from frozen lines (CapCut Text to Speech sidecar when the editor of record is not CapCut Web), bulk scene-gap split when generated in bulk, three-layer timing. Official CapCut text templates are optional and never a HOLD.
+5. `FINISHING`: centered prominent captions on the case editor's caption program, Holiday Twist once per narration-target cut (CapCut Text to Speech sidecar when the editor of record is not CapCut Web), three-layer timing. Official CapCut text templates are optional and never a HOLD.
 6. `FINAL_QA`: all-cut source/caption/TTS, mute, frames, playback, reload, safe area. Stop for exact `完成・書き出しOK`. If the host cannot hear, keep auditory verification pending at this same checkpoint.
 7. `EXPORT_AND_DELIVERY`: one new export name, export once, Drive-store into the folder titled `<MODEL>`, read back. Then `COMPLETE`.
 8. Purge this case's local working media on every machine that held a copy.

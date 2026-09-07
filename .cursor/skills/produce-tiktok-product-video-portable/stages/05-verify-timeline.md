@@ -47,6 +47,19 @@ python3 ${SKILL_ROOT}/scripts/validate_timeline_integrity.py <integrity-receipt.
 
 The static validator checks receipt closure and actual evidence bytes but does not observe the editor itself. Create the receipt only from live UI/read-back evidence. If the active tool cannot hear reliably, structural checks may pass but auditory status stays pending. Put the full-listening checklist inside Checkpoint 3; do not create `音声確認OK`.
 
+## Craft gates
+
+Before presenting Checkpoint 3, write caption and TTS craft artifacts from composed frames and the live timeline, then run:
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-v3/scripts/validate_craft_quality.py" \
+  --project-root <project-root> --product-model <model> --surface captions --artifact <task-root>/craft-captions.v1.json
+python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-v3/scripts/validate_craft_quality.py" \
+  --project-root <project-root> --product-model <model> --surface tts-timing --artifact <task-root>/craft-tts.v1.json
+```
+
+`HOLD_CRAFT_QUALITY` blocks `完成・書き出しOK`. Repair and rerun. Schema-valid slack receipts are not a substitute.
+
 ## Checkpoint 3
 
 After all available checks pass, hash the all-cut QA receipt including the delivery-snapshot SHA, validated non-final-slack-receipt SHA, frame-level track-pairing-receipt SHA, and validated timeline-integrity-receipt SHA, then store `artifacts.final_qa`. On the normal path, record the `FINAL_QA` binding and advance to `FINAL_REVIEW`. During an unapproved `FINAL_REVIEW` recheck, replace only that current binding and remain at `FINAL_REVIEW`.

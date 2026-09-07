@@ -5,7 +5,7 @@
 - Read project instructions and local project context once.
 - Resolve exactly one product settings file and hash it.
 - Inventory and hash candidate media without copying originals. Do not lock the six winning source files before Gemini drafts spoken dialogue.
-- Draft the twenty-candidate comparison and selected dialogue in official Gemini.app on this Mac. Select Gemini 3.8 Flash and read that label back. Do not switch the Cursor parent model. Do not call the Gemini API. Do not use Google Chrome.app or the agent-controlled browser for that draft. Do not screenshot, OCR, or Accessibility-hunt Gemini.app. Render the paste prompt with `scripts/render_gemini_web_prompt.py`. If Gemini.app cannot be used, `HOLD_GEMINI_WEB_NOT_VERIFIED`. If login, CAPTCHA, 2FA, or account choice is required, `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. If the picker is not Gemini 3.8 Flash, `HOLD_GEMINI_MODEL_NOT_VERIFIED`.
+- Draft the twenty-candidate comparison and selected dialogue in official Gemini.app on this Mac. Select Gemini 3.8 Flash and read that label back. Do not switch the Cursor parent model. Do not call the Gemini API. Do not use Google Chrome.app or the agent-controlled browser for that draft. Do not screenshot, OCR, or Accessibility-hunt Gemini.app. Render the paste prompt with `scripts/render_gemini_web_prompt.py`, send it in Gemini.app in this turn, and read the dialogue back. Do not ask the operator to paste. If login, CAPTCHA, 2FA, or account choice is required, `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. If the picker is not Gemini 3.8 Flash, `HOLD_GEMINI_MODEL_NOT_VERIFIED`.
 - After spoken lines exist, inspect in, midpoint, and out frames of each proposed source range against the claimed visible action. Do not default to the first N seconds of a usable take. Do not present those frames as the Checkpoint 1 review subject.
 - Verify the six-stage script, that `problem_resolution` presents a solution to the same hook problem, and that one distinct source asset/media SHA per caption is possible.
 - Stop Checkpoint 1 on the spoken script only. Source path, in/out, and contact sheets wait for Checkpoint 2.
@@ -29,8 +29,8 @@ Do not create a separate upload checkpoint.
 
 - Validate the approved execution plan before any credit-consuming action.
 - Place centered, prominent, visually wrapped captions with the case editor's caption program. Official CapCut text templates are optional and never a HOLD.
-- Generate official Holiday Twist immediately. If the editor of record cannot emit that preset, use the CapCut Text to Speech sidecar (no picture, no substitute voice, no new case). After オーディオのみ, poll this Mac's `~/Downloads` for a new `CapCut_TTS_*` and copy it into the case TTS directory; do not ask the operator to download, do not regenerate, and do not click さらに編集. Do not pause for a Path 1 / Path 2 choice.
-- For bulk generation, paste frozen lines with blank lines, insert scene-split gaps, and cut to one TTS clip per narration-target caption. Do not shorten picture to chase a shorter isolated TTS file.
+- Generate official Holiday Twist immediately, one frozen line per narration-target cut. If the editor of record cannot emit that preset, use the CapCut Text to Speech sidecar (no picture, no substitute voice, no new case, no bulk paste of every line). Capture each result-card audio bytes into the case TTS directory with `scripts/capture_capcut_result_audio.py`. Do not click オーディオのみ, do not use a save dialog, do not wait for `~/Downloads/CapCut_TTS_*`, do not ask the operator to press Save, do not regenerate a successful cut, and do not click さらに編集. Do not pause for a Path 1 / Path 2 choice.
+- Generate one Holiday Twist render per narration-target cut. Paste only that cut's frozen line. Do not bulk-paste every line. Place one TTS clip per caption. Three-layer ends follow that cut's audible speech end.
 - Enter self-repair only for the failing cut. Preserve already verified cuts.
 - Apply a settings-bounded common TTS speed when needed, then retime the derived source/caption/TTS boundaries together. Do not change source asset/range, visible action, wording, line breaks, or voice identity after approval; HOLD only when one of those frozen inputs or an out-of-settings speed would be required.
 - Reconcile all source, caption, narration-target, and TTS records by `cut_id`.
@@ -45,7 +45,7 @@ Do not create a separate upload checkpoint.
 - Read back the exact date/model ordinal ledger and the Drive parent/collision state immediately before export, in the same preflight pass.
 - Confirm the exact name does not already exist in the output and qualifying Drive scope.
 - Export once and verify the local completed file receipt.
-- If pre-authorized by `完成・書き出しOK` and `delivery_mode: drive`, upload once with `scripts/upload_drive_local_file.py` from the local export into the folder titled with this product model. Do not inline the video as base64. Do not screenshot, OCR, or click-hunt Chrome.app. If the helper HOLDs, stop; do not fall through to a Drive Web UI loop. Do not use Google Drive for desktop. Do not copy into Downloads.
+- If pre-authorized by `完成・書き出しOK` and `delivery_mode: drive`, upload in that same turn with `scripts/upload_drive_local_file.py` from the local export into the folder whose title matches this product model in exact case. Do not inline the video as base64. Do not open Chrome.app for 格納. Do not screenshot, OCR, or click-hunt Chrome.app. If the helper HOLDs, stop; do not fall through to a Drive Web UI loop. Do not use Google Drive for desktop. Do not copy into Downloads. A 16–22MB file should finish in tens of seconds.
 - Read back the new Drive file identity, exact name, MIME, byte size, parent scope, and time.
 - Close only task-owned Chrome tabs after Drive read-back. Unknown ownership leaves tabs open and does not block `COMPLETE`.
 
@@ -58,15 +58,15 @@ Do not spend a turn on work that already failed this product:
 - Do not lock or review the six source files before Gemini drafts spoken dialogue, and do not make `台本OK` wait on contact sheets.
 - Do not reopen `台本OK` for a picture-only source swap. That is Checkpoint 2.
 - Do not stall overnight waiting for a browser, download, or login. Same turn: either continue or stop with the matching HOLD so the operator can act.
-- Do not screenshot, OCR, or Accessibility-hunt Gemini.app or Google Chrome.app. If the live app cannot be used in this turn, HOLD.
+- Do not screenshot, OCR, or Accessibility-hunt Gemini.app or Google Chrome.app. If Gemini.app is not frontmost, bring it forward and finish the draft. Do not ask the operator to paste.
 - Do not pause after `粗編集OK` for Path 1 (substitute voice) or Path 2 (new CapCut case). Continue into Holiday Twist immediately.
 - Do not transcode or rebuild picture on CapCut to obtain Holiday Twist. Use the TTS sidecar.
 - Do not replace Caption Cards with Motion Graphics at finish. Keep the rough caption program and style it.
-- Do not shorten picture to chase an isolated per-cut TTS file.
+- Do not paste every frozen line into one bulk Holiday Twist render.
 - Do not default a source range to the first N seconds of a usable take. Prove in, midpoint, and out frames first.
 - Do not inline the completed video as base64 in a Drive create. Use `scripts/upload_drive_local_file.py`, then adapter read-back.
 - Do not copy the export into Downloads.
-- After `完成・書き出しOK`, do not rebuild already-bound receipts or docs. Ledger, collision, export, local ingest, adapter read-back.
+- After `完成・書き出しOK`, do not rebuild already-bound receipts or docs. Ledger, collision, export, same-turn local ingest, adapter read-back. Do not leave 格納 for a later turn.
 - Do not add `音声確認OK`. Put the Japanese listening checklist in the Checkpoint 3 stop message.
 - Do not delay `COMPLETE` for unknown tab ownership. Leave those tabs open.
 - On this Mac, check Finder Downloads for the exact completed filename first, then repo `outputs/` and `out/` only if those copies exist. Missing copies are not a failure.

@@ -2,13 +2,13 @@
 
 Inventory candidate media before drafting, but do not choose the six winning source files before spoken dialogue exists. Labels and sidecars are leads, not proof.
 
-A model draft may propose dialogue only. Media SHA-256 and source in/out are bound from inspected frames after that dialogue exists, never invented by the draft model. This host drafts that dialogue in official Gemini.app on this Mac at Gemini 3.8 Flash, not the Gemini API, and not by switching the Cursor parent model.
+A model draft may propose dialogue only. Media SHA-256 and source in/out are bound from inspected frames after that dialogue exists, never invented by the draft model. This host drafts that dialogue in official Gemini.app on this Mac at Gemini 3.8 Flash, not the Gemini API, and not by switching the Cursor parent model. The agent sends the rendered prompt and reads the dialogue in the same turn. Do not leave a paste for the operator.
 
-Dialogue is short spoken TikTok copy the viewer hears. Do not write shot descriptions, instruction-sheet lines, or 「〜します」 narration. Adjacent lines must read as speech to the viewer. Keep claims inside verified facts. Do not copy another video's wording or invent numbers, efficacy, or competitor claims.
+Dialogue is short spoken TikTok copy the viewer hears. Do not write shot descriptions, instruction-sheet lines, or 「〜します」「してみて」「あるよ」 narration. Adjacent lines must read as speech to the viewer. Keep claims inside verified facts. Do not claim a use, fit, or seal that the inspected footage cannot show. Do not copy another video's wording or invent numbers, efficacy, or competitor claims.
 
 Checkpoint 1 (`台本OK`) reviews the six spoken lines, six-stage order, and whether `problem_resolution` presents a solution to the same problem named in the hook. Do not make `台本OK` wait on a locked cut table, source path, in/out, or in/mid/out contact sheets. Picture assignment is Checkpoint 2 (`粗編集OK`).
 
-A proposed source range is valid only when in, midpoint, and out frames show the claimed visible action. Do not default to the first N seconds of a usable take. Prove those frames after the spoken lines exist, then confirm them at Checkpoint 2.
+Picture assignment and range proof are Checkpoint 2.
 
 After `台本OK`, a source-asset or in/out swap that keeps the frozen spoken lines, punctuation, line breaks, stage order, and claimed facts stays at rough-edit review. Do not reopen Checkpoint 1. Reopen `台本OK` only when dialogue, facts, or stage order change.
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Render a key-free Gemini paste prompt from a local brief.
+"""Render a key-free Gemini prompt from a local brief.
 
-No network. No API keys. The host pastes the printed text into official
-Gemini.app on this Mac after frame inventory.
+No network. No API keys. The host sends the printed text into official
+Gemini.app on this Mac after frame inventory. Do not leave a paste for
+the operator.
 """
 
 from __future__ import annotations

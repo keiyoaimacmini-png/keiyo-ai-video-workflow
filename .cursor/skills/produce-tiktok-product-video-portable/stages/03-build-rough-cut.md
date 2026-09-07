@@ -34,6 +34,17 @@ Build and validate the payload-bound execution plan:
 python3 ${SKILL_ROOT}/scripts/validate_execution_plan.py execution-plan.json --payload payload.json
 ```
 
+## Craft gate
+
+Before presenting Checkpoint 2, write `<task-root>/craft-picture.v1.json` (`product_video_picture_selection.v1`) from inspected ranges. Each cut needs `narrative_role`, `claimed_action`, `action_centered`, `range_covers_claimed_action`, `look_reads_different_from_previous` (after cut 1), compared candidates, and `defaulted_to_first_n_seconds`. Neighboring cuts must not continue the same place, distance, and camera angle. Related sequential actions (open, then press) are allowed. A different file is not enough. Then run:
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-v3/scripts/validate_craft_quality.py" \
+  --project-root <project-root> --product-model <model> --surface picture --artifact <task-root>/craft-picture.v1.json
+```
+
+`HOLD_CRAFT_QUALITY` blocks `粗編集OK`. Pick a different proven range and rerun.
+
 ## Checkpoint 2
 
 Freeze wording, line breaks, voice/preset, common speed, source assets, ranges, payload hash, and plan hash. Store the execution-plan and rough-edit receipt hashes. On the normal path record the `ROUGH_EDIT` binding and advance to `ROUGH_REVIEW`; during an unapproved `ROUGH_REVIEW` revision replace only that current draft binding and remain at `ROUGH_REVIEW`.

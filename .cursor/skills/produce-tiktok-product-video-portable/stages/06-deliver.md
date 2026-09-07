@@ -22,20 +22,19 @@ Export once. A request acknowledgement, progress state, toast, or unknown result
 
 Default `delivery_mode` is `drive`. Run this after the new export read-back in the same turn. Before export, already prove the JST ledger ordinal and that the exact name is absent from local output and the approved Drive parent. Do not rebuild bound receipts or hunt a browser UI.
 
-Locate exactly one parent folder whose title is the verified product model. Upload one new file from local bytes. Do not inline the completed video as base64 in a tool argument.
+Locate exactly one parent folder whose title matches the verified product model in exact case. Upload one new file from local bytes. Do not inline the completed video as base64 in a tool argument.
 
 Drive ingest, in order:
 
-1. Prove exactly one parent folder titled with this product model and no same-name file (adapter search is enough; do not screenshot Drive).
+1. Prove exactly one parent folder whose title matches this product model in exact case and no same-name file (adapter search is enough; do not screenshot Drive). Drive name search is case-insensitive; keep only the exact-title folder.
 2. Create the new file with `${SKILL_ROOT}/scripts/upload_drive_local_file.py` from the local export path. Bytes stay on the filesystem and HTTPS; they never enter a chat or tool argument.
 
 ```bash
 python3 "${SKILL_ROOT}/scripts/upload_drive_local_file.py" --project-root <project-root> --local-path <export-path> --title <completed_video_filename> --parent-title <model> --mime-type video/mp4
 ```
 
-3. Read back through the Drive adapter: exact name, MIME, byte size, new identity, parent scope, and time at or after export.
-4. If the helper HOLDs for missing runtime OAuth, stop with `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Tell the operator to place a Desktop OAuth client at `.runtime/drive-oauth-client.json` and run the same script with `--login` from the repository root in Terminal, not from the home directory. Do not run `--login` from the agent. Do not screenshot, OCR, Accessibility-hunt, or click-hunt Google Chrome.app. Do not use Google Drive for desktop, a local sync mount, rclone, or the agent-controlled browser.
-5. Chrome.app Drive Web file-picker upload is last-resort only when the helper cannot run *and* the operator is already in that authenticated picker targeting the proven parent. One drop, then adapter read-back. If that UI is not already ready, HOLD; do not spend a turn driving Chrome.
+3. Read back through the Drive adapter: exact name, MIME, byte size, new identity, parent scope, and time at or after export. A 16–22MB local file should finish this helper upload in tens of seconds. Minutes of wait mean the helper was not used or a HOLD was left sitting.
+4. If the helper HOLDs for missing runtime OAuth, stop with `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`. Tell the operator to place a Desktop OAuth client at `.runtime/drive-oauth-client.json` and run the same script with `--login` from the repository root in Terminal, not from the home directory. Do not run `--login` from the agent. Do not open Chrome.app for 格納. Do not screenshot, OCR, Accessibility-hunt, or click-hunt Google Chrome.app. Do not use Google Drive for desktop, a local sync mount, rclone, or the agent-controlled browser.
 
 Missing or duplicate model-titled folders are `HOLD_DRIVE_SCOPE_AMBIGUOUS`. Drive login, CAPTCHA, 2FA, recovery, or account choice for an already-open Chrome session is `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`. Match new file identity, exact name, MIME, byte size, approved parent scope, and time. Store only the portable hashed receipt fields required by the production contract. Never write raw Drive IDs into Git. Never create a same-name empty or path-string decoy. Do not copy the export into `Downloads/`.
 

@@ -16,13 +16,13 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
-- When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`.
+- When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`. Those files are the standing first-pass rules. Portable stages run craft checks against them before `台本OK`, `粗編集OK`, and `完成・書き出しOK`. Do not wait for a correction to apply them.
 
 ## Gemini 台本（デスクトップアプリ。Cursor のモデルは切り替えない）
 
 - Checkpoint 1 の台本案は、この Mac のログイン済み **Gemini.app** に作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY`、Google Chrome.app、エージェント制御ブラウザは使わない。
 - 使用モデルはピッカーで **Gemini 3.8 Flash** と読み戻す。Auto / Pro / 別の Flash には落とさない。違う表示なら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。
-- Gemini.app を操作できないときは `HOLD_GEMINI_WEB_NOT_VERIFIED` とし、`scripts/render_gemini_web_prompt.py` の貼り付け文を task に残す。オペレーターがログイン済み Gemini.app へ貼り、返ってきた台詞だけを戻す。
+- Gemini.app を操作できないときは、貼り付け文をオペレーターに渡して止めない。ログイン済み Gemini.app を前面に出してプロンプトを送り、返ってきた台詞を読む。ログイン、CAPTCHA、2FA、アカウント選択だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 - ログイン、CAPTCHA、2FA、アカウント選択は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワード、クッキー、トークン、API キーをリポジトリ、プロンプト、receipt、ログに置かない。
 - 素材の SHA と in/out は Gemini に作らせない。台詞が決まってから、その行を支える範囲だけ実フレーム確認して payload に結ぶ。
 - `台本OK` で止める対象は台詞・6段構成・フックの困りごとに対する解決案。素材6本のロックや in/mid/out のコンタクトシートでは止めない。絵の確定は `粗編集OK`。見た目や「日差しが入ってこない」だけでは暑さのフックを回収したことにしない。
@@ -30,7 +30,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ## Google Drive（格納はローカルパス。デスクトップアプリは使わない）
 
-- 完成動画の格納は `scripts/upload_drive_local_file.py` でローカルファイルから HTTPS 再開始アップロードし、Drive 連携で読み戻す。完成動画をツール引数の base64 にしない。Cursor の Drive コネクタ秘密は読まない。
+- 完成動画の格納は、書き出し読戻しの**同じターン**で `scripts/upload_drive_local_file.py` を使う。ローカルファイルから HTTPS 再開始アップロードし、Drive 連携で読み戻す。格納に Chrome.app を開かない。親フォルダ名は型番と exact case。16–22MB なら数十秒が正常。完成動画をツール引数の base64 にしない。Cursor の Drive コネクタ秘密は読まない。
 - ヘルパーが OAuth 不足で HOLD したら `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`。オペレーターが `.runtime/drive-oauth-client.json` を置き、**リポジトリのルート**で `--login` する。ホームディレクトリでは実行しない。エージェントは `--login` を起動しない。Chrome.app をスクショ・OCR・クリック探索しない。
 - Drive の原本確認・素材取得が連携でできないときだけ、この Mac の **Google Chrome.app** で公式 Drive Web（`https://drive.google.com/`）を使う。
 - Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。
@@ -54,13 +54,13 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
-## 一括ナレーションのシーン隙間
+## ナレーション（1カットごと）
 
-- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を空行区切りで1回生成し、音声だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。`粗編集OK` のあと、パス選択で止めない。
-- CapCut公式のホリデーツイストで台本を一括生成するときは、凍結した各行のあいだに空行だけを入れて貼る。省略記号や余計な読み上げ用の句読点は入れない。
-- ダウンロードはオペレーターに頼まない。エージェント制御ブラウザで「オーディオのみ」を押したあと、埋め込みブラウザの保存ダイアログは使わず、この Mac の `~/Downloads` に新規 `CapCut_TTS_*` が着くまで待つ。着いたファイルを案件の TTS 作業ディレクトリへ複製してから切る。再生成しない。CapCut の「さらに編集」は押さない。
-- ダウンロード後、行ごとの境界に測った無音（既定 600ms）を入れ、その無音で1シーン1クリップに切ってから尺を合わせる。結合した1本のままタイムラインに残さない。
-- 画面の字幕と payload の TTS 文言は凍結行のまま。一括生成は、含まれた全カットの初回TTSとして数える。
+- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、音声だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。`粗編集OK` のあと、パス選択で止めない。
+- 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。省略記号や余計な読み上げ用の句読点は入れない。
+- 生成後の取得はオペレーターに頼まない。「オーディオのみ」は押さない。Finder / OS / 埋め込みブラウザの保存ダイアログは使わない。オペレーターに「保存」を押させない。`~/Downloads/CapCut_TTS_*` は取得経路にしない。結果カードの `video`/`audio` currentSrc（`mime_type=audio_mpeg` など）を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。保存ダイアログが出ても閉じるか無視し、結果バイトを取る。成功したカットは再生成しない。CapCut の「さらに編集」は押さない。
+- 1カット1クリップとして編集正本へ戻し、そのカットの聞き取れる発話終わりで尺を合わせる。結合した1本のままタイムラインに残さない。
+- 画面の字幕と payload の TTS 文言は凍結行のまま。各カットの初回成功レンダーだけをそのカットの初回TTSとして数える。
 
 ## テロップ
 

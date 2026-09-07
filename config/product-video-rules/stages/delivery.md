@@ -4,9 +4,11 @@ Export once after exact `完成・書き出しOK`. Read back the new local expor
 
 Before export, read the JST date/model ledger and prove no exact-name collision in local output and the approved Drive parent. Do not wait until after download to discover a collision.
 
+Run Drive ingest in the same turn as the export read-back. Do not open Chrome.app for 格納. Do not wait for a chat confirmation. A 16–22MB file should finish in tens of seconds.
+
 Drive ingest, in order:
 
-1. Prove exactly one parent folder titled with this product model and no same-name file.
+1. Prove exactly one parent folder whose title matches this product model in exact case and no same-name file.
 2. Create one new file from local bytes with `scripts/upload_drive_local_file.py`. Do not inline the completed video as base64 in a tool argument.
 3. Read back through the Drive adapter. If the helper HOLDs for missing runtime OAuth, `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE` and ask the operator to run `--login` in Terminal. Do not screenshot, OCR, or click-hunt Chrome.app. Do not use Google Drive for desktop.
 4. Match exact name, MIME, byte size, new identity, parent scope, and time at or after export.

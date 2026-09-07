@@ -21,7 +21,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `完成・書き出しOK` のあとの既定完了は、型番名の Drive フォルダへの新規格納です。格納が確認できた案件は、**この Mac** に素材の作業コピーや完成動画の作業コピーを残しません。原本と Drive 上の格納ファイルと receipt は残します。格納前の進行中ファイルは消しません。`編集が完了した` だけでは書き出しも Drive も行いません。
 
-一括のホリデーツイスト生成では、各台本行のあいだに測った無音を入れてから、その無音でシーンごとに切ります。結合した 1 本のナレーションのまま尺を合わせません。最終テロップは画面中央で、案件エディタの字幕プログラムを使い、はみ出す行は見た目だけ改行します。`粗編集OK` のあと Path 1 / Path 2 では止めません。Drive 格納は完成動画を base64 にせず、`scripts/upload_drive_local_file.py` でローカルバイトから上げて連携で読み戻します。Chrome.app をスクショ探索しません。Google Drive デスクトップアプリは使いません。
+ホリデーツイストは凍結行を 1 カットずつ生成します。結果カードの音声バイトを案件フォルダへ直接取り、1 カット 1 クリップで尺を合わせます。全行の一括貼りはしません。保存ダイアログは使わず、オペレーターに「保存」を押させません。結合した 1 本のナレーションのまま尺を合わせません。最終テロップは画面中央で、案件エディタの字幕プログラムを使い、はみ出す行は見た目だけ改行します。`粗編集OK` のあと Path 1 / Path 2 では止めません。Drive 格納は完成動画を base64 にせず、`scripts/upload_drive_local_file.py` でローカルバイトから上げて連携で読み戻します。Chrome.app をスクショ探索しません。Google Drive デスクトップアプリは使いません。
 
 ## 台本（Gemini 3.8 Flash / Gemini.app）
 
@@ -36,15 +36,15 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemi
 
 3. この Mac のログイン済み **Gemini.app** を開く。オペレーターが今の画面でやれと言ったときは、すでに開いているチャットを使う。
 4. モデルピッカーで **Gemini 3.8 Flash** を選び、その表示を読み戻す。別モデルなら止める。
-5. 貼り付け文だけを送り、返ってきた台詞と20案要約だけを台本パッケージへ写す。
+5. 貼り付け文だけをエージェントが送り、返ってきた台詞と20案要約だけを台本パッケージへ写す。オペレーターに貼らせて止めない。
 6. SHA と in/out は Gemini に作らせない。台詞が決まってから、その行を支える範囲だけ実フレーム確認してスキルが結ぶ。`台本OK` で見せるのは台詞と、フックの困りごとに対する解決案。絵の確定は `粗編集OK`。
 7. `台本OK` まで止める。その後の粗編集も、同じこの Mac の Desktop Agent で続ける。
 
-Gemini.app を操作できないときは貼り付け文を残し、オペレーターがログイン済み Gemini.app へ貼る。ログイン、CAPTCHA、2FA は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
+Gemini.app が前面にない、または今まで通っていた送り方が失敗したときは、ログイン済みアプリを前面に出して同じターンで送り直す。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
 
 ## Drive（Chrome Web）
 
-完成動画の格納は `scripts/upload_drive_local_file.py` で行う。原本確認や素材の作業コピーが連携でできないときだけ、この Mac の **Google Chrome.app** で `https://drive.google.com/` にログインして行う。Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。Cursor 内蔵ブラウザは Chrome の Google ログインを共有しないので代用しない。必要な Chrome Drive を開けないときは `HOLD_DRIVE_WEB_NOT_VERIFIED`。ログインや 2FA が必要なら `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`。フォルダ URL はリポジトリに書かない。Chrome をスクショ探索しない。
+Drive 格納は、書き出し読戻しの同じターンで `scripts/upload_drive_local_file.py` から行う。原本確認や素材の作業コピーが連携でできないときだけ、この Mac の **Google Chrome.app** で `https://drive.google.com/` にログインして行う。Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。Cursor 内蔵ブラウザは Chrome の Google ログインを共有しないので代用しない。格納に Chrome.app を開かない。16–22MB なら数十秒が正常。必要な Chrome Drive を開けないときは `HOLD_DRIVE_WEB_NOT_VERIFIED`。ログインや 2FA が必要なら `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`。フォルダ URL はリポジトリに書かない。Chrome をスクショ探索しない。
 
 ## ブラウザ（CapCut など）
 

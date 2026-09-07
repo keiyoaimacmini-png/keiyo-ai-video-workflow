@@ -50,6 +50,7 @@ REQUIRED_SKILL_FILES = (
     "scripts/resolve_product_inputs.py",
     "scripts/render_gemini_web_prompt.py",
     "scripts/upload_drive_local_file.py",
+    "scripts/capture_capcut_result_audio.py",
 )
 SELF_TESTS = (
     "validate_product_video_payload.py",
@@ -63,6 +64,7 @@ SELF_TESTS = (
     "resolve_product_inputs.py",
     "render_gemini_web_prompt.py",
     "upload_drive_local_file.py",
+    "capture_capcut_result_audio.py",
 )
 FORBIDDEN_TEXT = (
     ".codex/",
@@ -85,6 +87,10 @@ REQUIRED_TEXT = (
     ("stages/04-finish.md", "TTS sidecar"),
     ("stages/06-deliver.md", "Do not inline the completed video as base64"),
     ("stages/06-deliver.md", "upload_drive_local_file.py"),
+    ("stages/06-deliver.md", "same turn"),
+    ("stages/06-deliver.md", "Do not open Chrome.app for 格納"),
+    ("stages/01-prepare-script.md", "Do not leave a paste for the operator"),
+    ("references/hold-registry.md", "does not authorize an operator paste"),
     ("references/fast-path.md", "Do not screenshot, OCR, or Accessibility-hunt"),
     ("references/hold-registry.md", "HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED"),
     ("references/hold-registry.md", "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED"),

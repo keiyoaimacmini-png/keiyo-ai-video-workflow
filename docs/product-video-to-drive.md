@@ -10,7 +10,7 @@ Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive �
 
 本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。Cursor の親モデル切替はしない。
 
-台本は、この Mac のログイン済み **Gemini.app** に作らせる。モデルは **Gemini 3.8 Flash**。Google Chrome.app と Cursor 内蔵ブラウザは台本には使わない。エージェントが Gemini.app を操作できないときは、貼り付け文を残してユーザーが Gemini.app で実行する。
+台本は、この Mac のログイン済み **Gemini.app** に作らせる。モデルは **Gemini 3.8 Flash**。Google Chrome.app と Cursor 内蔵ブラウザは台本には使わない。エージェントが Gemini.app を操作する。貼り付け文をユーザーに渡して止めない。ログイン、CAPTCHA、2FA だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 完成動画の格納はローカルパスヘルパー（`scripts/upload_drive_local_file.py`）から行い、Drive 連携で読み戻す。原本確認や素材取得が連携でできないときだけ、同じ Chrome.app の公式 Drive Web（`https://drive.google.com/`）を使う。Google Drive デスクトップアプリは使わない。Cursor 内蔵ブラウザは代用しない。Chrome をスクショ探索しない。
 
@@ -75,7 +75,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 1 案件の編集正本は 1 つ。CapCut Web か、フレーム確認・テロップ・書き出しができるホスト編集（例: ChatCut）のどちらか。タイムラインを混ぜない。公式ホリデーツイストが編集正本で出せないときは、CapCut 公式 Text to Speech で音声だけ作り、映像は入れずに編集正本へ戻す。代替ボイスや新規 CapCut 案件は作らない。公式 CapCut テロップテンプレは任意。
 
-ナレーションは公式ホリデーツイスト。一括生成するときは凍結行のあいだに空行だけを入れ、ダウンロード後に測った無音で 1 シーン 1 クリップに切る。
+ナレーションは公式ホリデーツイスト。凍結行を 1 カットずつ生成し、結果カードの音声バイトを案件フォルダへ直接取って 1 カット 1 クリップで置く。全行の一括貼りはしない。保存ダイアログは使わず、オペレーターに「保存」を押させない。
 
 最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。はみ出す行は句読点や意味の切れ目で見た目だけ改行し、文字は変えない。
 
@@ -94,7 +94,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 2. その時点の JST 日付と型番の台帳を読んで序数を決める。①②は推測しない。
 3. 書き出しファイル名は `YYYY_MMDD_<MODEL>_AI作成①.mp4` 形式。同じ名前があれば止める。
 4. 書き出しは 1 回。受付や進捗だけでは成功としない。
-5. 検証済み型番と同名の親フォルダを 1 つ特定し、`scripts/upload_drive_local_file.py` でローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。ヘルパーが OAuth 不足なら止めて Terminal で `--login`。Chrome.app をスクショ探索しない。Google Drive デスクトップアプリは使わない。同名の空ファイルは作らない。
+5. 書き出しの読戻しと同じターンで、検証済み型番と **exact case** で一致する親フォルダを 1 つ特定し、`scripts/upload_drive_local_file.py` でローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。格納に Chrome.app を開かない。16–22MB なら数十秒が正常。数分かかるならヘルパー未使用か HOLD 放置である。ヘルパーが OAuth 不足なら止めて Terminal で `--login`。Google Drive デスクトップアプリは使わない。同名の空ファイルは作らない。
 6. 名前・MIME・バイト数・親スコープ・時刻を読み戻す。Drive ID は Git に書かない。
 7. `COMPLETE` のあと、格納済みのこの案件だけ、**この Mac** の作業コピーを消す。まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/<case-id>/` と `out/` を確認する。無いコピーを失敗にしない。
 
