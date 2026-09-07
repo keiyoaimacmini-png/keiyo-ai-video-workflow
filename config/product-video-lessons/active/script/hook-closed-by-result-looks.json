@@ -1,0 +1,31 @@
+{
+  "schema": "product_video_lesson.v1",
+  "id": "hook-closed-by-result-looks",
+  "surface": "script",
+  "defect": "hook_closed_by_result_looks",
+  "auto": true,
+  "status": "active",
+  "product_models": [],
+  "bad": {
+    "hook": "車の中、暑すぎない？",
+    "resolution": "正面からの日差しが入ってこない。"
+  },
+  "good": {
+    "hook": "車の中、暑すぎない？",
+    "resolution": "これで車内の暑さをしのげる。"
+  },
+  "gate": {
+    "kind": "text_pair",
+    "when_hook_contains": ["暑", "熱い", "熱すぎ"],
+    "fail_if_resolution_contains": [
+      "日差しが入ってこない",
+      "日差しが入らない",
+      "光が入ってこない",
+      "光が入らない",
+      "銀色",
+      "内側が黒い"
+    ],
+    "pass_if_resolution_contains_any": ["暑さ", "しのげ", "熱さ"]
+  },
+  "note": "A heat hook is not closed by looks or blocked sunlight. Speak a heat solution within verified facts. Temperature numbers are not verified."
+}

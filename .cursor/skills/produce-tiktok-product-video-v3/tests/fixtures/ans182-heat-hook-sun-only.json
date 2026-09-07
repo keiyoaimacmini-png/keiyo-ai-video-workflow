@@ -1,0 +1,35 @@
+{
+  "schema": "product_video_craft_script.v1",
+  "dialogue": [
+    {
+      "cut_id": "cut-01",
+      "narrative_role": "problem_or_hook",
+      "text": "車の中、暑すぎない？"
+    },
+    {
+      "cut_id": "cut-02",
+      "narrative_role": "product",
+      "text": "サンシェードを使う。"
+    },
+    {
+      "cut_id": "cut-03",
+      "narrative_role": "use_or_change",
+      "text": "フロントに置くだけ。"
+    },
+    {
+      "cut_id": "cut-04",
+      "narrative_role": "result",
+      "text": "正面からの日差しが入ってこない。"
+    },
+    {
+      "cut_id": "cut-05",
+      "narrative_role": "problem_resolution",
+      "text": "正面からの日差しが入ってこない。"
+    },
+    {
+      "cut_id": "cut-06",
+      "narrative_role": "cta",
+      "text": "下からチェック！"
+    }
+  ]
+}
