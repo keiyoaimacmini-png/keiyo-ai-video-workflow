@@ -42,7 +42,7 @@ python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemi
 
 Gemini.app が前面にない、または今まで通っていた送り方が失敗したときは、ログイン済みアプリを前面に出して同じターンで送り直す。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
 
-## Drive（Chrome Web）
+## Drive（格納はヘルパー。原本確認だけ Chrome Web）
 
 Drive 格納は、書き出し読戻しの同じターンで `scripts/upload_drive_local_file.py` から行う。原本確認や素材の作業コピーが連携でできないときだけ、この Mac の **Google Chrome.app** で `https://drive.google.com/` にログインして行う。Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。Cursor 内蔵ブラウザは Chrome の Google ログインを共有しないので代用しない。格納に Chrome.app を開かない。16–22MB なら数十秒が正常。必要な Chrome Drive を開けないときは `HOLD_DRIVE_WEB_NOT_VERIFIED`。ログインや 2FA が必要なら `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`。フォルダ URL はリポジトリに書かない。Chrome をスクショ探索しない。
 

@@ -305,7 +305,7 @@ def gate_picture(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any]
             )
         if cut.get("adjacent_similar_look") is True or cut.get("adjacent_same_look") is True:
             return hold_payload(
-                f"{cut_id}: consecutive cuts must not read as similar pictures",
+                f"{cut_id}: consecutive cuts must not continue the same place, distance, and camera angle",
                 surface="picture",
                 defect="adjacent_similar_look",
             )
@@ -313,7 +313,7 @@ def gate_picture(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any]
             "look_distinct_from_previous"
         ) is not True:
             return hold_payload(
-                f"{cut_id}: neighboring cuts must read as different pictures, not merely different files",
+                f"{cut_id}: neighboring cuts must not continue the same place, distance, and camera angle; related sequential actions are allowed",
                 surface="picture",
                 defect="adjacent_similar_look",
             )

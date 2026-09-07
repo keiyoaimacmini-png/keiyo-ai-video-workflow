@@ -2,7 +2,7 @@
 
 Preserve originals, Drive stored objects, git-tracked files, settings, and JSON receipts.
 
-Each case uses only that product's settings file and that product's material root. Do not copy AN-S182 settings, script, cuts, or media onto another model. The Drive parent title is the verified product model.
+Each case uses only that product's settings file and that product's material root. Do not copy AN-S182 settings, script, cuts, or media onto another model. The Drive parent title matches the verified product model in exact case.
 
 A proposed source range is valid only when in, midpoint, and out frames show the claimed visible action. Do not default to the first N seconds of a usable take. The claimed action is the action of that cut's frozen line, not a leftover head or tail.
 

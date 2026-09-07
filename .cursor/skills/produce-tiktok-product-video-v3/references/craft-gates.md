@@ -31,7 +31,7 @@ Fail when:
 
 - The chosen range is the first N seconds of a usable take without a compared alternative.
 - `action_centered` is false, or `range_covers_claimed_action` is false.
-- Consecutive cuts read as the same kind of shot continuing (place, distance, and camera angle). Related sequential actions are allowed. Different files are not enough.
+- Consecutive cuts read as the same kind of shot continuing (place, distance, and camera angle). Related sequential actions are allowed. Different files are not enough. `look_reads_different_from_previous` is about that framing, not about topic closeness.
 - No rejected-candidate reason exists when more than one usable range was available.
 
 in/mid/out frames still belong to the portable media proof. This gate is the selection proof.

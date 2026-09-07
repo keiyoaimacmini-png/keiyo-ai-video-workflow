@@ -80,6 +80,7 @@ REQUIRED_TEXT = (
     ("SKILL.md", "does not block `COMPLETE`"),
     ("references/hold-registry.md", "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE"),
     ("references/host-adapter-contract.md", "Do not encode the completed video as base64"),
+    ("references/host-adapter-contract.md", "Do not open Chrome.app for 格納"),
     ("references/core-invariants.md", "Do not spawn a successor case to obtain Holiday Twist"),
     ("references/fast-path.md", "Do not pause after `粗編集OK` for Path 1"),
     ("references/checkpoint-contract.md", "in, midpoint, and out frames"),
