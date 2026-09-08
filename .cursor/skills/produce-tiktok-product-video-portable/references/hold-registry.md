@@ -6,17 +6,20 @@ Use one most-specific code and describe the exact missing evidence, authority, o
 | --- | --- |
 | `HOLD_MODEL_UNVERIFIED` | Product model evidence is missing or conflicting. |
 | `HOLD_PRODUCT_VIDEO_SETTINGS` | The exact single model settings file, its bytes, or resolved values do not close. Do not copy another model's file. |
-| `HOLD_INPUT_MATERIALS_REQUIRED` | This model's material root is missing, unsafe, or empty. Do not reuse another model's media. |
+| `HOLD_INPUT_MATERIALS_REQUIRED` | This model's material root is missing or unsafe. Do not reuse another model's media. Do not hash or watch every clip before the script exists. |
 | `HOLD_SCRIPT_INCOMPLETE` | The six-stage script is incomplete, or `problem_resolution` does not present a solution to the same problem named in the hook. |
 | `HOLD_CRAFT_QUALITY` | A v3 craft gate failed before a routine checkpoint. Repair the draft and rerun `validate_craft_quality.py`. Do not ask for `台本OK`, `粗編集OK`, or `完成・書き出しOK` while this HOLD is current. |
-| `HOLD_MEDIA_NOT_MATCHED` | The claimed visible action or exact source range is not verified from real media. Use this when a numeric in/out exists but the in, midpoint, or out frame does not show that action. |
+| `HOLD_MEDIA_NOT_MATCHED` | After `台本OK`, no proven file/range shows the claimed `picture_must` action, or a numeric in/out exists but the in, midpoint, or out frame does not show that action. |
 | `HOLD_DISTINCT_ASSET_PER_CAPTION` | Visible captions do not map one-to-one to distinct asset IDs and media hashes. |
-| `HOLD_FINAL_VISUAL_NOT_VERIFIED` | The configured canonical final asset/range/tail cannot be verified. |
+| `HOLD_FINAL_VISUAL_NOT_VERIFIED` | The configured canonical final asset/range/tail cannot be verified, including when last-valid composed frames of that tail are missing. |
+| `HOLD_CAPTION_TAIL_NOT_CLOSED` | The configured final cut's viewer caption does not hold through `timeline_end_frame` after TTS ends. ChatCut `cue_override` JSON is not proof. Do not clone the same TTS asset as a muted caption-hold. Do not replace Caption Cards with Motion Graphics. |
 | `HOLD_CAPCUT_WEB_NOT_VERIFIED` | Official editor origin, intended project, or editable timeline identity is not verified. |
 | `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED` | Login needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond existing session/autofill. |
-| `HOLD_GEMINI_WEB_NOT_VERIFIED` | Gemini.app is missing or will not launch after a restore attempt on this Mac. Bring the logged-in app forward, send the rendered prompt, and read the dialogue in the same turn before using this HOLD. This HOLD does not authorize an operator paste. Google Chrome.app and the agent-controlled Cursor browser are not substitutes. Do not copy cookies. Do not call the Gemini API. |
-| `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` | Gemini.app login on this Mac needs ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or credential handling beyond the existing session. Never paste passwords or API keys. |
-| `HOLD_GEMINI_MODEL_NOT_VERIFIED` | The live Gemini.app picker is not exactly Gemini 3.8 Flash. Do not use Auto, Pro, Flash-Lite, or another Flash label. |
+| `HOLD_GEMINI_CLI_NOT_VERIFIED` | Antigravity CLI (`agy`) is missing, failed a one-shot print, exhausted included quota, or tried to edit files. Do not buy AI credits. Do not enable overages. Do not call the Gemini API. This HOLD does not authorize an operator paste. Gemini.app, Google Chrome.app, and the agent-controlled Cursor browser are not substitutes. |
+| `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED` | Antigravity CLI login on this Mac needs Google sign-in, ambiguous account choice, CAPTCHA, 2FA, recovery, new consent, or eligibility verification. In Terminal run `agy` and complete login. Never paste passwords or API keys. |
+| `HOLD_GEMINI_MODEL_NOT_VERIFIED` | The Antigravity CLI model is not exactly Gemini 3.8 Flash (`gemini-3.8-flash`). Do not use Auto, Pro, Flash-Lite, or another Flash label. |
+| `HOLD_GEMINI_WEB_NOT_VERIFIED` | Legacy Gemini.app path. New drafts use `agy`. Do not fall back to Gemini.app. |
+| `HOLD_GEMINI_TEMP_CHAT_NOT_VERIFIED` | Legacy Gemini.app 一時チャット path. New drafts use `agy --print` and do not send into Gemini.app. |
 | `HOLD_TTS_ALLOWANCE_EXHAUSTED` | Another TTS action would exceed the approved plan or per-cut reserve. |
 | `HOLD_CAPCUT_TTS_RESULT_BYTES_UNAVAILABLE` | Holiday Twist result-card audio bytes could not be saved into the case TTS working directory. Do not click オーディオのみ, do not use a save dialog, and do not ask the operator to press Save. |
 | `HOLD_AUDITORY_CONFIRMATION_REQUIRED` | The host cannot reliably complete the required full-playback listening audit. |

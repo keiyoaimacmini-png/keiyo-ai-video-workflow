@@ -886,7 +886,7 @@ def check_delivery(payload, model, errors):
         return
     basename = f"{export_date}_{model}_AI作成{ORDINAL_MARKERS[ordinal - 1]}"
     if receipt.get("completed_video_basename") != basename:
-        errors.append("completed video naming must use export_receipt.exported_at, model, and production ordinal")
+        errors.append("completed video naming must use the JST 格納 date, model, and production ordinal")
     extension = receipt.get("file_extension")
     if extension not in VIDEO_MIME_BY_EXTENSION or receipt.get("mime_type") != VIDEO_MIME_BY_EXTENSION.get(extension) or receipt.get("completed_video_filename") != f"{basename}.{extension}":
         errors.append("completed export filename, extension, and MIME type must match exactly")
@@ -919,6 +919,9 @@ def check_drive_delivery(payload, delivery, errors):
     exported_at = aware_datetime(export_receipt.get("exported_at")) if isinstance(export_receipt, dict) else None
     if delivery.get("export_status") != "completed" or set(receipt) != fields or gate.get("status") != "approved" or not valid_name or exported_at is None or readback_at is None or readback_at < exported_at or receipt.get("mime_type") != export_receipt.get("mime_type") or isinstance(receipt.get("byte_size"), bool) or not isinstance(receipt.get("byte_size"), int) or receipt["byte_size"] <= 0 or not is_sha(receipt.get("file_id_sha256")) or receipt.get("parent_scope_sha256") != gate.get("destination_scope_sha256") or receipt.get("receipt_sha256") != digest(subject):
         errors.append("completed Drive delivery requires exact hash-bound file, MIME, byte-size, parent-scope, and read-back evidence")
+        return
+    if jst_export_date(receipt.get("readback_at")) != jst_export_date(export_receipt.get("exported_at")):
+        errors.append("completed video date must be the JST date of Drive 格納")
 
 
 def hash_bound(value, production_hash, visible_hash, label, errors):
@@ -970,8 +973,8 @@ def check_approvals(payload, production_hash, visible_hash, additional_needed, e
             expected_receipt = {"edit": "台本OK", "credit": "粗編集OK", "export": "完成・書き出しOK"}.get(gate)
             if expected_receipt is not None and (value.get("receipt") != expected_receipt or value.get("explicit_approval") is not True):
                 errors.append(f"approval_gates.{gate} must use its exact mapped checkpoint receipt and scope")
-            if gate == "edit" and additional_needed:
-                errors.append("approved rough visual edit requires no additional_asset_required")
+            if gate == "credit" and additional_needed:
+                errors.append("approved finishing requires no additional_asset_required")
             if gate in {"publish", "send"}:
                 scope = value.get("external_scope_subject")
                 expected_kind = "tiktok_account" if gate == "publish" else "external_recipient"
@@ -1374,8 +1377,12 @@ def self_test():
     cases.extend([("reject heat hook closed only by blocked sunlight", heat_false_close, True), ("valid heat hook with a heat solution", heat_solution, False)])
     script_checkpoint = fixture()
     script_checkpoint["approval_gates"]["edit"].update(status="approved", receipt="台本OK", explicit_approval=True, checkpoint="script", authorized_actions=["rough_visual_edit"])
+    script_checkpoint_unmatched = fixture(additional=True)
+    script_checkpoint_unmatched["approval_gates"]["edit"].update(status="approved", receipt="台本OK", explicit_approval=True, checkpoint="script", authorized_actions=["rough_visual_edit"])
     rough_checkpoint = fixture()
     rough_checkpoint["approval_gates"]["credit"].update(status="approved", receipt="粗編集OK", explicit_approval=True, checkpoint="rough_edit", authorized_actions=["finish_edit", "apply_official_template", "first_attempt_tts", "first_attempt_ai_credits"], max_first_attempt_tts_count=6)
+    rough_checkpoint_unmatched = fixture(additional=True)
+    rough_checkpoint_unmatched["approval_gates"]["credit"].update(status="approved", receipt="粗編集OK", explicit_approval=True, checkpoint="rough_edit", authorized_actions=["finish_edit", "apply_official_template", "first_attempt_tts", "first_attempt_ai_credits"], max_first_attempt_tts_count=6)
     final_checkpoint = fixture()
     final_checkpoint["approval_gates"]["export"].update(status="approved", receipt="完成・書き出しOK", explicit_approval=True, checkpoint="final_pre_export", authorized_actions=["new_export"])
     final_pending_checkpoint = json.loads(json.dumps(final_checkpoint))
@@ -1407,6 +1414,10 @@ def self_test():
     invalid_drive_time["delivery"]["drive_receipt"]["readback_at"] = "2026-08-26T08:00:00+00:00"
     invalid_drive_time_subject = {key: invalid_drive_time["delivery"]["drive_receipt"][key] for key in drive_subject}
     invalid_drive_time["delivery"]["drive_receipt"]["receipt_sha256"] = digest(invalid_drive_time_subject)
+    invalid_drive_store_date = json.loads(json.dumps(cloud_completed))
+    invalid_drive_store_date["delivery"]["drive_receipt"]["readback_at"] = "2026-08-26T15:20:00+00:00"
+    invalid_drive_store_date_subject = {key: invalid_drive_store_date["delivery"]["drive_receipt"][key] for key in drive_subject}
+    invalid_drive_store_date["delivery"]["drive_receipt"]["receipt_sha256"] = digest(invalid_drive_store_date_subject)
     invalid_drive_without_export = json.loads(json.dumps(cloud_completed))
     invalid_drive_without_export["delivery"]["export_status"] = "pending"
     invalid_drive_without_export["delivery"].pop("export_receipt")
@@ -1445,7 +1456,7 @@ def self_test():
     for value in invalid_problem_resolution_media["approval_gates"].values():
         value["bound_production_payload_sha256"] = media_hash
         value["bound_visible_content_sha256"] = media_visible
-    cases += [("valid script checkpoint receipt", script_checkpoint, False), ("valid rough checkpoint receipt", rough_checkpoint, False), ("valid final checkpoint before append-only export outcome", final_pending_checkpoint, False), ("valid final checkpoint after append-only export outcome", final_checkpoint, False), ("valid exact cloud checkpoint scope", cloud_checkpoint, False), ("valid append-only Drive readback", cloud_completed, False), ("valid destination-scoped publish approval", publish_checkpoint, False), ("reject Drive name not matching current export", invalid_drive_name, True), ("reject Drive extension not matching current export", invalid_drive_extension, True), ("reject Drive readback before export", invalid_drive_time, True), ("reject completed Drive without completed export", invalid_drive_without_export, True), ("reject authorization-plan expansion without new binding", invalid_authorization_expansion, True), ("reject publish scope confused with export", invalid_publish_scope, True), ("reject unsupported problem resolution fact", invalid_problem_resolution_fact, True), ("reject disconnected problem resolution media", invalid_problem_resolution_media, True)]
+    cases += [("valid script checkpoint receipt", script_checkpoint, False), ("valid script checkpoint receipt with unmatched picture", script_checkpoint_unmatched, False), ("valid rough checkpoint receipt", rough_checkpoint, False), ("reject rough checkpoint receipt with unmatched picture", rough_checkpoint_unmatched, True), ("valid final checkpoint before append-only export outcome", final_pending_checkpoint, False), ("valid final checkpoint after append-only export outcome", final_checkpoint, False), ("valid exact cloud checkpoint scope", cloud_checkpoint, False), ("valid append-only Drive readback", cloud_completed, False), ("valid destination-scoped publish approval", publish_checkpoint, False), ("reject Drive name not matching current export", invalid_drive_name, True), ("reject Drive extension not matching current export", invalid_drive_extension, True), ("reject Drive readback before export", invalid_drive_time, True), ("reject Drive readback on a different JST date", invalid_drive_store_date, True), ("reject completed Drive without completed export", invalid_drive_without_export, True), ("reject authorization-plan expansion without new binding", invalid_authorization_expansion, True), ("reject publish scope confused with export", invalid_publish_scope, True), ("reject unsupported problem resolution fact", invalid_problem_resolution_fact, True), ("reject disconnected problem resolution media", invalid_problem_resolution_media, True)]
     cases.append(("valid pending export", pending, False))
     cases += [("short model", fixture(model="AN-A12"), True), ("long model", fixture(model="AN-ABCDEFG"), True)]
     mutations = (("model conflict", lambda p: p["manifest"][0].update(observed_product_models=["AN-T001", "AN-X999"])), ("explicit conflict hold", lambda p: p["product_info"]["product_model_provenance"].update(status="conflict")), ("legacy model alias", lambda p: p["product_info"].update(observed_value="AN-T001")), ("missing script closure", lambda p: p["script"].pop(0)), ("no-TTS caption CTA", lambda p: p["captions"][-1].update(text="下からチェック")), ("script exposes model", lambda p: p["script"][0].update(dialogue=p["product_info"]["product_model"])), ("caption exposes model", lambda p: p["captions"][0].update(text=p["product_info"]["product_model"])), ("tts exposes model", lambda p: p["tts"][0].update(text=p["product_info"]["product_model"])), ("legacy cut alias", lambda p: p["cuts"][0].update(required_media_description="x")), ("sidecar unverified", lambda p: p["cuts"][0]["matched_sidecar_receipt"].update(status="pending")), ("sidecar bad path", lambda p: p["cuts"][0]["matched_sidecar_receipt"].update(sidecar_relative_path="media/other.json")), ("additional approved edit", lambda p: p["approval_gates"]["edit"].update(status="approved", receipt="OK")), ("wrong mapped checkpoint receipt", lambda p: p["approval_gates"]["export"].update(status="approved", receipt="完成・書き出しOK", explicit_approval=True, checkpoint="script", authorized_actions=["new_export"])), ("path traversal", lambda p: p["delivery"]["portable_handoff"]["assets"][0].update(media_relative_path="media/../product.mp4")), ("unicode path alias", lambda p: p["delivery"]["portable_handoff"]["assets"].append({"asset_id": "asset-alias", "media_sha256": "d" * 64, "media_relative_path": "MEDIA/Product.MP4", "sidecar_sha256": "e" * 64, "sidecar_relative_path": "MEDIA/Product.sidecar.json", "classification": {"original": False, "editable_project_dependency": False, "shared": False, "uncertain": False}})), ("stale integrity", lambda p: p["integrity"].update(visible_content_sha256="0" * 64)), ("unbound approval", lambda p: p["approval_gates"]["export"].update(bound_visible_content_sha256="0" * 64)), ("cleanup path", lambda p: p["cleanup_preflight"]["local_working_download_candidates"][0].update(path="media/product.mp4")), ("cleanup execute", lambda p: p["cleanup_preflight"].update(execute=True)), ("cleanup original", lambda p: p["delivery"]["portable_handoff"]["assets"][0]["classification"].update(original=True)), ("prohibition matches", lambda p: p["openclaw_prohibition"].update(matched_rule_ids=["rule-1"])), ("prohibition stale hash", lambda p: p["openclaw_prohibition"].update(bound_visible_content_sha256="0" * 64)), ("shop userinfo", lambda p: p["camee_tiktok_shop"].update(url="https://user@shop.tiktok.com/view/product/123456789012")), ("shop nonstandard port", lambda p: p["camee_tiktok_shop"].update(url="https://shop.tiktok.com:444/view/product/123456789012")), ("shop short id", lambda p: p["camee_tiktok_shop"].update(url="https://shop.tiktok.com/view/product/123")), ("shop bad id", lambda p: p["camee_tiktok_shop"].update(product_id="123")), ("shop stale hash", lambda p: p["camee_tiktok_shop"].update(bound_production_payload_sha256="0" * 64)))

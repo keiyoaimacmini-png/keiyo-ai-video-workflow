@@ -15,11 +15,12 @@ After capture:
 
 If a cut's speech cannot be read back, HOLD. Do not guess cut points inside speech. Align each cut to that frozen line's audible end. Trim unused picture head and tail so the remaining frames are the claimed action; do not speed the read-aloud so the showcase is unused.
 
-Place final captions with the case editor's caption program (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Place them at screen center with heavy weight, thick stroke, and a contrast band. Wrap overflowing frozen lines visually at existing punctuation; do not change wording. The last-cut tail may keep a matching centered hold after TTS ends.
+Place final captions with the case editor's caption program (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Place them at screen center with Dela Gothic One, white fill, a thick dark stroke, and drop shadow. Do not add a caption background band. On ChatCut, apply the saved user caption preset `product-video-center` once; do not restyle from scratch. Wrap overflowing frozen lines visually at existing punctuation; do not change wording. If one card still clips after wrap, shrink that card only. That per-card size is a card exception, not a preset field. Do not regenerate TTS for a caption-size fix. The last-cut tail must keep a matching centered hold after TTS ends, through the last timeline frame. ChatCut cards are ASR-word bounded; do not treat `cue_override` JSON as a hold, and do not clone the same TTS asset as a muted caption-hold. Prefer picture-lane track mute (`muted: true`, null gain) over clip gain reduction. After each CapCut TTS result card, prove the audible line is only that cut's frozen text; leftover textarea text mixes later lines.
 
 Host-editor caption traps:
 
 - Opacity zero is not removal proof. Exactly one visible caption layer per cut.
 - If adjacent caption cards share a bulk-ASR token at a half-open boundary, reset the neighbors before rewriting the middle card.
 - Do not refresh captions while a caption-hold audio track is muted.
+- After custom cards exist, do not write `maxLines`, `maxCharactersPerLine`, or `pacing`, and do not `refresh`. Those rematerialize cards and can duplicate CJK text.
 - Composed viewer pixels beat caption JSON geometry (`top`, `offsetYRatio`). Centered on screen is required even when JSON reports another slot.

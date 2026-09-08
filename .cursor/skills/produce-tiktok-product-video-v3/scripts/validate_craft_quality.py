@@ -31,6 +31,8 @@ RESULT_LOOKS_RE = re.compile(
 )
 HEAT_SOLUTION_RE = re.compile(r"暑さ|熱さ|焼かれ|しのげ|防げ|止められ|凌げ")
 EXPLAIN_LINE_RE = re.compile(r"(します|してみて|あるよ|できます)[。]?$")
+YO_END_RE = re.compile(r"よ[。！]?$")
+YO_STACK_MAX = 3
 GAP_MIN_MS = 400
 GAP_MAX_MS = 1200
 
@@ -207,6 +209,7 @@ def gate_script(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any]:
             surface="script",
             defect="revision_unchanged",
         )
+    yo_ends = 0
     for record in records:
         if record.get("narrative_role") == "cta":
             continue
@@ -217,6 +220,14 @@ def gate_script(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any]:
                 surface="script",
                 defect="explanatory_register",
             )
+        if YO_END_RE.search(text):
+            yo_ends += 1
+    if yo_ends > YO_STACK_MAX:
+        return hold_payload(
+            "non-CTA lines must not stack よ/だよ endings; vary cadence and glue adjacent lines",
+            surface="script",
+            defect="uniform_yo_endings",
+        )
     held = apply_lesson_script_gates(records, hook, resolution, lessons)
     if held:
         return held
@@ -357,15 +368,39 @@ def gate_captions(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any
             return hold_payload(f"{cut_id}: captions must be centered on screen", surface="captions", defect="caption_not_centered")
         if cut.get("prominent") is not True:
             return hold_payload(
-                f"{cut_id}: captions need heavy weight, thick stroke, and a contrast band",
+                f"{cut_id}: captions need Dela Gothic One, white fill, and thick stroke, without a background band",
                 surface="captions",
                 defect="caption_not_prominent",
+            )
+        if cut.get("contrast_band") is True or cut.get("caption_background") is True:
+            return hold_payload(
+                f"{cut_id}: caption background band is not allowed",
+                surface="captions",
+                defect="caption_background_band",
             )
         if cut.get("wrap_changed_characters") is True:
             return hold_payload(
                 f"{cut_id}: visual wrap must not change frozen characters",
                 surface="captions",
                 defect="wrap_changed_characters",
+            )
+        if cut.get("same_asset_caption_hold") is True:
+            return hold_payload(
+                f"{cut_id}: do not clone the same TTS asset as a muted caption-hold",
+                surface="captions",
+                defect="same_asset_caption_hold",
+            )
+        if cut.get("cue_override_unverified") is True:
+            return hold_payload(
+                f"{cut_id}: cue_override JSON is not caption-hold proof",
+                surface="captions",
+                defect="cue_override_unverified",
+            )
+        if cut.get("is_final") is True and cut.get("caption_holds_through_tail") is not True:
+            return hold_payload(
+                f"{cut_id}: final caption must hold through the last timeline frame",
+                surface="captions",
+                defect="caption_tail_not_held",
             )
         visible = cut.get("visible_layer_count")
         if visible is not None and visible != 1:
@@ -421,6 +456,12 @@ def gate_tts(artifact: Any, lessons: list[dict[str, Any]]) -> dict[str, Any]:
                 f"{cut_id}: narration cut points must follow the frozen line",
                 surface="tts-timing",
                 defect="cut_mid_speech",
+            )
+        if cut.get("leftover_textarea_speech") is True:
+            return hold_payload(
+                f"{cut_id}: CapCut leftover textarea must not mix later lines into this render",
+                surface="tts-timing",
+                defect="leftover_textarea_speech",
             )
         if cut.get("too_fast_to_hear") is True or cut.get("speech_shorter_than_claimed_action") is True:
             return hold_payload(
@@ -599,6 +640,49 @@ def self_test(project_root: Path | None) -> int:
         [],
     )
     check("caption-composed-pass", caption_good.get("status") == "PASS")
+    caption_tail = validate(
+        "captions",
+        {
+            "schema": "product_video_caption_craft.v1",
+            "cuts": [
+                {
+                    "cut_id": "cta",
+                    "is_final": True,
+                    "composed_frame_proof": True,
+                    "json_geometry_only": False,
+                    "centered_on_screen": True,
+                    "prominent": True,
+                    "wrap_changed_characters": False,
+                    "visible_layer_count": 1,
+                    "duplicate_layers": 0,
+                    "caption_holds_through_tail": False,
+                }
+            ],
+        },
+        [],
+    )
+    check("caption-tail-hold", caption_tail.get("defect") == "caption_tail_not_held")
+    caption_band = validate(
+        "captions",
+        {
+            "schema": "product_video_caption_craft.v1",
+            "cuts": [
+                {
+                    "cut_id": "cut-01",
+                    "composed_frame_proof": True,
+                    "json_geometry_only": False,
+                    "centered_on_screen": True,
+                    "prominent": True,
+                    "contrast_band": True,
+                    "wrap_changed_characters": False,
+                    "visible_layer_count": 1,
+                    "duplicate_layers": 0,
+                }
+            ],
+        },
+        [],
+    )
+    check("caption-background-band-hold", caption_band.get("defect") == "caption_background_band")
     tts_bad = validate(
         "tts-timing",
         {"schema": "product_video_tts_craft.v1", "combined_clip_left_on_timeline": True, "per_cut_generation": False, "cuts": [{"cut_id": "cut-01", "three_layer_closed": True}]},
@@ -629,6 +713,31 @@ def self_test(project_root: Path | None) -> int:
         [],
     )
     check("tts-split-pass", tts_good.get("status") == "PASS")
+    leftover = validate(
+        "tts-timing",
+        {
+            "schema": "product_video_tts_craft.v1",
+            "combined_clip_left_on_timeline": False,
+            "per_cut_generation": True,
+            "bulk_tts_used": False,
+            "cuts": [
+                {
+                    "cut_id": "cut-01",
+                    "cut_mid_speech": False,
+                    "speech_matches_frozen_line": True,
+                    "leftover_textarea_speech": True,
+                    "too_fast_to_hear": False,
+                    "speech_shorter_than_claimed_action": False,
+                    "picture_trimmed_to_speech": True,
+                    "three_layer_closed": True,
+                    "gap_ms": 600,
+                    "is_final": False,
+                }
+            ],
+        },
+        [],
+    )
+    check("tts-leftover-textarea-hold", leftover.get("defect") == "leftover_textarea_speech")
     explain_hold = validate(
         "script",
         {
@@ -667,6 +776,31 @@ def self_test(project_root: Path | None) -> int:
         ],
     )
     check("pita-hold", pita_hold.get("defect") == "product_use_impossible")
+    yo_stack = {
+        "schema": "product_video_craft_script.v1",
+        "dialogue": [
+            {"cut_id": "a", "narrative_role": "problem_or_hook", "text": "昼の車内って熱いよね？"},
+            {"cut_id": "b", "narrative_role": "product", "text": "開くサンシェードだよ。"},
+            {"cut_id": "c", "narrative_role": "use_or_change", "text": "ガラスの内側に押すよ。"},
+            {"cut_id": "d", "narrative_role": "result", "text": "黒い面で覆われたよ。"},
+            {"cut_id": "e", "narrative_role": "problem_resolution", "text": "直射日光と暑さを防ぐよ。"},
+            {"cut_id": "f", "narrative_role": "cta", "text": CTA_TEXT},
+        ],
+    }
+    yo_hold = validate("script", yo_stack, [])
+    check("yo-stack-hold", yo_hold.get("defect") == "uniform_yo_endings")
+    glued = {
+        "schema": "product_video_craft_script.v1",
+        "dialogue": [
+            {"cut_id": "a", "narrative_role": "problem_or_hook", "text": "昼の車内って熱いよね？"},
+            {"cut_id": "b", "narrative_role": "product", "text": "これ知ってる？傘型サンシェード！"},
+            {"cut_id": "c", "narrative_role": "use_or_change", "text": "フロントガラスに設置したら。"},
+            {"cut_id": "d", "narrative_role": "result", "text": "黒い面で覆われるから。"},
+            {"cut_id": "e", "narrative_role": "problem_resolution", "text": "直射日光と暑さを防げるよ。"},
+            {"cut_id": "f", "narrative_role": "cta", "text": CTA_TEXT},
+        ],
+    }
+    check("glued-script-pass", validate("script", glued, []).get("status") == "PASS")
     adjacent = validate(
         "picture",
         {

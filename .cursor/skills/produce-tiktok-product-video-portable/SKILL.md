@@ -55,7 +55,7 @@ Review states are approval boundaries, not production stages:
 
 - `SCRIPT_REVIEW`: accept only exact `台本OK`, append its receipt, then advance to `ROUGH_EDIT`.
 - `ROUGH_REVIEW`: accept only exact `粗編集OK`, append its receipt, then advance to `FINISHING`.
-- `FINAL_REVIEW`: accept only exact `完成・書き出しOK`, append its receipt, then advance to `EXPORT_AND_DELIVERY`.
+- `FINAL_REVIEW`: accept only exact `完成・書き出しOK` bound to the current `artifacts.final_qa`, append its receipt, then advance to `EXPORT_AND_DELIVERY`. The same phrase during `FINISHING` or `FINAL_QA` is not export authority.
 
 Never infer approval, rename approval text, add a routine checkpoint, or skip a state.
 

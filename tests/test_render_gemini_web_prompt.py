@@ -25,7 +25,6 @@ BRIEF = {
     "product_model": "AN-S182",
     "cta_text": "下からチェック！",
     "verified_facts": ["仮眠が続かない"],
-    "usable_shots": [{"asset_id": "asset-a", "observed_action": "shade opens"}],
 }
 
 
@@ -55,16 +54,25 @@ class RenderGeminiWebPromptTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("下からチェック！", result.stdout)
         self.assertIn("problem_or_hook", result.stdout)
+        self.assertIn("ドパガキに刺さるセリフ", result.stdout)
         self.assertIn("短い話し言葉", result.stdout)
-        self.assertIn("同じ困りごとの解決案を提示する", result.stdout)
+        self.assertIn("24字を超えない", result.stdout)
+        self.assertIn("使い方は動作を一言", result.stdout)
+        self.assertNotIn("〜するだけ", result.stdout)
+        self.assertIn("冒頭と同じ困りごとの解決を言う", result.stdout)
         self.assertIn("result の言い換えで終わらせない", result.stdout)
-        self.assertIn("日差しが入ってこない、だけでは回収しない", result.stdout)
-        self.assertIn("手順書", result.stdout)
+        self.assertIn("見た目や部分的な変化だけで、困りごと全体を解決したことにしない", result.stdout)
+        self.assertIn("素材の事前確認を前提にしない", result.stdout)
+        self.assertIn("取説調", result.stdout)
+        self.assertNotIn("twenty_candidate_summary", result.stdout)
+        self.assertNotIn("observed_actions", result.stdout)
+        self.assertNotIn("傘型", result.stdout)
+        self.assertNotIn("日差し", result.stdout)
         self.assertNotIn("AIza", result.stdout)
 
     def test_rejects_source_hash_fields(self) -> None:
         bad = json.loads(json.dumps(BRIEF))
-        bad["usable_shots"][0]["sha256"] = "abc"
+        bad["note"] = "sha256:abc"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "brief.json"
             path.write_text(json.dumps(bad), encoding="utf-8")

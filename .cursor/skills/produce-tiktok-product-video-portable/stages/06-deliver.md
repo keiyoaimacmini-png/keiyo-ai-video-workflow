@@ -11,9 +11,9 @@ Read the delivery-rule snapshot path registered in workflow state and verify its
 
 ## Export preflight
 
-1. Read the actual current JST date immediately before export.
+1. Read the actual current JST date immediately before export. That date is the **格納日** in `YYYY_MMDD_<model>_AI作成<①..⑳>.<ext>`. Do not use the case ID date, payload `created_at`, or the ChatCut/CapCut project date.
 2. Read back the completed-export ledger for that exact JST date and product model. Verify ordered records, record hashes, snapshot hash, count, and scope; use count plus one. Never infer the ordinal.
-3. Render `YYYY_MMDD_<model>_AI作成<①..⑳>.<ext>` and prove no exact-name collision in the local output and any approved Drive scope.
+3. Render `YYYY_MMDD_<model>_AI作成<①..⑳>.<ext>` from that 格納日 and prove no exact-name collision in the local output and any approved Drive scope.
 4. Reverify the exact approved editable project and current final-QA receipt. Read its hash-bound `product_video_timeline_integrity_receipt.v1` and rerun `validate_timeline_integrity.py` against the task root; HOLD rather than export if the binding, evidence bytes, linked timing/pairing receipts, source/caption/TTS counts, exact mute, frame coverage, full playback, or same-project reload closure fails.
 
 Export once. A request acknowledgement, progress state, toast, or unknown result is not permission to retry. Read back the completed local file's exact name, MIME, byte size, media SHA-256, and export time; then hash and store the export receipt.

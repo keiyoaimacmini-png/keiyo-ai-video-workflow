@@ -54,6 +54,7 @@ def self_test(project_root: Path) -> int:
     prompt = render(project_root, json.dumps(brief, ensure_ascii=False), "AN-S182")
     check("keeps-portable-cta", "下からチェック！" in prompt)
     check("keeps-verified-fact", "車内が暑い" in prompt)
+    check("does-not-send-shots", "shade opens" not in prompt)
     if not all(ok for _, ok in checks):
         print("SELF-TEST FAILED: render_gemini_web_prompt", flush=True)
         return 1

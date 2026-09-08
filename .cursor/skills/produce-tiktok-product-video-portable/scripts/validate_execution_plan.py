@@ -404,8 +404,8 @@ def validate_carried_event_ledger(
     events = plan.get("events")
     approval = plan.get("approval")
     if carried is None:
-        if isinstance(approval, dict) and approval.get("status") == "approved" and events == []:
-            errors.append("approved empty event ledger requires carried_event_ledger")
+        # A fresh approved plan starts with an empty ledger. carried_event_ledger is
+        # required only when a rebound plan keeps events empty and inherits spend.
         return
     if not isinstance(carried, dict) or set(carried) != CARRIED_LEDGER_FIELDS:
         errors.append(f"carried_event_ledger must contain exactly {sorted(CARRIED_LEDGER_FIELDS)}")
@@ -705,6 +705,9 @@ def self_test() -> int:
 
     pending = plan_fixture(["cut-01", "cut-02"])
     cases.append(("valid pending", pending, payload_fixture(["cut-01", "cut-02"]), False))
+
+    approved_empty = plan_fixture(["cut-01"], approved=True)
+    cases.append(("valid approved empty ledger", approved_empty, payload_fixture(["cut-01"], approved=True), False))
 
     approved = plan_fixture(["cut-01"], approved=True)
     append_event(approved, "cut-01", "initial_generation_requested", "2026-08-28T10:00:00+09:00")

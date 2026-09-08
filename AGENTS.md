@@ -18,14 +18,15 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
 - When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`. Those files are the standing first-pass rules. Portable stages run craft checks against them before `台本OK`, `粗編集OK`, and `完成・書き出しOK`. Do not wait for a correction to apply them.
 
-## Gemini 台本（デスクトップアプリ。Cursor のモデルは切り替えない）
+## Gemini 台本（Antigravity CLI。Cursor のモデルは切り替えない）
 
-- Checkpoint 1 の台本案は、この Mac のログイン済み **Gemini.app** に作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY`、Google Chrome.app、エージェント制御ブラウザは使わない。
-- 使用モデルはピッカーで **Gemini 3.8 Flash** と読み戻す。Auto / Pro / 別の Flash には落とさない。違う表示なら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。
-- Gemini.app はこちらが操作する。貼り付け文をオペレーターに渡して止めない。ログイン済み Gemini.app を前面に出してプロンプトを送り、返ってきた台詞を読む。今まで通っていた送り方が落ちたら、同じターンで直して台本まで終わらせる。ログイン、CAPTCHA、2FA、アカウント選択だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+- Checkpoint 1 の台本案は、この Mac のログイン済み **Antigravity CLI（`agy --print`）** に、**Gemini 3.8 Flash** で作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY`、Gemini.app、Google Chrome.app、エージェント制御ブラウザは使わない。AI Credit の上振れ課金は使わない。
+- 使用モデルは **`gemini-3.8-flash`**。Auto / Pro / 別の Flash には落とさない。違うモデルなら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。`agy` が無い、一発印刷が失敗する、枠が尽きた、ファイルを書き始めた場合は `HOLD_GEMINI_CLI_NOT_VERIFIED`。
+- 送りは `scripts/render_gemini_web_prompt.py` の出力を `scripts/send_gemini_cli_prompt.py` で送る。ルール md、lessons、製品例は足さない。プロンプト本文を手で書き換えない。Gemini.app の操作、スクショ、OCR、Chrome.app、Gemini API は使わない。ヘルパーが HOLD したら探索に入らずその HOLD で止める。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA、アカウント選択、資格確認だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。オペレーターは Terminal で `agy` を起動して Google ログインする。エージェントはログインを起動しない。
+- 台詞だけの差し替えは `scripts/apply_spoken_lines.py`。in/mid/out の証明は `scripts/prove_source_range.py`。手書きの payload 再ハッシュや ffmpeg 一発書きはしない。
 - ログイン、CAPTCHA、2FA、アカウント選択は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワード、クッキー、トークン、API キーをリポジトリ、プロンプト、receipt、ログに置かない。
-- 素材の SHA と in/out は Gemini に作らせない。台詞が決まってから、その行を支える範囲だけ実フレーム確認して payload に結ぶ。
-- `台本OK` で止める対象は台詞・6段構成・フックの困りごとに対する解決案。素材6本のロックや in/mid/out のコンタクトシートでは止めない。絵の確定は `粗編集OK`。見た目や「日差しが入ってこない」だけでは暑さのフックを回収したことにしない。
+- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。`台本OK` のあと、`picture_must` で候補を絞り、選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明して取り込む。
+- `台本OK` で止める対象は台詞・6段構成・フックの困りごとに対する解決案。素材6本のロックや in/mid/out のコンタクトシートでは止めない。絵の確定は `粗編集OK`。見た目や部分的な変化だけではフックの困りごとを回収したことにしない。
 - 台詞が変わらない素材差し替えでは `台本OK` を取り直さない。作業が止まったら同じターンで続けるか、該当 HOLD で止めてオペレーターが動けるようにする。一晩待たない。
 
 ## Google Drive（格納はローカルパス。デスクトップアプリは使わない）
@@ -65,15 +66,21 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 ## テロップ
 
 - 最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。
-- はみ出す行は句読点や意味の切れ目で見た目だけ改行する。文字の追加・削除・並べ替えはしない。
-- 太字、太い縁取り、コントラスト帯で目立たせる。最終カットのホールドも同じ位置に合わせる。
-- JSON の座標より、合成フレームの中央を正とする。字幕ホールド用トラックが mute のとき refresh しない。
+- ChatCut では保存済みユーザープリセット `product-video-center` を一度 `preset_apply` する。案件ごとに太字・縁を作り直さない。背景帯は付けない。
+- はみ出す行は句読点や意味の切れ目で見た目だけ改行する。文字の追加・削除・並べ替えはしない。改行しても欠けるカードだけサイズを下げる（例: 50px）。そのサイズはカード例外で、プリセットには入れない。他カードと台詞は変えない。TTS は再生成しない。
+- 太字の見出しフォント（Dela Gothic One）と白い文字、太い黒縁、ドロップシャドウで目立たせる。背景帯は付けない。最終カットのホールドも同じ位置に合わせる。
+- JSON の座標より、合成フレームの中央を正とする。字幕ホールド用トラックが mute のとき refresh しない。カスタムカードのあと `maxLines` / `maxCharactersPerLine` / `pacing` の書き込みと `refresh` はしない。
+- ChatCut の Caption Cards は発話アイテムの ASR 単語範囲に縛られる。`cue_override` の成功 JSON はホールド証明ではない。同じ TTS アセットを mute 複製して字幕を伸ばさない。最終カットの凍結行は `timeline_end_frame` まで残す。証明できないときは `HOLD_CAPTION_TAIL_NOT_CLOSED`。
+- 映像レーンはクリップのゲイン下げではなく、トラック mute（`muted: true`、gain は null）を正とする。
+- CapCut TTS のテキスト欄は前回分が残る。貼るのはそのカットの凍結行だけ。結果カードは一発でその行だけが聞こえることを確認する。
+- `完成・書き出しOK` は `FINAL_REVIEW` で、現行の final-QA receipt にだけ結ぶ。`FINISHING` 中の同じ文言では書き出さない。
+- ChatCut の `show_preview` はライブのツールスキーマの `clientSurfaceVersion` を使う。`toolsOutOfDate` ならオペレーターにコネクタの Refresh Tools List を頼む。
 
 ## Cursor Desktop browser and human handoff
 
 - Production host is this Mac's Cursor Desktop Agent. Do not use Cloud Agent for picture, captions, export, or Drive 格納.
-- Checkpoint 1 dialogue is drafted in this Mac's logged-in Gemini.app with Gemini 3.8 Flash. The agent sends the prompt and reads the dialogue in the same turn. Do not leave a paste for the operator. Do not screenshot-hunt Gemini.app. Completed-video 格納 uses `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not open Chrome.app for 格納. Drive originals/materials may use Google Chrome.app at `https://drive.google.com/`. The agent-controlled browser is not Gemini.app and must not be used as a substitute for those logged-in Google sessions. Do not use Google Drive for desktop.
+- Checkpoint 1 dialogue is drafted on this Mac with logged-in Antigravity CLI (`agy --print`) at Gemini 3.8 Flash. The agent sends the prompt and reads the dialogue in the same turn. Do not leave a paste for the operator. Do not use Gemini.app, the Gemini API, or `GEMINI_API_KEY`. Do not enable AI Credit overages. Completed-video 格納 uses `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not open Chrome.app for 格納. Drive originals/materials may use Google Chrome.app at `https://drive.google.com/`. The agent-controlled browser is not Antigravity CLI and must not be used as a substitute for that logged-in Google session. Do not use Google Drive for desktop.
 - Use the official CapCut Web origin in the agent-controlled browser only when that adapter exists. A host editor adapter (for example ChatCut) may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
-- When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Gemini Web needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. When Drive Web on Chrome.app needs the same user action, stop with `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`.
+- When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Antigravity CLI needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. When Drive Web on Chrome.app needs the same user action, stop with `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`.
 - If the Cursor Agent lacks the browser/editor, rendered-frame, or audio capability required by the host-adapter contract, stop with the matching HOLD instead of claiming the edit is complete.
 - If the Agent cannot reliably hear the full timeline, keep auditory verification pending at Checkpoint 3 and ask the user to listen on the same desktop. Do not add a fourth checkpoint.

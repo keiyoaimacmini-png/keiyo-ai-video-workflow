@@ -53,6 +53,9 @@
     "scripts/prepare_bulk_tts_scene_gaps.py",
     "scripts/resolve_product_inputs.py",
     "scripts/render_gemini_web_prompt.py",
+    "scripts/send_gemini_cli_prompt.py",
+    "scripts/apply_spoken_lines.py",
+    "scripts/prove_source_range.py",
     "scripts/upload_drive_local_file.py",
     "scripts/capture_capcut_result_audio.py"
   ],

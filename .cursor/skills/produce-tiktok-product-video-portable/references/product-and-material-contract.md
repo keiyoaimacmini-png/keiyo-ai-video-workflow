@@ -68,8 +68,9 @@ These values apply to every product unless that model's settings override them:
 
 - Place viewer-facing captions at **screen center**.
 - Use the case editor's caption program (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer.
-- If a frozen line overflows the safe width, wrap it visually at an existing punctuation or phrase boundary. Do not add, delete, or reorder characters. Spoken `tts.text` stays the frozen line.
-- Make captions prominent: heavy weight, thick dark stroke, contrast band, and optional current-word highlight.
+- On ChatCut, apply the saved user caption preset `product-video-center` once. Do not restyle from scratch. The preset is Dela Gothic One, white fill, 14px black stroke, drop shadow, highlight off, and no background band. A per-card shrink is a card exception, not a preset field.
+- If a frozen line overflows the safe width, wrap it visually at an existing punctuation or phrase boundary. Do not add, delete, or reorder characters. Spoken `tts.text` stays the frozen line. If that card still clips, shrink that card only; do not regenerate TTS.
+- Make captions prominent with that look. Do not add a caption background band. Do not turn on current-word highlight. After custom cards exist, do not write wrap-limit or pacing fields and do not refresh.
 - Keep exactly one caption layer per cut. The canonical final cut may hold its last caption through the approved tail with a matching centered overlay after TTS ends.
 - Script line breaks (which words belong to which cut) remain frozen at `粗編集OK`. On-screen wrapping inside a cut is layout, not a new script line.
 
@@ -79,8 +80,8 @@ Use this sequence on any PC that has the skill package, that product's settings 
 
 1. Clone this repository. Do not commit media, exports, credentials, or Drive IDs.
 2. Resolve `PROJECT_ROOT` and `SKILL_ROOT`. Run `resolve_product_inputs.py` and `verify_product_video_setup.py --product-model <MODEL> --require-materials`.
-3. `PREFLIGHT`: inventory **this** model's materials, hash settings, compare twenty concepts internally, write a new script package. Advance to Checkpoint 1. Stop for exact `台本OK`.
-4. `ROUGH_EDIT`: create a **new** editor project. Import selected assets in the host ingest helper's maximum batch. One distinct source per caption. Frozen captions on the case editor's caption program. No TTS yet. Stop for exact `粗編集OK`.
+3. `PREFLIGHT`: hash this model's settings, draft the script from verified facts, write a new script package. Do not inventory, hash, or watch source clips. Advance to Checkpoint 1. Stop for exact `台本OK`.
+4. `ROUGH_EDIT`: match `picture_must` to files, prove only selected ranges, create a **new** editor project. Import those selected assets in the host ingest helper's maximum batch. One distinct source per caption. Frozen captions on the case editor's caption program. No TTS yet. Stop for exact `粗編集OK`.
 5. `FINISHING`: centered prominent captions on the case editor's caption program, Holiday Twist once per narration-target cut (CapCut Text to Speech sidecar when the editor of record is not CapCut Web), three-layer timing. Official CapCut text templates are optional and never a HOLD.
 6. `FINAL_QA`: all-cut source/caption/TTS, mute, frames, playback, reload, safe area. Stop for exact `完成・書き出しOK`. If the host cannot hear, keep auditory verification pending at this same checkpoint.
 7. `EXPORT_AND_DELIVERY`: one new export name, export once, Drive-store into the folder titled `<MODEL>`, read back. Then `COMPLETE`.

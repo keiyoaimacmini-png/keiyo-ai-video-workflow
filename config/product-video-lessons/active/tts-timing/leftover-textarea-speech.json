@@ -1,0 +1,21 @@
+{
+  "schema": "product_video_lesson.v1",
+  "id": "leftover-textarea-speech",
+  "surface": "tts-timing",
+  "defect": "leftover_textarea_speech",
+  "auto": true,
+  "status": "active",
+  "product_models": [],
+  "note": "CapCut Text to Speech keeps leftover textarea text. Paste only the current cut's frozen line. After each result card, prove the audible speech is that one frozen line. Mixed later lines in the same render consume the cut's generation slot and require the one allowed same-input repair, not a third generate.",
+  "bad": {
+    "leftover_textarea_speech": true
+  },
+  "good": {
+    "leftover_textarea_speech": false,
+    "speech_matches_frozen_line": true
+  },
+  "gate": {
+    "kind": "artifact_flag",
+    "fail_if_true": ["leftover_textarea_speech"]
+  }
+}

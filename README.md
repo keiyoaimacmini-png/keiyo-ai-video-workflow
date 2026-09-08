@@ -1,4 +1,8 @@
 # KEIYO AI Video Workflow
+<!-- ローカル作業メモ: ルート README の確認用コメント -->
+<!-- ローカル作業メモ: 追加の1行コメント -->
+<!-- ローカル作業メモ: 確認用の追加コメント -->
+<!-- ローカル作業メモ: README 編集確認用コメント -->
 
 別PCへ、検証済みのTikTok商品動画作成スキルを同一ファイルで引き継ぐための非公開リポジトリです。
 
@@ -10,7 +14,7 @@
 
 正本スキルは `.cursor/skills/produce-tiktok-product-video-portable/` です。起動は `/produce-tiktok-product-video-portable`。通常確認は `台本OK`、`粗編集OK`、`完成・書き出しOK` だけ。完成後の既定は、型番名の Drive フォルダへの新規格納です。
 
-人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。この Mac での起動文は [docs/mac-desktop-agent-product-video.md](docs/mac-desktop-agent-product-video.md) です。台本は Cursor のモデル切替ではなく、この Mac のログイン済み Gemini.app の Gemini 3.8 Flash に作らせます。完成動画の Drive 格納は `scripts/upload_drive_local_file.py` から行い、デスクトップアプリは使いません。Cloud Agent 向けの旧起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
+人向けの通し手順は [docs/product-video-to-drive.md](docs/product-video-to-drive.md) です。この Mac での起動文は [docs/mac-desktop-agent-product-video.md](docs/mac-desktop-agent-product-video.md) です。台本は Cursor のモデル切替ではなく、この Mac のログイン済み Antigravity CLI（`agy --print`）の Gemini 3.8 Flash に作らせます。完成動画の Drive 格納は `scripts/upload_drive_local_file.py` から行い、デスクトップアプリは使いません。Cloud Agent 向けの旧起動文は [docs/cursor-cloud-agent-product-video.md](docs/cursor-cloud-agent-product-video.md) です。
 
 ## 別PCで同じスキルを使う（Cursor）
 

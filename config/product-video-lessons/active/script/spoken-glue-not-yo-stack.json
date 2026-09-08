@@ -1,0 +1,34 @@
+{
+  "schema": "product_video_lesson.v1",
+  "id": "spoken-glue-not-yo-stack",
+  "surface": "script",
+  "defect": "uniform_yo_endings",
+  "auto": true,
+  "status": "active",
+  "product_models": [],
+  "note": "Operator intent, not a line template: vary non-CTA endings and glue adjacent lines. Standing taste is already in render_gemini_web_prompt.py. Do not append this lesson to the Gemini prompt. Do not Cursor-rewrite the six lines as the first path.",
+  "bad": {
+    "dialogue": [
+      {"narrative_role": "problem_or_hook", "text": "昼の車内って熱いよね？"},
+      {"narrative_role": "product", "text": "開くサンシェードだよ。"},
+      {"narrative_role": "use_or_change", "text": "ガラスの内側に押すよ。"},
+      {"narrative_role": "result", "text": "黒い面で覆われたよ。"},
+      {"narrative_role": "problem_resolution", "text": "直射日光と暑さを防ぐよ。"},
+      {"narrative_role": "cta", "text": "下からチェック！"}
+    ]
+  },
+  "good": {
+    "dialogue": [
+      {"narrative_role": "problem_or_hook", "text": "昼の車内って熱いよね？"},
+      {"narrative_role": "product", "text": "これ知ってる？傘型サンシェード！"},
+      {"narrative_role": "use_or_change", "text": "フロントガラスに設置したら。"},
+      {"narrative_role": "result", "text": "黒い面で覆われるから。"},
+      {"narrative_role": "problem_resolution", "text": "直射日光と暑さを防げるよ。"},
+      {"narrative_role": "cta", "text": "下からチェック！"}
+    ]
+  },
+  "gate": {
+    "kind": "forbidden_tokens",
+    "fail_if_any_line_contains": []
+  }
+}

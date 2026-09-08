@@ -19,12 +19,26 @@ Register its safe relative path and actual SHA-256 as `learning_snapshots.edit`,
 
 On an unapproved review revision, record the correction first. Build a new versioned file such as `learning-edit-r01.json` only when the active rule set changed; otherwise keep the existing registered snapshot. Never overwrite or silently rebind a different prior snapshot.
 
+## Match and prove after `台本OK`
+
+Do this before opening the editor. Do not hash or watch the material root. Do not inventory every clip. The script is the filter.
+
+1. Read frozen `picture_must` (required on-screen action) and `picture_ideal` (distance and camera) from the `台本OK` package. `picture_must` is the matching gate. Missing `picture_ideal` does not stall the edit.
+2. If sidecar `.asset.md` interval tables exist, use those rows to shortlist candidates. If they do not, open only files whose names or folders could show that action. Do not play every file from the start.
+3. Select one range per caption. Hash only those selected files. Prove in, midpoint, and out frames with `scripts/prove_source_range.py`. Do not default to the first N seconds of a usable take. Do not hand-write ffmpeg. Gemini must not invent SHA values or in/out.
+
+```bash
+python3 "${SKILL_ROOT}/scripts/prove_source_range.py" --source <file> --in-sec <in> --out-sec <out> --output-dir <task-root>/evidence/<cut-id>
+```
+
+4. Write a new versioned payload that binds those proven sources, drops `additional_asset_required`, and keeps `integrity.visible_content_sha256`. Point `artifacts.production_payload` at it and update `approvals.script.bound_artifact_sha256` in the same write. If a `picture_must` action has no proven range, `HOLD_MEDIA_NOT_MATCHED`. Do not ask for `台本OK` again.
+
 ## Build the rough edit
 
 1. Verify the official editor of record for this case. On the normal path create one separate new project; on a `ROUGH_REVIEW` revision reopen and verify the exact same task-owned project instead of creating another. Do not open a previous product's project. Do not create a successor CapCut Web case for Holiday Twist.
-2. Import only selected assets. When the host ingest helper accepts local files, upload in that helper's maximum batch rather than one picker pass per clip. Asset upload is part of rough editing and has no extra checkpoint.
+2. Import only the selected, proven assets. When the host ingest helper accepts local files, upload in that helper's maximum batch rather than one picker pass per clip. Asset upload is part of rough editing and has no extra checkpoint. Do not import the whole material root.
 3. Build one source per caption, change the visual at every caption boundary, use exact ranges, mute source audio unless explicitly needed, and retain the canonical final visual for its approved full range.
-4. Add the frozen captions with the case editor's caption program when it has one (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Do not generate TTS yet. Official CapCut text templates are optional and are not a later HOLD.
+4. Add the frozen captions with the case editor's caption program when it has one (ChatCut Caption Cards or CapCut native captions). Do not use Motion Graphics as the viewer-facing caption layer. Do not restyle from scratch; apply `product-video-center` once at finish. Do not generate TTS yet. Official CapCut text templates are optional and are not a later HOLD.
 5. Confirm the script-stage timing estimates against the real rough timeline. If wording, line breaks, claimed facts, or stage order must change, do not alter them under the existing `台本OK`; use the controlled reopen procedure and return to the revised Checkpoint 1. If only the source asset or source range must change while those spoken lines stay frozen, stay at `ROUGH_EDIT` or `ROUGH_REVIEW`. Write a new versioned payload whose `integrity.visible_content_sha256` matches, point `artifacts.production_payload` at it, and update `approvals.script.bound_artifact_sha256` in the same write. Do not ask for `台本OK` again. Picture assignment is confirmed by `粗編集OK`.
 6. Verify actual rough-timeline source identity/range/timing/mute/caption closure and absence of duplicate text layers.
 

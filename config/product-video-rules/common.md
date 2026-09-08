@@ -8,7 +8,7 @@ A proposed source range is valid only when in, midpoint, and out frames show the
 
 Consecutive cuts must not read as the same kind of shot continuing. Related topics are allowed: an open-umbrella cut may be followed by a press-against cut when those actions are needed. A miss is place, distance, and camera angle continuing so neighboring composed frames look like the same shot type. A different file, in/out, or cut_id is not enough. Choose another proven range before `粗編集OK`.
 
-Viewer captions sit at screen center. Visual wrapping may insert display line breaks without changing frozen characters. Spoken TTS stays the frozen line.
+Viewer captions sit at screen center. Visual wrapping may insert display line breaks without changing frozen characters. Spoken TTS stays the frozen line. On ChatCut, apply the saved caption preset `product-video-center` once (Dela Gothic One, white fill, thick black stroke, drop shadow, no background band). If one card still clips after wrap, shrink that card only; do not regenerate TTS. The final cut's caption must remain visible through the last timeline frame. Do not clone the same TTS asset to hold ChatCut cards. `cue_override` JSON is not proof.
 
 Generate official Holiday Twist once per narration-target cut: paste only that cut's frozen line. Capture each result-card audio bytes into the case TTS working directory without a save dialog or operator Save. Do not paste every frozen line into one bulk render. Do not add ellipses or extra spoken punctuation. Do not leave one combined narration clip on the timeline.
 

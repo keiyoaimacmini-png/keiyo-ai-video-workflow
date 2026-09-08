@@ -1,0 +1,24 @@
+{
+  "schema": "product_video_lesson.v1",
+  "id": "caption-hold-through-final-tail",
+  "surface": "captions",
+  "defect": "caption_tail_not_held",
+  "auto": true,
+  "status": "active",
+  "product_models": [],
+  "note": "ChatCut Caption Cards are bounded by ASR words on their source speech item. cue_override success JSON is not proof; re-read cards and inspect the last timeline frame. Do not clone the same TTS asset as a muted hold to extend cards: that rematerializes a second card, cannot merge items, and overlapping same-asset spans fail. Do not use Motion Graphics as viewer captions. The configured final cut must keep one frozen-line caption through timeline_end_frame. If that hold cannot be proven, HOLD_CAPTION_TAIL_NOT_CLOSED (or HOLD_FINAL_VISUAL_NOT_VERIFIED when the tail picture itself is also unproven).",
+  "bad": {
+    "caption_holds_through_tail": false,
+    "same_asset_caption_hold": true,
+    "cue_override_unverified": true
+  },
+  "good": {
+    "caption_holds_through_tail": true,
+    "same_asset_caption_hold": false,
+    "composed_last_frame_has_caption": true
+  },
+  "gate": {
+    "kind": "artifact_flag",
+    "fail_if_true": ["caption_tail_not_held", "same_asset_caption_hold", "cue_override_unverified"]
+  }
+}

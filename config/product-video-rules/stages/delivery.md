@@ -1,8 +1,8 @@
 # Delivery-stage rules
 
-Export once after exact `完成・書き出しOK`. Read back the new local export. Default completion is Drive 格納 into the one folder titled with this product model, then exact read-back. Use `export_only` only when the original request explicitly required local-only export; then do not treat a working copy as stored until `destination-stored-receipt.v1.json` proves a durable copy that is not a local working copy. `編集が完了した` is not this approval.
+Export once after exact `完成・書き出しOK` bound to the current final-QA receipt at `FINAL_REVIEW`. The same phrase during `FINISHING` is not export authority. Read back the new local export. Default completion is Drive 格納 into the one folder titled with this product model, then exact read-back. Use `export_only` only when the original request explicitly required local-only export; then do not treat a working copy as stored until `destination-stored-receipt.v1.json` proves a durable copy that is not a local working copy. `編集が完了した` is not this approval.
 
-Before export, read the JST date/model ledger and prove no exact-name collision in local output and the approved Drive parent. Do not wait until after download to discover a collision.
+Before export, read the JST date/model ledger and prove no exact-name collision in local output and the approved Drive parent. The completed filename date is that **格納日**, not the case ID date or the editor project date. Do not wait until after download to discover a collision.
 
 Run Drive ingest in the same turn as the export read-back. Do not open Chrome.app for 格納. Do not wait for a chat confirmation. A 16–22MB file should finish in tens of seconds.
 

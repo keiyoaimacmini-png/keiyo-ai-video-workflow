@@ -1,0 +1,26 @@
+{
+  "schema": "product_video_lesson.v1",
+  "id": "overflow-wrap-then-card-size",
+  "surface": "captions",
+  "defect": "caption_overflow_rewrote_or_regenerated_tts",
+  "auto": true,
+  "status": "active",
+  "product_models": [],
+  "note": "Apply ChatCut user preset product-video-center once (Dela Gothic One, white fill, 14px black stroke, drop shadow, highlight off, no background band). Overflow: wrap at punctuation, then shrink that card only. Per-card size is not a preset field. Do not rematerialize with wrap-limit writes or refresh. Do not change frozen characters. Do not regenerate TTS for a size fix.",
+  "bad": {
+    "text_changed": true,
+    "tts_regenerated": true
+  },
+  "good": {
+    "preset": "product-video-center",
+    "font": "Dela Gothic One",
+    "fill": "white",
+    "wrap_then_card_size_px": 50,
+    "text_unchanged": true,
+    "tts_regenerated": false
+  },
+  "gate": {
+    "kind": "artifact_flag",
+    "fail_if_true": ["tts_regenerated", "text_changed", "contrast_band", "caption_background"]
+  }
+}

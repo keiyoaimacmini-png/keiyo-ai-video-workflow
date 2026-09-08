@@ -15,9 +15,9 @@ PLUGIN_ID = "keiyo-product-video"
 MARKETPLACE_ID = "keiyo-ai-video-workflow"
 SKILL = "plugins/keiyo-product-video/skills/create-tiktok-product-video"
 PINNED_SKILL_HASHES = {
-    f"{SKILL}/SKILL.md": "71cec81235ef65260ca2bae8d4a9cf70fff64e3d80161963968eaf385c063a6a",
+    f"{SKILL}/SKILL.md": "2d4f31cd0fed471d76764259e17201edc34c34b51cb0cd8a5d061b13a3daf7c2",
     f"{SKILL}/agents/openai.yaml": "18695ed5a17f88debe464682cd9f81cb79d94a302c81d7b2b6123347f1df081f",
-    f"{SKILL}/references/payload_contract.md": "a468ced2be46421cfb7b0f994fa748533d82c1f2b777756e89ad76c3768a6c62",
+    f"{SKILL}/references/payload_contract.md": "ffdc0e550580becba0c173b6355e5b66427d084277b5bc02e1644781421813e1",
     f"{SKILL}/scripts/validate_product_video_payload.py": "079a0728d38dc19e78a8ed1b4309986c19c390e56fff0d7c11343c245f8c0ae4",
 }
 REQUIRED_FILES = {
@@ -69,6 +69,7 @@ REQUIRED_FILES = {
     "tests/test_golden_baseline_v2.py",
     "tests/test_resolve_product_inputs.py",
     "tests/test_render_gemini_web_prompt.py",
+    "tests/test_send_gemini_cli_prompt.py",
     "tests/test_upload_drive_local_file.py",
     *PINNED_SKILL_HASHES,
 }

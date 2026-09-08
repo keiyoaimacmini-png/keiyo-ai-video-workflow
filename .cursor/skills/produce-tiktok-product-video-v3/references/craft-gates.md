@@ -18,10 +18,11 @@ Fail when:
 
 - The six-stage spoken order is missing or reversed.
 - `problem_resolution` restates `result`.
-- A hook problem is closed by looks or blocked sunlight without a spoken solution to that problem.
+- A hook problem is closed by looks or a partial visible change without a spoken solution to that problem.
 - Non-CTA lines end in instruction-sheet register (`します` / `してみて` / `あるよ` / `できます`).
+- Four or more non-CTA lines end in `よ` / `だよ` (uniform babyish cadence).
 
-Use the portable Gemini paste renderer. Do not inject prior-correction examples.
+Use the portable Gemini prompt renderer. That renderer output is the only Gemini.app script text. Do not inject prior-correction examples, rule files, or lessons. Do not Cursor-rewrite the six lines as the first path.
 
 ## picture — before `粗編集OK`
 
@@ -40,13 +41,13 @@ in/mid/out frames still belong to the portable media proof. This gate is the sel
 
 Artifact: `product_video_caption_craft.v1` from **composed frames**, not caption JSON geometry.
 
-Fail when JSON geometry is the only evidence, captions are not centered on screen, more than one visible layer remains, wrapping changed frozen characters, or prominence (weight, stroke, contrast band) is missing.
+Fail when JSON geometry is the only evidence, captions are not centered on screen, more than one visible layer remains, wrapping changed frozen characters, a caption background band is present, prominence (Dela Gothic One, white fill, thick stroke, drop shadow) is missing, ChatCut captions were restyled from scratch instead of applying `product-video-center` once, a same-asset muted TTS clone was used as a caption-hold, `cue_override` was trusted without a card re-read, or the configured final cut's caption does not hold through the last timeline frame.
 
 ## tts-timing — before `完成・書き出しOK`
 
 Artifact: `product_video_tts_craft.v1`. Still run the portable slack / track-pairing / timeline-integrity validators on their receipts.
 
-Fail when a combined bulk clip is left on the timeline, per-cut generation is missing, a cut is inside speech or off the frozen line, speech is too fast to hear, unused picture was not trimmed to that cut's audible speech, or three-layer closure is missing.
+Fail when a combined bulk clip is left on the timeline, per-cut generation is missing, a cut is inside speech or off the frozen line, leftover CapCut textarea text mixed later lines into a result card, speech is too fast to hear, unused picture was not trimmed to that cut's audible speech, or three-layer closure is missing.
 
 ## HOLD
 

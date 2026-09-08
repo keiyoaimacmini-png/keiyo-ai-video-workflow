@@ -10,7 +10,7 @@ Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive �
 
 本番は操作 Mac の Cursor Desktop Agent。Cloud Agent / Cloud VM では作らない。Cursor の親モデル切替はしない。
 
-台本は、この Mac のログイン済み **Gemini.app** に作らせる。モデルは **Gemini 3.8 Flash**。Google Chrome.app と Cursor 内蔵ブラウザは台本には使わない。エージェントが Gemini.app を操作する。貼り付け文をユーザーに渡して止めない。ログイン、CAPTCHA、2FA だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+台本は、この Mac のログイン済み **Antigravity CLI（`agy --print`）** に作らせる。モデルは **Gemini 3.8 Flash**。Gemini.app、Google Chrome.app、Cursor 内蔵ブラウザは台本には使わない。エージェントが CLI を一発呼び出す。貼り付け文をユーザーに渡して止めない。ログイン、CAPTCHA、2FA だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 完成動画の格納はローカルパスヘルパー（`scripts/upload_drive_local_file.py`）から行い、Drive 連携で読み戻す。原本確認や素材取得が連携でできないときだけ、同じ Chrome.app の公式 Drive Web（`https://drive.google.com/`）を使う。Google Drive デスクトップアプリは使わない。Cursor 内蔵ブラウザは代用しない。Chrome をスクショ探索しない。
 
@@ -42,7 +42,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 `READY` 以外なら案件を作らず止まる。
 
-この枝では台本下書きに、この Mac のログイン済み Gemini.app を使う。ピッカーは Gemini 3.8 Flash。Cursor の親モデル切替と Gemini API は使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
+この枝では台本下書きに、この Mac のログイン済み Antigravity CLI を使う。モデルは Gemini 3.8 Flash。Cursor の親モデル切替と Gemini API は使わない。ログインが必要なら `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。
 
 ## 通常確認は 3 つだけ
 
@@ -58,12 +58,11 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ```text
 準備
-  → PREFLIGHT（素材台帳。この時点では6本を決めない）
-  → このMacのGemini.appのGemini 3.8 Flashで台本下書き（20案はGemini内、APIなし）
-  → 台詞が決まってから、その行を支える範囲だけ実フレーム確認して SHA と in/out を結ぶ
-  → SCRIPT_PREPARED（payload 検証）
+  → PREFLIGHT（商品情報と設定。素材の全件ハッシュ・全尺視聴はしない）
+  → このMacのAntigravity CLIのGemini 3.8 Flashで台本下書き（20案はGemini内、APIなし）
+  → SCRIPT_PREPARED（payload 検証。ソース未結でも可）
   → SCRIPT_REVIEW  …… 台本OK（見せるのは台詞。カット表では止めない）
-  → ROUGH_EDIT（新規エディタ、1テロップ1素材、TTSなし）
+  → ROUGH_EDIT（picture_must で候補を絞り、選んだ範囲だけ証明・取り込み。新規エディタ、1テロップ1素材、TTSなし）
   → ROUGH_REVIEW  …… 粗編集OK（ここで絵を確定）
   → FINISHING（中央テロップ、ホリデーツイスト、3レイヤ揃え）
   → FINAL_QA（全カット検証・再生・再読込）
@@ -77,7 +76,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ナレーションは公式ホリデーツイスト。凍結行を 1 カットずつ生成し、結果カードの音声バイトを案件フォルダへ直接取って 1 カット 1 クリップで置く。全行の一括貼りはしない。保存ダイアログは使わず、オペレーターに「保存」を押させない。
 
-最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。はみ出す行は句読点や意味の切れ目で見た目だけ改行し、文字は変えない。
+最終テロップは画面中央。ChatCut では保存済みプリセット `product-video-center` を一度当てる（Dela Gothic One、白、太い黒縁、ドロップシャドウ、背景帯なし）。モーションを視聴者向け字幕にしない。はみ出す行は句読点や意味の切れ目で見た目だけ改行し、文字は変えない。欠けが残るカードだけサイズを下げ、TTS は再生成しない。
 
 ## 時間を使わないこと
 
@@ -91,8 +90,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 既定の完了は Drive 格納です。ローカル `out/` は格納ではない。
 
 1. `完成・書き出しOK` が、いまの最終 QA レシートに結び付いていること。
-2. その時点の JST 日付と型番の台帳を読んで序数を決める。①②は推測しない。
-3. 書き出しファイル名は `YYYY_MMDD_<MODEL>_AI作成①.mp4` 形式。同じ名前があれば止める。
+2. その時点の JST 日付（**格納日**）と型番の台帳を読んで序数を決める。①②は推測しない。案件 ID やエディタ案件名の日付は使わない。
+3. 書き出しファイル名は `YYYY_MMDD_<MODEL>_AI作成①.mp4` 形式で、日付は格納日。同じ名前があれば止める。
 4. 書き出しは 1 回。受付や進捗だけでは成功としない。
 5. 書き出しの読戻しと同じターンで、検証済み型番と **exact case** で一致する親フォルダを 1 つ特定し、`scripts/upload_drive_local_file.py` でローカルバイトから新規ファイルだけ作る。完成動画をツール引数の base64 にしない。格納に Chrome.app を開かない。16–22MB なら数十秒が正常。数分かかるならヘルパー未使用か HOLD 放置である。ヘルパーが OAuth 不足なら止めて Terminal で `--login`。Google Drive デスクトップアプリは使わない。同名の空ファイルは作らない。
 6. 名前・MIME・バイト数・親スコープ・時刻を読み戻す。Drive ID は Git に書かない。

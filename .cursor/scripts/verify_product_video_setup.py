@@ -17,7 +17,6 @@ SKILL_NAME = "produce-tiktok-product-video-portable"
 SKILL_ROOT = REPO_ROOT / ".cursor" / "skills" / SKILL_NAME
 SETTINGS_PATH = REPO_ROOT / "config" / "product_video_settings_AN-S182.v1.json"
 EXPECTED_SETTINGS_SHA256 = "a90ee56e42e8ddfcc9c4fec7970bffcc1e4396bbe6dcd37df9a2f74b399e0afa"
-MEDIA_SUFFIXES = {".mp4", ".mov", ".m4v", ".avi", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
 REQUIRED_SKILL_FILES = (
     "SKILL.md",
     "manifest.json",
@@ -49,6 +48,9 @@ REQUIRED_SKILL_FILES = (
     "scripts/prepare_bulk_tts_scene_gaps.py",
     "scripts/resolve_product_inputs.py",
     "scripts/render_gemini_web_prompt.py",
+    "scripts/send_gemini_cli_prompt.py",
+    "scripts/apply_spoken_lines.py",
+    "scripts/prove_source_range.py",
     "scripts/upload_drive_local_file.py",
     "scripts/capture_capcut_result_audio.py",
 )
@@ -63,6 +65,7 @@ SELF_TESTS = (
     "prepare_bulk_tts_scene_gaps.py",
     "resolve_product_inputs.py",
     "render_gemini_web_prompt.py",
+    "send_gemini_cli_prompt.py",
     "upload_drive_local_file.py",
     "capture_capcut_result_audio.py",
 )
@@ -86,19 +89,29 @@ REQUIRED_TEXT = (
     ("references/checkpoint-contract.md", "in, midpoint, and out frames"),
     ("stages/03-build-rough-cut.md", "Do not use Motion Graphics as the viewer-facing caption layer"),
     ("stages/04-finish.md", "TTS sidecar"),
+    ("stages/04-finish.md", "product-video-center"),
+    ("stages/04-finish.md", "Do not add a caption background band"),
+    ("stages/04-finish.md", "Dela Gothic One"),
+    ("stages/04-finish.md", "white fill"),
+    ("references/product-and-material-contract.md", "Dela Gothic One"),
     ("stages/06-deliver.md", "Do not inline the completed video as base64"),
     ("stages/06-deliver.md", "upload_drive_local_file.py"),
     ("stages/06-deliver.md", "same turn"),
     ("stages/06-deliver.md", "Do not open Chrome.app for 格納"),
+    ("stages/06-deliver.md", "格納日"),
     ("stages/01-prepare-script.md", "Do not leave a paste for the operator"),
     ("references/hold-registry.md", "does not authorize an operator paste"),
     ("references/fast-path.md", "Do not screenshot, OCR, or Accessibility-hunt"),
     ("references/hold-registry.md", "HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED"),
     ("references/hold-registry.md", "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED"),
     ("references/host-adapter-contract.md", "drive.google.com"),
-    ("stages/01-prepare-script.md", "Gemini.app"),
+    ("stages/01-prepare-script.md", "send_gemini_cli_prompt.py"),
+    ("stages/01-prepare-script.md", "agy"),
     ("stages/01-prepare-script.md", "Gemini 3.8 Flash"),
+    ("stages/01-prepare-script.md", "Do not hash or watch the material root"),
+    ("stages/03-build-rough-cut.md", "prove_source_range.py"),
     ("references/host-adapter-contract.md", "Gemini 3.8 Flash"),
+    ("references/hold-registry.md", "HOLD_GEMINI_CLI_NOT_VERIFIED"),
 )
 
 
@@ -200,46 +213,15 @@ def resolve_case_inputs(product_model: str, require_materials: bool) -> tuple[li
     return [hold if isinstance(hold, str) else "HOLD_PRODUCT_VIDEO_SETTINGS"], payload
 
 
-def validate_materials(root: Path) -> tuple[list[str], dict]:
-    errors: list[str] = []
+def material_folder_status(root: Path) -> tuple[list[str], dict]:
     summary = {
         "folder": root.name,
-        "media_file_count": 0,
-        "probe_valid_media_count": 0,
-        "distinct_media_sha256_count": 0,
+        "material_root_exists": False,
     }
     if root.is_symlink() or not root.is_dir():
         return ["HOLD_INPUT_MATERIALS_REQUIRED"], summary
-
-    media_files = sorted(
-        path for path in root.rglob("*")
-        if path.is_file() and not path.is_symlink() and path.suffix.lower() in MEDIA_SUFFIXES
-    )
-    valid_media: list[Path] = []
-    for path in media_files:
-        try:
-            probe = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=format_name,duration", "-of", "json", str(path)],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            return ["HOLD_FFPROBE_REQUIRED"], summary
-        if probe.returncode == 0:
-            valid_media.append(path)
-
-    hashes = {digest(path) for path in valid_media}
-    summary.update(
-        media_file_count=len(media_files),
-        probe_valid_media_count=len(valid_media),
-        distinct_media_sha256_count=len(hashes),
-    )
-    if len(valid_media) != len(media_files):
-        errors.append("HOLD_MEDIA_PROBE_FAILED")
-    if len(valid_media) < 8 or len(hashes) < 8:
-        errors.append("HOLD_DISTINCT_MATERIALS_REQUIRED")
-    return errors, summary
+    summary["material_root_exists"] = True
+    return [], summary
 
 
 def main() -> int:
@@ -253,13 +235,13 @@ def main() -> int:
         print(json.dumps({"status": "FAIL", "errors": static_errors}, ensure_ascii=False, indent=2))
         return 1
 
-    resolve_errors, resolved = resolve_case_inputs(args.product_model, require_materials=False)
+    resolve_errors, resolved = resolve_case_inputs(args.product_model, require_materials=args.require_materials)
     if resolve_errors:
         print(json.dumps({"status": "HOLD", "errors": resolve_errors, "resolved": resolved}, ensure_ascii=False, indent=2))
         return 2
 
     material_root = Path(resolved["material_root"])
-    material_errors, material_summary = validate_materials(material_root)
+    material_errors, material_summary = material_folder_status(material_root)
     material_summary["product_model"] = args.product_model
     material_summary["settings_path"] = resolved.get("settings_path")
     material_summary["drive_folder_title"] = resolved.get("drive_folder_title")
