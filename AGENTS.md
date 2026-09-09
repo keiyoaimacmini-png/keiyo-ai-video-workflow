@@ -4,30 +4,30 @@ Ver2 production runs on the operator Mac Cursor Desktop Agent. Do not send produ
 
 ## Required workflow
 
-- For full product-video production, invoke `/produce-tiktok-product-video-portable` from `.cursor/skills/produce-tiktok-product-video-portable/` and follow its `SKILL.md`.
+- For full product-video production, invoke `/product-video` from `.cursor/skills/product-video/` and follow its `SKILL.md`.
+- Do not start a new case from `produce-tiktok-product-video-portable` or `produce-tiktok-product-video-v3`.
 - Human-readable flow through Drive 格納: `docs/product-video-to-drive.md`.
-- Resolve `PROJECT_ROOT` to the repository root and `SKILL_ROOT` to `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable`.
+- Resolve `PROJECT_ROOT` to the repository root and `SKILL_ROOT` to `$PROJECT_ROOT/.cursor/skills/product-video`.
 - Resolve **this case's** product model, settings, and material root before creating a case. Do not reuse another product's settings, media, script, editor project, or Drive object.
 
 ```bash
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
-python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
+python3 .cursor/skills/product-video/scripts/run_self_test.py
 ```
 
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
-- When `config/product-video-rules` exists, use it as `RULES_ROOT` for `build_rule_snapshot.py`. Those files are the standing first-pass rules. Portable stages run craft checks against them before `台本OK`, `粗編集OK`, and `完成・書き出しOK`. Do not wait for a correction to apply them.
+- Stages chain automatically: PREPARE → SCRIPT → (wait for `案Nで台本OK`) → NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR → (wait for `完成・格納してください`) → DELIVERY → COMPLETE.
+- Do not ask Continue / Proceed between automatic stages. Do not require `粗編集OK`. Do not run an AI final visual-quality review.
 
 ## Gemini 台本（Antigravity CLI。Cursor のモデルは切り替えない）
 
-- Checkpoint 1 の台本案は、この Mac のログイン済み **Antigravity CLI（`agy --print`）** に、**Gemini 3.8 Flash** で作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY`、Gemini.app、Google Chrome.app、エージェント制御ブラウザは使わない。AI Credit の上振れ課金は使わない。
+- 台本案は、この Mac のログイン済み **Antigravity CLI（`agy --print`）** に、**Gemini 3.8 Flash** で作らせる。Cursor の親モデル切替、外部モデル枠、Gemini API、`GEMINI_API_KEY`、Gemini.app、Google Chrome.app、エージェント制御ブラウザは使わない。AI Credit の上振れ課金は使わない。
 - 使用モデルは **`gemini-3.8-flash`**。Auto / Pro / 別の Flash には落とさない。違うモデルなら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。`agy` が無い、一発印刷が失敗する、枠が尽きた、ファイルを書き始めた場合は `HOLD_GEMINI_CLI_NOT_VERIFIED`。
-- 送りは `scripts/render_gemini_web_prompt.py` の出力を `scripts/send_gemini_cli_prompt.py` で送る。ルール md、lessons、製品例は足さない。プロンプト本文を手で書き換えない。Gemini.app の操作、スクショ、OCR、Chrome.app、Gemini API は使わない。ヘルパーが HOLD したら探索に入らずその HOLD で止める。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA、アカウント選択、資格確認だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。オペレーターは Terminal で `agy` を起動して Google ログインする。エージェントはログインを起動しない。
-- 台詞だけの差し替えは `scripts/apply_spoken_lines.py`。in/mid/out の証明は `scripts/prove_source_range.py`。手書きの payload 再ハッシュや ffmpeg 一発書きはしない。
-- ログイン、CAPTCHA、2FA、アカウント選択は `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。パスワード、クッキー、トークン、API キーをリポジトリ、プロンプト、receipt、ログに置かない。
-- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。`台本OK` のあと、`picture_must` で候補を絞り、選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明して取り込む。
-- `台本OK` で止める対象は台詞・6段構成・フックの困りごとに対する解決案。素材6本のロックや in/mid/out のコンタクトシートでは止めない。絵の確定は `粗編集OK`。見た目や部分的な変化だけではフックの困りごとを回収したことにしない。
-- 台詞が変わらない素材差し替えでは `台本OK` を取り直さない。作業が止まったら同じターンで続けるか、該当 HOLD で止めてオペレーターが動けるようにする。一晩待たない。
+- 送りは `product-video/scripts/render_script_prompt.py` の出力を `produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py` で送る。プロンプト本文を手で書き換えない。ヘルパーが HOLD したら探索に入らずその HOLD で止める。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA、アカウント選択だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。オペレーターは Terminal で `agy` を起動して Google ログインする。エージェントはログインを起動しない。
+- 採用は exact `案Nで台本OK` のみ。別の言い回しを承認に変換しない。凍結後は SCRIPT LINE == NARRATION == TELOP。言い換え・短縮・句読点変更をしない。
+- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明する。
+- 作業が止まったら同じターンで続けるか、該当 HOLD で止めてオペレーターが動けるようにする。一晩待たない。
 
 ## Google Drive（格納はローカルパス。デスクトップアプリは使わない）
 
@@ -41,46 +41,39 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 
 ## Approval and safety boundary
 
-- Use only the exact routine approvals `台本OK`, `粗編集OK`, and `完成・書き出しOK`. `編集が完了した` or `格納して` does not replace `完成・書き出しOK`.
+- Routine stops are only exact `案Nで台本OK` and exact `完成・格納してください`. `粗編集OK` and `完成・書き出しOK` are not used. `編集が完了した` or `格納して` does not replace `完成・格納してください`.
 - Create a new case, task root, workflow state, and editor project. Do not modify or overwrite existing projects, exports, Drive objects, payloads, receipts, or source media.
 - Keep product media, evidence frames, editable runtime artifacts, exports, credentials, cookies, tokens, account identifiers, and session identifiers out of Git, pull requests, and ordinary logs.
 - Do not open a pull request, publish an artifact, post, send externally, purchase credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action.
-- Standing completion is Drive 格納: after exact `完成・書き出しOK` bound to the current final-QA receipt, export once and, in that same turn, create one new file in the Drive folder titled with this product model in exact case. Create that file with `scripts/upload_drive_local_file.py` from local bytes; do not inline the completed video as base64. Do not open Chrome.app for 格納. A 16–22MB file should finish in tens of seconds. Do not use Google Drive for desktop. Require exact new-file read-back. Use `export_only` only when the original request explicitly required local-only export. Uncertain tab ownership does not block `COMPLETE` after that read-back.
-- After stage `COMPLETE` and verified 格納 (Drive read-back, or an `export_only` destination-stored receipt proving a durable copy that is not a local working copy), purge this case's local working media **on this Mac**. Do not leave product materials or completed-video working copies on the production host. Keep receipts, settings, git-tracked files, originals that are still the source of record, and the Drive stored file. If the local file is the only remaining completed video, stop with `HOLD_LOCAL_WORKING_MEDIA_IS_SOLE_COPY`. If this host is not the operator Mac (for example a Cloud VM left over from v1), purge that host first, then stop with `HOLD_MAC_LOCAL_WORKING_MEDIA_PURGE_REQUIRED`. Tell the operator the stored original is the Drive model-titled folder; on the Mac check Finder Downloads for the exact completed filename first, then repo `outputs/<case-id>/` and `out/` only if those copies exist. Missing copies are not a failure. Default is dry-run; execute only through `scripts/purge_local_working_media.py`.
+- Standing completion is Drive 格納: after exact `完成・格納してください`, export once and, in that same turn, create one new file in the Drive folder titled with this product model in exact case. Create that file with `scripts/upload_drive_local_file.py` from local bytes; do not inline the completed video as base64. Do not open Chrome.app for 格納. Require exact new-file read-back. COMPLETE only after Drive verification.
+- After stage `COMPLETE` and verified 格納, purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`.
 
 ## 完了後のローカル削除
 
-- `完成・書き出しOK` と格納が済んだ案件だけ、**この Mac** から素材の作業コピーと完成動画の作業コピーを消す。
+- `完成・格納してください` と格納が済んだ案件だけ、**この Mac** から素材の作業コピーと完成動画の作業コピーを消す。
 - まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/` や `out/` を確認する。無いコピーは失敗にしない。
 - 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
 ## ナレーション（1カットごと）
 
-- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、音声だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。`粗編集OK` のあと、パス選択で止めない。
-- 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。省略記号や余計な読み上げ用の句読点は入れない。
-- 生成後の取得はオペレーターに頼まない。「オーディオのみ」は押さない。Finder / OS / 埋め込みブラウザの保存ダイアログは使わない。オペレーターに「保存」を押させない。`~/Downloads/CapCut_TTS_*` は取得経路にしない。結果カードの `video`/`audio` currentSrc（`mime_type=audio_mpeg` など）を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。保存ダイアログが出ても閉じるか無視し、結果バイトを取る。成功したカットは再生成しない。CapCut の「さらに編集」は押さない。
-- 1カット1クリップとして編集正本へ戻し、そのカットの聞き取れる発話終わりで尺を合わせる。結合した1本のままタイムラインに残さない。
-- 画面の字幕と payload の TTS 文言は凍結行のまま。各カットの初回成功レンダーだけをそのカットの初回TTSとして数える。
+- 速度は常に **1.2倍速**。速度選択アルゴリズムは使わない。
+- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、音声だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。
+- 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。
+- 生成前にテキスト欄を全置換し、読み戻しが凍結行と完全一致してから生成する。結果カードの `video`/`audio` currentSrc を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。実再生時間を記録する。
+- 1カット1クリップとして編集正本へ戻し、そのカットの実測ナレーション尺で映像を合わせる。
 
 ## テロップ
 
 - 最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。
 - ChatCut では保存済みユーザープリセット `product-video-center` を一度 `preset_apply` する。案件ごとに太字・縁を作り直さない。背景帯は付けない。
-- はみ出す行は句読点や意味の切れ目で見た目だけ改行する。文字の追加・削除・並べ替えはしない。改行しても欠けるカードだけサイズを下げる（例: 50px）。そのサイズはカード例外で、プリセットには入れない。他カードと台詞は変えない。TTS は再生成しない。
-- 太字の見出しフォント（Dela Gothic One）と白い文字、太い黒縁、ドロップシャドウで目立たせる。背景帯は付けない。最終カットのホールドも同じ位置に合わせる。
-- JSON の座標より、合成フレームの中央を正とする。字幕ホールド用トラックが mute のとき refresh しない。カスタムカードのあと `maxLines` / `maxCharactersPerLine` / `pacing` の書き込みと `refresh` はしない。
-- ChatCut の Caption Cards は発話アイテムの ASR 単語範囲に縛られる。`cue_override` の成功 JSON はホールド証明ではない。同じ TTS アセットを mute 複製して字幕を伸ばさない。最終カットの凍結行は `timeline_end_frame` まで残す。証明できないときは `HOLD_CAPTION_TAIL_NOT_CLOSED`。
-- 映像レーンはクリップのゲイン下げではなく、トラック mute（`muted: true`、gain は null）を正とする。
-- CapCut TTS のテキスト欄は前回分が残る。貼るのはそのカットの凍結行だけ。結果カードは一発でその行だけが聞こえることを確認する。
-- `完成・書き出しOK` は `FINAL_REVIEW` で、現行の final-QA receipt にだけ結ぶ。`FINISHING` 中の同じ文言では書き出さない。
-- ChatCut の `show_preview` はライブのツールスキーマの `clientSurfaceVersion` を使う。`toolsOutOfDate` ならオペレーターにコネクタの Refresh Tools List を頼む。
+- テロップ文言は凍結行と完全一致。はみ出す行は句読点や意味の切れ目で見た目だけ改行する。文字の追加・削除・並べ替えはしない。
+- 太字の見出しフォント（Dela Gothic One）と白い文字、太い黒縁、ドロップシャドウで目立たせる。背景帯は付けない。
 
 ## Cursor Desktop browser and human handoff
 
 - Production host is this Mac's Cursor Desktop Agent. Do not use Cloud Agent for picture, captions, export, or Drive 格納.
-- Checkpoint 1 dialogue is drafted on this Mac with logged-in Antigravity CLI (`agy --print`) at Gemini 3.8 Flash. The agent sends the prompt and reads the dialogue in the same turn. Do not leave a paste for the operator. Do not use Gemini.app, the Gemini API, or `GEMINI_API_KEY`. Do not enable AI Credit overages. Completed-video 格納 uses `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not open Chrome.app for 格納. Drive originals/materials may use Google Chrome.app at `https://drive.google.com/`. The agent-controlled browser is not Antigravity CLI and must not be used as a substitute for that logged-in Google session. Do not use Google Drive for desktop.
+- Script drafts use this Mac's logged-in Antigravity CLI (`agy --print`) at Gemini 3.8 Flash. The agent sends the prompt and reads the dialogue in the same turn. Do not leave a paste for the operator. Do not use Gemini.app, the Gemini API, or `GEMINI_API_KEY`. Do not enable AI Credit overages. Completed-video 格納 uses `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not open Chrome.app for 格納. Drive originals/materials may use Google Chrome.app at `https://drive.google.com/`. The agent-controlled browser is not Antigravity CLI and must not be used as a substitute for that logged-in Google session. Do not use Google Drive for desktop.
 - Use the official CapCut Web origin in the agent-controlled browser only when that adapter exists. A host editor adapter (for example ChatCut) may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
 - When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Antigravity CLI needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. When Drive Web on Chrome.app needs the same user action, stop with `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`.
-- If the Cursor Agent lacks the browser/editor, rendered-frame, or audio capability required by the host-adapter contract, stop with the matching HOLD instead of claiming the edit is complete.
-- If the Agent cannot reliably hear the full timeline, keep auditory verification pending at Checkpoint 3 and ask the user to listen on the same desktop. Do not add a fourth checkpoint.
+- After a usable rough edit, stop for the operator. Do not add a third or fourth AI visual-quality checkpoint.

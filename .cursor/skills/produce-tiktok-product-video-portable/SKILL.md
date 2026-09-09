@@ -1,11 +1,14 @@
 ---
 name: produce-tiktok-product-video-portable
-description: Provider-neutral workflow for producing one new TikTok product video through script, editor finishing, final verification, export, and Drive 格納 with exactly three routine checkpoints. Product, materials, and Drive folder title are per-case inputs.
+description: Legacy package. Not the production entry. Use /product-video instead. Helper scripts in this directory may still be called by /product-video.
+disable-model-invocation: true
 ---
 
-# Produce TikTok Product Video — Portable
+# Produce TikTok Product Video — Portable (legacy)
 
-Use this file as the entrypoint. Resolve `SKILL_ROOT` to the directory containing this file. Resolve `PROJECT_ROOT` to the product project's trusted root. Never infer either path.
+Production entry is `/product-video`. Do not start a new case from this file.
+
+Use this file as the legacy reference only. Resolve `SKILL_ROOT` to the directory containing this file. Resolve `PROJECT_ROOT` to the product project's trusted root. Never infer either path.
 
 This package is assistant-provider neutral. The host must supply the capabilities in [references/host-adapter-contract.md](references/host-adapter-contract.md). A missing capability does not relax a rule: stop with the most specific HOLD state.
 

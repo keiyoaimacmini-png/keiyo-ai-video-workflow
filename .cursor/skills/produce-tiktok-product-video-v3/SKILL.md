@@ -1,12 +1,12 @@
 ---
 name: produce-tiktok-product-video-v3
-description: First-pass craft checks used by produce-tiktok-product-video-portable before 台本OK, 粗編集OK, and 完成・書き出しOK. Not a separate production skill and not a loop that waits for operator corrections.
+description: Legacy craft-check package. Not the production entry. Use /product-video instead. Not invoked by the new runtime.
 disable-model-invocation: true
 ---
 
-# Product-video craft checks
+# Product-video craft checks (legacy)
 
-Production starts from `/produce-tiktok-product-video-portable`. This directory only supplies first-pass checks those stages run before an OK phrase. Standing quality rules live in `$PROJECT_ROOT/config/product-video-rules/`. Do not copy Drive, TTS, or payload procedures here.
+Production starts from `/product-video`. This directory is not on the new runtime path. Standing quality rules live in `$PROJECT_ROOT/config/product-video-rules/`. Do not copy Drive, TTS, or payload procedures here.
 
 Resolve `PROJECT_ROOT` to the product project's trusted root. Resolve `SAFETY_SKILL_ROOT` to `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable`.
 
