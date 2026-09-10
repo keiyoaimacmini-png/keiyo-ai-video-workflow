@@ -90,6 +90,7 @@ FORBIDDEN_STATE_KEYS = frozenset(
 
 OWNED_HELPERS = {
     "prove_tts_textarea": "prove_tts_textarea.py",
+    "prepare_tts_field": "prepare_tts_field.py",
 }
 
 LEGACY_TRACKED_HELPERS = {
@@ -105,6 +106,7 @@ HELPER_SCRIPTS = {**OWNED_HELPERS, **LEGACY_TRACKED_HELPERS}
 
 RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/prove_tts_textarea.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/prepare_tts_field.py", "NARRATION"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py", "NARRATION"),

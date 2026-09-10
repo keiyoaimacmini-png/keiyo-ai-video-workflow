@@ -24,10 +24,11 @@ from constants import (  # noqa: E402
 )
 from delivery import may_complete, may_purge, may_start_job  # noqa: E402
 from dispatch import dispatch  # noqa: E402
-from narration import gate_tts_generate, narration_speed, record_clip, write_manifest  # noqa: E402
+from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
+from prepare_tts_field import compare_tts_readback, diagnose_mismatch  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from rough_edit import build_rough_edit  # noqa: E402
 from script_fidelity import assert_immutable  # noqa: E402
@@ -91,6 +92,10 @@ def fake_project(tmp: Path) -> Path:
     shutil.copy(
         REPO / ".cursor" / "skills" / "product-video" / "scripts" / "prove_tts_textarea.py",
         owned_scripts / "prove_tts_textarea.py",
+    )
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "prepare_tts_field.py",
+        owned_scripts / "prepare_tts_field.py",
     )
     helper_dir = tmp / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
     helper_dir.mkdir(parents=True)
@@ -222,6 +227,99 @@ def test_speed_and_tts(root: Path) -> None:
         frozen,
     )
     check("tts-mismatch-blocks", blocked.get("generate") is False)
+
+
+class FakeTtsField:
+    def __init__(self, *, prefix_on_write: list[str] | None = None) -> None:
+        self.field_id = "capcut-tts-textarea"
+        self.value = "STALE_LEFTOVER"
+        self.writes = 0
+        self.clears = 0
+        self.generation_count = 0
+        self.prefix_on_write = prefix_on_write or [""]
+
+    def identify(self) -> str:
+        return self.field_id
+
+    def clear(self) -> bool:
+        self.clears += 1
+        self.value = ""
+        return True
+
+    def write(self, text: str) -> bool:
+        if self.value != "":
+            raise AssertionError("append is forbidden; field must be empty")
+        prefix = self.prefix_on_write[min(self.writes, len(self.prefix_on_write) - 1)]
+        self.writes += 1
+        self.value = prefix + text
+        return True
+
+    def read_actual(self) -> str:
+        return self.value
+
+
+def test_tts_input_recovery(root: Path) -> None:
+    frozen = "夏の車に乗った瞬間、地獄すぎない？"
+    exact_record = {
+        "field_id": "capcut-tts-textarea",
+        "field_identified": True,
+        "full_replace_applied": True,
+        "textarea_readback": frozen,
+        "readback_source": "actual_textarea_value",
+        "frozen_line": frozen,
+        "input_tool_success": True,
+        "generation_count_for_cut": 0,
+    }
+    check("tts-recovery-A-exact-generate", gate_tts_generate(root, exact_record, frozen).get("generate") is True)
+
+    leading_nl = "\n" + frozen
+    check(
+        "tts-recovery-B-leading-newline-blocks",
+        gate_tts_generate(
+            root,
+            {**exact_record, "textarea_readback": leading_nl},
+            frozen,
+        ).get("generate")
+        is False,
+    )
+    diag_b = diagnose_mismatch(frozen, leading_nl)
+    check("tts-recovery-B-extra-U+000A", (diag_b.get("extra_codepoint") or "").startswith("U+000A"))
+    check("tts-recovery-B-repr", diag_b.get("actual_repr") == repr(leading_nl))
+
+    zwsp = "\u200b" + frozen
+    check(
+        "tts-recovery-C-leading-zwsp-blocks",
+        gate_tts_generate(root, {**exact_record, "textarea_readback": zwsp}, frozen).get("generate") is False,
+    )
+    diag_c = diagnose_mismatch(frozen, zwsp)
+    check("tts-recovery-C-extra-U+200B", diag_c.get("extra_codepoint") == "U+200B ZERO WIDTH SPACE")
+
+    trailing_nl = frozen + "\n"
+    check(
+        "tts-recovery-D-trailing-newline-blocks",
+        gate_tts_generate(root, {**exact_record, "textarea_readback": trailing_nl}, frozen).get("generate") is False,
+    )
+    diag_d = diagnose_mismatch(frozen, trailing_nl)
+    check("tts-recovery-D-extra-U+000A", (diag_d.get("extra_codepoint") or "").startswith("U+000A"))
+
+    retry_field = FakeTtsField(prefix_on_write=["\n", ""])
+    start_count = retry_field.generation_count
+    prepared = prepare_tts_input(retry_field, frozen, generation_count_for_cut=start_count)
+    check("tts-recovery-E-retry-then-match", prepared.get("exact_match") is True and prepared.get("input_attempts") == 2)
+    check(
+        "tts-recovery-F-retry-does-not-count-generation",
+        prepared.get("generation_count_for_cut") == start_count == retry_field.generation_count == 0,
+    )
+    if prepared.get("exact_match") is True:
+        gated = gate_tts_generate(root, prepared["record"], frozen)
+        check("tts-recovery-E-generate-after-retry", gated.get("generate") is True)
+    twice_bad = FakeTtsField(prefix_on_write=["\n", "\n"])
+    held = prepare_tts_input(twice_bad, frozen, generation_count_for_cut=0)
+    check("tts-recovery-second-mismatch-holds", held.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and held.get("generate") is False)
+    first = compare_tts_readback(frozen, leading_nl, attempt=1, generation_count_for_cut=0)
+    check("tts-recovery-attempt1-retry", first.get("retry") is True and first.get("generate") is False)
+    second = compare_tts_readback(frozen, leading_nl, attempt=2, generation_count_for_cut=0)
+    check("tts-recovery-attempt2-hold", second.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and second.get("retry") is False)
 
 
 def test_assembly_and_variety() -> None:
@@ -474,6 +572,10 @@ def test_prompt_template() -> None:
     check("prompt-has-campaign", "夏の車内" in prompt)
     check("prompt-keeps-1.2", "1.2倍速" in prompt)
     check("prompt-asks-3-to-5", "3〜5パターン" in prompt)
+    check("prompt-bans-model-in-line", "識別番号はセリフに入れない" in prompt)
+    check("prompt-bans-model-in-cta", "CTAにも型番を入れない" in prompt)
+    check("prompt-short-line-range", "12〜22文字" in prompt)
+    check("prompt-short-line-cap", "25文字を大きく超えない" in prompt)
 
 
 def test_runtime_path() -> None:
@@ -516,6 +618,9 @@ def test_git_tracked_helpers() -> None:
     check("tts-gate-not-legacy-untracked", "produce-tiktok-product-video-portable" not in owned)
     resolved = helper_path(REPO, "prove_tts_textarea")
     check("tts-gate-resolves-owned", resolved == REPO / owned)
+    prepare_owned = helper_relpath("prepare_tts_field")
+    check("tts-prepare-owned-path", prepare_owned == ".cursor/skills/product-video/scripts/prepare_tts_field.py")
+    check("tts-prepare-resolves-owned", helper_path(REPO, "prepare_tts_field") == REPO / prepare_owned)
     missing = missing_git_tracked_helpers(REPO)
     check("runtime-helpers-git-tracked", missing == [], str(missing))
     skill_py = re.compile(r"\$\{PROJECT_ROOT\}/(\.cursor/skills/[^\s`\"']+\.py)")
@@ -549,6 +654,7 @@ def test_git_tracked_helpers() -> None:
     check("owned-tts-exists", (REPO / owned).is_file())
     narration_skill = (skills_root / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
     check("narration-skill-uses-owned-tts", "product-video/scripts/prove_tts_textarea.py" in narration_skill)
+    check("narration-skill-uses-prepare-tts", "product-video/scripts/prepare_tts_field.py" in narration_skill)
     check(
         "narration-skill-no-legacy-tts",
         "produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" not in narration_skill,
@@ -582,6 +688,7 @@ def main() -> int:
     try:
         root = fake_project(scratch)
         test_speed_and_tts(root)
+        test_tts_input_recovery(root)
         test_create_case(root)
         test_dispatch_resume(root)
         entry_root = fake_project(scratch / "initial-entry")

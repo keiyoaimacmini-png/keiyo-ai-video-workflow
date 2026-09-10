@@ -9,6 +9,7 @@ from typing import Any
 
 from constants import NARRATION_SPEED
 from paths import case_root, helper_path
+from prepare_tts_field import prepare_tts_field
 from script_fidelity import assert_immutable, load_approved_script
 from workflow_state import hold
 
@@ -27,6 +28,25 @@ def load_tts_helper(project_root: Path):
 
 def narration_speed() -> float:
     return NARRATION_SPEED
+
+
+def prepare_tts_input(
+    field: Any,
+    approved_line: str,
+    *,
+    generation_count_for_cut: int = 0,
+    previous_line: str | None = None,
+) -> dict[str, Any]:
+    prepared = prepare_tts_field(
+        field,
+        approved_line,
+        generation_count_for_cut=generation_count_for_cut,
+        previous_line=previous_line,
+    )
+    prepared_count = prepared.get("generation_count_for_cut", generation_count_for_cut)
+    if prepared_count != generation_count_for_cut:
+        return hold("HOLD_TTS_INPUT_FIELD_UNVERIFIED", "input retry must not increment generation_count_for_cut")
+    return prepared
 
 
 def gate_tts_generate(project_root: Path, record: dict[str, Any], approved_line: str) -> dict[str, Any]:
