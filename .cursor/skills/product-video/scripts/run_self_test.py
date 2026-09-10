@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ from delivery import may_complete, may_purge, may_start_job  # noqa: E402
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, record_clip, write_manifest  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
+from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from rough_edit import build_rough_edit  # noqa: E402
@@ -84,22 +86,28 @@ def fake_project(tmp: Path) -> Path:
         REPO / ".cursor" / "skills" / "product-video" / "references" / "gemini-script-instructions.md",
         refs / "gemini-script-instructions.md",
     )
+    owned_scripts = skill / "scripts"
+    owned_scripts.mkdir()
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "prove_tts_textarea.py",
+        owned_scripts / "prove_tts_textarea.py",
+    )
     helper_dir = tmp / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
     helper_dir.mkdir(parents=True)
-    real_helpers = REPO / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
     for name in (
         "resolve_product_inputs.py",
-        "prove_tts_textarea.py",
         "send_gemini_cli_prompt.py",
         "capture_capcut_result_audio.py",
         "prove_source_range.py",
         "upload_drive_local_file.py",
         "purge_local_working_media.py",
     ):
-        src = real_helpers / name
+        relative = f".cursor/skills/produce-tiktok-product-video-portable/scripts/{name}"
+        if not git_tracks(REPO, relative):
+            raise FileNotFoundError(f"refusing untracked legacy helper: {relative}")
+        src = REPO / relative
         dest = helper_dir / name
-        if src.is_file():
-            dest.symlink_to(src)
+        dest.symlink_to(src)
     config = tmp / "config"
     config.mkdir()
     settings = {
@@ -461,6 +469,53 @@ def test_runtime_path() -> None:
     check("entry-is-product-video", (skills_root / "product-video" / "SKILL.md").read_text(encoding="utf-8").startswith("---\nname: product-video"))
 
 
+def test_git_tracked_helpers() -> None:
+    owned = helper_relpath("prove_tts_textarea")
+    check("tts-gate-owned-path", owned == ".cursor/skills/product-video/scripts/prove_tts_textarea.py")
+    check("tts-gate-not-legacy-untracked", "produce-tiktok-product-video-portable" not in owned)
+    resolved = helper_path(REPO, "prove_tts_textarea")
+    check("tts-gate-resolves-owned", resolved == REPO / owned)
+    missing = missing_git_tracked_helpers(REPO)
+    check("runtime-helpers-git-tracked", missing == [], str(missing))
+    skill_py = re.compile(r"\$\{PROJECT_ROOT\}/(\.cursor/skills/[^\s`\"']+\.py)")
+    skills_root = REPO / ".cursor" / "skills"
+    for name in (
+        "product-video",
+        "product-video-prepare",
+        "product-video-script",
+        "product-video-narration",
+        "product-video-assembly",
+        "product-video-rough-edit",
+        "product-video-delivery",
+    ):
+        text = (skills_root / name / "SKILL.md").read_text(encoding="utf-8")
+        for relative in skill_py.findall(text):
+            check(
+                f"skill-helper-tracked-{name}:{Path(relative).name}",
+                git_tracks(REPO, relative),
+                relative,
+            )
+    portable_untracked = (
+        REPO / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts" / "prove_tts_textarea.py"
+    )
+    check(
+        "legacy-untracked-tts-not-required",
+        not git_tracks(
+            REPO,
+            ".cursor/skills/produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py",
+        ),
+    )
+    check("owned-tts-exists", (REPO / owned).is_file())
+    narration_skill = (skills_root / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    check("narration-skill-uses-owned-tts", "product-video/scripts/prove_tts_textarea.py" in narration_skill)
+    check(
+        "narration-skill-no-legacy-tts",
+        "produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" not in narration_skill,
+    )
+    if portable_untracked.is_file():
+        check("does-not-use-untracked-copy-as-runtime", resolved != portable_untracked.resolve())
+
+
 def test_forbidden_state() -> None:
     errors = validate_compact({"schema": "x", "base64": "AAAA", "current_stage": "PREPARE"})
     check("state-rejects-base64-key", bool(errors))
@@ -477,6 +532,7 @@ def main() -> int:
     test_telop_and_rough()
     test_delivery_gates()
     test_runtime_path()
+    test_git_tracked_helpers()
     test_forbidden_state()
     scratch = SCRIPTS / "_scratch"
     if scratch.exists():

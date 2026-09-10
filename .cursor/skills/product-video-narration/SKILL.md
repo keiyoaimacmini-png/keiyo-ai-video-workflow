@@ -18,12 +18,16 @@ For every frozen line:
 4. Gate generation:
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" --record-json '<record>'
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/prove_tts_textarea.py" --record-json '<record>'
 ```
 
 Generate only when that helper returns `generate: true`. A tool-success JSON is not a match.
 
 5. Save audio with the existing capture helper into the case TTS directory. Do not use Downloads or a save dialog.
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py" --url <result-src> --output <task-root>/tts/<cut-id>.mp3
+```
 6. Measure actual playback duration. Record path + duration. Do not judge voice quality. Stop only for wrong text, mixed leftover text, missing audio, or corrupt/truncated output.
 
 After every cut is recorded, write `narration-manifest.json` with speed `1.2` and complete `NARRATION`. Return to `/product-video`. Next stage is ASSEMBLY.

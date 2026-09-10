@@ -1,10 +1,15 @@
-# Reused helpers (scripts only)
+# Runtime helpers
 
-Do not open old product-video Skills. Call these existing scripts by path:
+Do not open old product-video Skills. Call these scripts by path.
+
+Owned by `/product-video`:
+
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_tts_textarea.py`
+
+Tracked helpers reused from the portable scripts directory (Git-tracked files only):
 
 - `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py`
 - `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py`
-- `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py`
 - `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py`
 - `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_source_range.py`
 - `$PROJECT_ROOT/.cursor/skills/produce-tiktok-product-video-portable/scripts/upload_drive_local_file.py`
@@ -16,3 +21,4 @@ Never invoke:
 - `produce-tiktok-product-video-v3/SKILL.md`
 - `validate_craft_quality.py`
 - `select_common_tts_speed.py`
+- untracked legacy copies of `prove_tts_textarea.py`
