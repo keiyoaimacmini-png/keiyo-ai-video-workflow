@@ -5,6 +5,10 @@ Do not open old product-video Skills. Call these scripts by path.
 Owned by `/product-video`:
 
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_tts_textarea.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prepare_tts_field.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/resolve_tts_text.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_tts_speed.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/tts_attempts.py`
 
 Tracked helpers reused from the portable scripts directory (Git-tracked files only):
 

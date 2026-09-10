@@ -5,6 +5,10 @@ from __future__ import annotations
 
 SCHEMA = "product_video_state.v1"
 NARRATION_SPEED = 1.2
+MAX_GENERATIONS_PER_CUT = 2
+HOLD_TTS_SPEED_UNVERIFIED = "HOLD_TTS_SPEED_UNVERIFIED"
+HOLD_TTS_INPUT_FIELD_UNVERIFIED = "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
+HOLD_CAPCUT_TTS_GENERATE_FAILED = "HOLD_CAPCUT_TTS_GENERATE_FAILED"
 STATE_FILENAME = "workflow-state.json"
 STATE_MAX_BYTES = 16384
 RECEIPT_MAX_BYTES = 65536
@@ -91,6 +95,9 @@ FORBIDDEN_STATE_KEYS = frozenset(
 OWNED_HELPERS = {
     "prove_tts_textarea": "prove_tts_textarea.py",
     "prepare_tts_field": "prepare_tts_field.py",
+    "resolve_tts_text": "resolve_tts_text.py",
+    "prove_tts_speed": "prove_tts_speed.py",
+    "tts_attempts": "tts_attempts.py",
 }
 
 LEGACY_TRACKED_HELPERS = {
@@ -107,6 +114,9 @@ HELPER_SCRIPTS = {**OWNED_HELPERS, **LEGACY_TRACKED_HELPERS}
 RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/prove_tts_textarea.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/prepare_tts_field.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/resolve_tts_text.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/prove_tts_speed.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/tts_attempts.py", "NARRATION"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py", "NARRATION"),

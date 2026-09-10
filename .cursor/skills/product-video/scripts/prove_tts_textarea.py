@@ -16,6 +16,23 @@ from typing import Any
 HOLD_FIELD = "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
 HOLD_ALLOWANCE = "HOLD_TTS_ALLOWANCE_EXHAUSTED"
 MAX_GENERATIONS_PER_CUT = 2
+FORBIDDEN_READBACK_SOURCES = frozenset(
+    {
+        "document_html",
+        "document_html_line_text",
+        "preview_text",
+        "ocr_text",
+        "visible_text",
+    }
+)
+ALLOWED_READBACK_SOURCES = frozenset(
+    {
+        "actual_textarea_value",
+        "editor_model",
+        "submission_state",
+        "user_authored_dom_nodes",
+    }
+)
 
 
 def normalize_line(value: object) -> str | None:
@@ -59,8 +76,10 @@ def decide_tts_generate(record: dict[str, Any]) -> dict[str, Any]:
         errors.append("frozen_line must be the approved non-empty line")
     if not replaced:
         errors.append("textarea must be fully replaced, not appended")
-    if readback_source != "actual_textarea_value":
-        errors.append("readback_source must be actual_textarea_value")
+    if readback_source in FORBIDDEN_READBACK_SOURCES:
+        errors.append("document HTML, preview, OCR, or visible text is not TTS input proof")
+    elif readback_source not in ALLOWED_READBACK_SOURCES:
+        errors.append("readback_source must be the CapCut TTS submission text")
     if readback is None:
         errors.append("textarea_readback is unavailable")
         return {"status": "HOLD", "hold": HOLD_FIELD, "generate": False, "errors": errors}
@@ -200,7 +219,20 @@ def self_test() -> int:
     if second.get("generate") is not True:
         print("SELF-TEST FAILED: second generate after exact read-back should remain allowed")
         return 1
-    print("SELF-TEST PASSED: 7 cases")
+    html_only = decide_tts_generate({
+        "field_id": "capcut-tts-textarea",
+        "field_identified": True,
+        "full_replace_applied": True,
+        "textarea_readback": frozen,
+        "readback_source": "document_html_line_text",
+        "frozen_line": frozen,
+        "input_tool_success": True,
+        "generation_count_for_cut": 0,
+    })
+    if html_only.get("generate") is not False or html_only.get("hold") != HOLD_FIELD:
+        print("SELF-TEST FAILED: document HTML must not be TTS input proof")
+        return 1
+    print("SELF-TEST PASSED: 8 cases")
     return 0
 
 

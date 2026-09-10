@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Narration at fixed 1.2x. TTS generate only after exact textarea read-back."""
+"""Narration at fixed 1.2x. TTS generate only after effective text and speed read-back."""
 
 from __future__ import annotations
 
@@ -10,6 +10,9 @@ from typing import Any
 from constants import NARRATION_SPEED
 from paths import case_root, helper_path
 from prepare_tts_field import prepare_tts_field
+from prove_tts_speed import prove_tts_speed
+from prove_tts_textarea import FORBIDDEN_READBACK_SOURCES
+from resolve_tts_text import compare_effective_to_frozen
 from script_fidelity import assert_immutable, load_approved_script
 from workflow_state import hold
 
@@ -50,11 +53,35 @@ def prepare_tts_input(
 
 
 def gate_tts_generate(project_root: Path, record: dict[str, Any], approved_line: str) -> dict[str, Any]:
-    fidelity = assert_immutable(approved_line, record.get("frozen_line") or "", role="tts_input")
+    if not isinstance(record, dict):
+        return hold("HOLD_TTS_INPUT_FIELD_UNVERIFIED", "tts generate record must be an object", generate=False)
+    gated = dict(record)
+    observation = gated.get("observation")
+    if observation is not None:
+        resolved = compare_effective_to_frozen(approved_line, observation)
+        if resolved.get("status") != "OK" or resolved.get("effective_tts_text") != approved_line:
+            payload = dict(resolved)
+            payload["generate"] = False
+            payload["hold"] = payload.get("hold") or "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
+            return payload
+        gated["textarea_readback"] = resolved["effective_tts_text"]
+        gated["readback_source"] = resolved["readback_source"]
+        gated["effective_tts_text"] = resolved["effective_tts_text"]
+        gated["frozen_line"] = approved_line
+    if gated.get("readback_source") in FORBIDDEN_READBACK_SOURCES:
+        return hold(
+            "HOLD_TTS_INPUT_FIELD_UNVERIFIED",
+            "document HTML, preview, OCR, or visible text is not TTS input proof",
+            generate=False,
+            rejected_proof_source=gated.get("readback_source"),
+        )
+    fidelity = assert_immutable(approved_line, gated.get("frozen_line") or "", role="tts_input")
     if fidelity.get("status") != "OK":
-        return fidelity
+        payload = dict(fidelity)
+        payload["generate"] = False
+        return payload
     helper = load_tts_helper(project_root)
-    decision = helper.decide_tts_generate(record)
+    decision = helper.decide_tts_generate(gated)
     if decision.get("generate") is not True:
         return {
             "status": "HOLD",
@@ -62,11 +89,26 @@ def gate_tts_generate(project_root: Path, record: dict[str, Any], approved_line:
             "generate": False,
             "errors": decision.get("errors") or ["textarea read-back mismatch"],
         }
+    speed = prove_tts_speed(gated)
+    if speed.get("speed_ok") is not True:
+        return {
+            "status": "HOLD",
+            "hold": speed.get("hold") or "HOLD_TTS_SPEED_UNVERIFIED",
+            "generate": False,
+            "reason": speed.get("reason") or "actual CapCut speed value is unavailable",
+            "actual_speed": speed.get("actual_speed"),
+        }
+    readback = gated.get("effective_tts_text")
+    if readback is None:
+        readback = gated.get("textarea_readback")
     return {
         "status": "OK",
         "generate": True,
         "speed": NARRATION_SPEED,
+        "actual_speed": NARRATION_SPEED,
         "bound_frozen_line": approved_line,
+        "effective_tts_text": readback,
+        "readback_source": gated.get("readback_source"),
     }
 
 

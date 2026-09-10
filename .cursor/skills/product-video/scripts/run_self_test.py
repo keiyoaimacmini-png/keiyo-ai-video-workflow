@@ -25,6 +25,9 @@ from constants import (  # noqa: E402
 from delivery import may_complete, may_purge, may_start_job  # noqa: E402
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
+from prove_tts_speed import prove_tts_speed  # noqa: E402
+from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
+from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
@@ -96,6 +99,18 @@ def fake_project(tmp: Path) -> Path:
     shutil.copy(
         REPO / ".cursor" / "skills" / "product-video" / "scripts" / "prepare_tts_field.py",
         owned_scripts / "prepare_tts_field.py",
+    )
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "resolve_tts_text.py",
+        owned_scripts / "resolve_tts_text.py",
+    )
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "prove_tts_speed.py",
+        owned_scripts / "prove_tts_speed.py",
+    )
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "tts_attempts.py",
+        owned_scripts / "tts_attempts.py",
     )
     helper_dir = tmp / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
     helper_dir.mkdir(parents=True)
@@ -207,6 +222,8 @@ def test_speed_and_tts(root: Path) -> None:
             "frozen_line": frozen,
             "input_tool_success": True,
             "generation_count_for_cut": 0,
+            "actual_speed": 1.2,
+            "speed_readback_source": "internal_model",
         },
         frozen,
     )
@@ -268,6 +285,8 @@ def test_tts_input_recovery(root: Path) -> None:
         "frozen_line": frozen,
         "input_tool_success": True,
         "generation_count_for_cut": 0,
+        "actual_speed": 1.2,
+        "speed_readback_source": "internal_model",
     }
     check("tts-recovery-A-exact-generate", gate_tts_generate(root, exact_record, frozen).get("generate") is True)
 
@@ -310,7 +329,11 @@ def test_tts_input_recovery(root: Path) -> None:
         prepared.get("generation_count_for_cut") == start_count == retry_field.generation_count == 0,
     )
     if prepared.get("exact_match") is True:
-        gated = gate_tts_generate(root, prepared["record"], frozen)
+        gated = gate_tts_generate(
+            root,
+            {**prepared["record"], "actual_speed": 1.2, "speed_readback_source": "internal_model"},
+            frozen,
+        )
         check("tts-recovery-E-generate-after-retry", gated.get("generate") is True)
     twice_bad = FakeTtsField(prefix_on_write=["\n", "\n"])
     held = prepare_tts_input(twice_bad, frozen, generation_count_for_cut=0)
@@ -367,7 +390,186 @@ def test_tts_input_recovery(root: Path) -> None:
     prepared_f = prepare_tts_input(write_exact, frozen, generation_count_for_cut=0)
     check("tts-prewrite-F-postwrite-exact", prepared_f.get("exact_match") is True)
     if prepared_f.get("exact_match") is True:
-        check("tts-prewrite-F-generate-allowed", gate_tts_generate(root, prepared_f["record"], frozen).get("generate") is True)
+        check(
+            "tts-prewrite-F-generate-allowed",
+            gate_tts_generate(
+                root,
+                {**prepared_f["record"], "actual_speed": 1.2, "speed_readback_source": "internal_model"},
+                frozen,
+            ).get("generate")
+            is True,
+        )
+
+
+def test_tts_runtime_gaps(root: Path) -> None:
+    frozen = "夏の車に乗った瞬間、地獄すぎない？"
+    case_id = "pv-AN-S999-tts-attempts"
+    (root / "outputs" / case_id / "tts").mkdir(parents=True, exist_ok=True)
+    base_record = {
+        "field_id": "capcut-tts-contenteditable",
+        "field_identified": True,
+        "full_replace_applied": True,
+        "frozen_line": frozen,
+        "input_tool_success": True,
+        "generation_count_for_cut": 0,
+        "actual_speed": 1.2,
+        "speed_readback_source": "internal_model",
+    }
+
+    html_obs = {
+        "inner_text": frozen + "\u200b",
+        "document_html_line_text": frozen,
+        "proof_source": "document_html_line_text",
+    }
+    html_resolved = resolve_effective_tts_text(html_obs)
+    check(
+        "tts-gap-A-document-html-not-proof",
+        html_resolved.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
+        and html_resolved.get("effective_tts_text") is None
+        and html_resolved.get("rejected_proof_source") == "document_html_line_text",
+    )
+    html_fallback = resolve_effective_tts_text(
+        {"inner_text": frozen + "\u200b", "document_html_line_text": frozen}
+    )
+    check(
+        "tts-gap-A-does-not-use-matching-document-text",
+        html_fallback.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
+        and html_fallback.get("effective_tts_text") is None
+        and html_fallback.get("ignored_document_html") is True,
+    )
+    html_gate = gate_tts_generate(
+        root,
+        {**base_record, "textarea_readback": frozen, "readback_source": "document_html_line_text"},
+        frozen,
+    )
+    check(
+        "tts-gap-A-gate-rejects-document-html",
+        html_gate.get("generate") is False and html_gate.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED",
+    )
+
+    sentinel_obs = {
+        "inner_text": frozen + "\u200b",
+        "dom_nodes": [
+            {"text": frozen, "kind": "user_authored"},
+            {
+                "text": "\u200b",
+                "kind": "structural_sentinel",
+                "independent": True,
+                "evidence": "CapCut editor-kit empty-line marker leaf",
+            },
+        ],
+    }
+    sentinel = compare_effective_to_frozen(frozen, sentinel_obs)
+    check(
+        "tts-gap-B-sentinel-nodes-pass",
+        sentinel.get("exact_match") is True
+        and sentinel.get("effective_tts_text") == frozen
+        and sentinel.get("readback_source") == "user_authored_dom_nodes",
+    )
+    sentinel_gate = gate_tts_generate(root, {**base_record, "observation": sentinel_obs}, frozen)
+    check("tts-gap-B-gate-generate", sentinel_gate.get("generate") is True)
+
+    unknown = resolve_effective_tts_text(
+        {
+            "inner_text": frozen + "\u200b",
+            "dom_nodes": [
+                {"text": frozen + "\u200b", "kind": "unknown"},
+            ],
+        }
+    )
+    check(
+        "tts-gap-C-unclassified-zwsp-holds",
+        unknown.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and unknown.get("generate") is False,
+    )
+    inner_only = resolve_effective_tts_text({"inner_text": frozen + "\u200b"})
+    check(
+        "tts-gap-C-innertext-zwsp-without-nodes-holds",
+        inner_only.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED",
+    )
+
+    setter_only = prove_tts_speed({"on_speed_change_called": True, "setter_succeeded": True})
+    check(
+        "tts-gap-D-setter-is-not-speed-proof",
+        setter_only.get("hold") == "HOLD_TTS_SPEED_UNVERIFIED" and setter_only.get("speed_ok") is not True,
+    )
+    speed_missing = gate_tts_generate(
+        root,
+        {
+            **base_record,
+            "textarea_readback": frozen,
+            "readback_source": "actual_textarea_value",
+            "actual_speed": None,
+        },
+        frozen,
+    )
+    check(
+        "tts-gap-D-gate-holds-unverified-speed",
+        speed_missing.get("hold") == "HOLD_TTS_SPEED_UNVERIFIED" and speed_missing.get("generate") is False,
+    )
+
+    speed_ok = prove_tts_speed({"actual_speed": 1.2, "speed_readback_source": "ui"})
+    check("tts-gap-E-actual-1.2-passes", speed_ok.get("speed_ok") is True and speed_ok.get("actual_speed") == 1.2)
+
+    failed = record_generation_attempt(
+        root,
+        case_id,
+        "c1",
+        outcome="failure",
+        adopted_audio=True,
+        hold_code="HOLD_CAPCUT_TTS_GENERATE_FAILED",
+    )
+    stored = load_attempts(root, case_id)
+    check(
+        "tts-gap-F-failure-increments-without-audio",
+        failed.get("generation_count_for_cut") == 1
+        and failed.get("adopted_audio") is False
+        and generation_count_for_cut(stored, "c1") == 1
+        and stored["cuts"]["c1"]["last_outcome"] == "failure",
+    )
+
+    resumed = may_generate_cut(stored, "c1")
+    check(
+        "tts-gap-G-resume-starts-at-count-1",
+        resumed.get("generate") is True
+        and resumed.get("generation_count_for_cut") == 1
+        and resumed.get("next_attempt_number") == 2,
+    )
+    second_allowed = gate_tts_generate(
+        root,
+        {
+            **base_record,
+            "textarea_readback": frozen,
+            "readback_source": "actual_textarea_value",
+            "generation_count_for_cut": 1,
+        },
+        frozen,
+    )
+    check("tts-gap-G-second-generate-allowed", second_allowed.get("generate") is True)
+    second_fail = record_generation_attempt(root, case_id, "c1", outcome="failure")
+    check("tts-gap-G-second-failure-count-2", second_fail.get("generation_count_for_cut") == 2)
+
+    blocked = may_generate_cut(load_attempts(root, case_id), "c1")
+    check(
+        "tts-gap-H-third-may-generate-forbidden",
+        blocked.get("hold") == "HOLD_TTS_ALLOWANCE_EXHAUSTED" and blocked.get("generate") is False,
+    )
+    third_record = record_generation_attempt(root, case_id, "c1", outcome="failure")
+    check(
+        "tts-gap-H-third-record-forbidden",
+        third_record.get("hold") == "HOLD_TTS_ALLOWANCE_EXHAUSTED"
+        and generation_count_for_cut(load_attempts(root, case_id), "c1") == 2,
+    )
+    third_gate = gate_tts_generate(
+        root,
+        {
+            **base_record,
+            "textarea_readback": frozen,
+            "readback_source": "actual_textarea_value",
+            "generation_count_for_cut": 2,
+        },
+        frozen,
+    )
+    check("tts-gap-H-third-generate-forbidden", third_gate.get("hold") == "HOLD_TTS_ALLOWANCE_EXHAUSTED")
 
 
 def test_assembly_and_variety() -> None:
@@ -669,6 +871,13 @@ def test_git_tracked_helpers() -> None:
     prepare_owned = helper_relpath("prepare_tts_field")
     check("tts-prepare-owned-path", prepare_owned == ".cursor/skills/product-video/scripts/prepare_tts_field.py")
     check("tts-prepare-resolves-owned", helper_path(REPO, "prepare_tts_field") == REPO / prepare_owned)
+    for name, rel in (
+        ("resolve_tts_text", ".cursor/skills/product-video/scripts/resolve_tts_text.py"),
+        ("prove_tts_speed", ".cursor/skills/product-video/scripts/prove_tts_speed.py"),
+        ("tts_attempts", ".cursor/skills/product-video/scripts/tts_attempts.py"),
+    ):
+        check(f"tts-{name}-owned-path", helper_relpath(name) == rel)
+        check(f"tts-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
     missing = missing_git_tracked_helpers(REPO)
     check("runtime-helpers-git-tracked", missing == [], str(missing))
     skill_py = re.compile(r"\$\{PROJECT_ROOT\}/(\.cursor/skills/[^\s`\"']+\.py)")
@@ -703,6 +912,9 @@ def test_git_tracked_helpers() -> None:
     narration_skill = (skills_root / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
     check("narration-skill-uses-owned-tts", "product-video/scripts/prove_tts_textarea.py" in narration_skill)
     check("narration-skill-uses-prepare-tts", "product-video/scripts/prepare_tts_field.py" in narration_skill)
+    check("narration-skill-uses-resolve-tts", "product-video/scripts/resolve_tts_text.py" in narration_skill)
+    check("narration-skill-uses-speed-proof", "product-video/scripts/prove_tts_speed.py" in narration_skill)
+    check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
     check(
         "narration-skill-no-legacy-tts",
         "produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" not in narration_skill,
@@ -737,6 +949,7 @@ def main() -> int:
         root = fake_project(scratch)
         test_speed_and_tts(root)
         test_tts_input_recovery(root)
+        test_tts_runtime_gaps(root)
         test_create_case(root)
         test_dispatch_resume(root)
         entry_root = fake_project(scratch / "initial-entry")
