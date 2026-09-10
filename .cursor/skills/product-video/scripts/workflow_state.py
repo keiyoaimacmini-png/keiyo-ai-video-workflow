@@ -15,9 +15,10 @@ from constants import (
     NARRATION_SPEED,
     SCHEMA,
     STAGES,
+    STATE_FILENAME,
     STATE_MAX_BYTES,
 )
-from paths import case_root, receipts_dir, state_path
+from paths import outputs_root, receipts_dir, state_path
 
 
 def now_iso() -> str:
@@ -183,7 +184,7 @@ def complete_stage(
 
 
 def find_active_case(project_root: Path, product_model: str | None = None) -> str | None:
-    root = case_root(project_root, "").parent
+    root = outputs_root(project_root)
     if not root.is_dir():
         return None
     found: list[tuple[str, str]] = []

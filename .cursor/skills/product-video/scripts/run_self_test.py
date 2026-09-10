@@ -344,6 +344,47 @@ def test_delivery_gates() -> None:
     check("purge-after-verified-delivery", after.get("purge") is True)
 
 
+def test_dispatch_initial_entry(root: Path) -> None:
+    """No case_id and no active case: first dispatch must create PREPARE without NameError."""
+    outputs = root / "outputs"
+    preexisting = [p.name for p in outputs.iterdir()] if outputs.is_dir() else []
+    check("initial-entry-no-active-case", preexisting == [], str(preexisting))
+    try:
+        first = dispatch(root, product_model="AN-S999")
+    except Exception as exc:  # noqa: BLE001 - this regression was a NameError
+        check("initial-entry-no-exception", False, f"{type(exc).__name__}: {exc}")
+        return
+    check("initial-entry-no-exception", True)
+    check("initial-entry-action", first.get("action") == "run_skill")
+    check("initial-entry-skill", first.get("skill") == "product-video-prepare")
+    check("initial-entry-stage", first.get("stage") == "PREPARE")
+    case_id = first.get("case_id")
+    check(
+        "initial-entry-case-created",
+        isinstance(case_id, str) and str(case_id).startswith("pv-AN-S999-"),
+        str(case_id),
+    )
+    state_file = root / "outputs" / str(case_id) / "workflow-state.json"
+    check("initial-entry-state-exists", state_file.is_file())
+    cases = sorted(p.name for p in outputs.iterdir() if p.is_dir()) if outputs.is_dir() else []
+    check("initial-entry-one-case", cases == [case_id], str(cases))
+    try:
+        second = dispatch(root, product_model="AN-S999")
+    except Exception as exc:  # noqa: BLE001
+        check("initial-entry-reuse-no-exception", False, f"{type(exc).__name__}: {exc}")
+        return
+    check("initial-entry-reuse-no-exception", True)
+    check("initial-entry-reuse-same-case", second.get("case_id") == case_id, str(second.get("case_id")))
+    check(
+        "initial-entry-reuse-prepare",
+        second.get("action") == "run_skill"
+        and second.get("skill") == "product-video-prepare"
+        and second.get("stage") == "PREPARE",
+    )
+    cases_after = sorted(p.name for p in outputs.iterdir() if p.is_dir()) if outputs.is_dir() else []
+    check("initial-entry-no-duplicate-case", cases_after == [case_id], str(cases_after))
+
+
 def test_dispatch_resume(root: Path) -> None:
     case_id = "pv-AN-S999-test"
     seed_state(root, case_id, "PREPARE", [])
@@ -543,6 +584,8 @@ def main() -> int:
         test_speed_and_tts(root)
         test_create_case(root)
         test_dispatch_resume(root)
+        entry_root = fake_project(scratch / "initial-entry")
+        test_dispatch_initial_entry(entry_root)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     if FAILURES:
