@@ -28,7 +28,7 @@ from narration import gate_tts_generate, narration_speed, prepare_tts_input, rec
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
-from prepare_tts_field import compare_tts_readback, diagnose_mismatch  # noqa: E402
+from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from rough_edit import build_rough_edit  # noqa: E402
 from script_fidelity import assert_immutable  # noqa: E402
@@ -230,25 +230,24 @@ def test_speed_and_tts(root: Path) -> None:
 
 
 class FakeTtsField:
-    def __init__(self, *, prefix_on_write: list[str] | None = None) -> None:
+    def __init__(self, *, prefix_on_write: list[str] | None = None, after_clear: str = "") -> None:
         self.field_id = "capcut-tts-textarea"
         self.value = "STALE_LEFTOVER"
         self.writes = 0
         self.clears = 0
         self.generation_count = 0
         self.prefix_on_write = prefix_on_write or [""]
+        self.after_clear = after_clear
 
     def identify(self) -> str:
         return self.field_id
 
     def clear(self) -> bool:
         self.clears += 1
-        self.value = ""
+        self.value = self.after_clear
         return True
 
     def write(self, text: str) -> bool:
-        if self.value != "":
-            raise AssertionError("append is forbidden; field must be empty")
         prefix = self.prefix_on_write[min(self.writes, len(self.prefix_on_write) - 1)]
         self.writes += 1
         self.value = prefix + text
@@ -320,6 +319,55 @@ def test_tts_input_recovery(root: Path) -> None:
     check("tts-recovery-attempt1-retry", first.get("retry") is True and first.get("generate") is False)
     second = compare_tts_readback(frozen, leading_nl, attempt=2, generation_count_for_cut=0)
     check("tts-recovery-attempt2-hold", second.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and second.get("retry") is False)
+
+    check("tts-prewrite-empty-literal", is_pre_write_empty("") is True)
+    check("tts-prewrite-empty-zwsp", is_pre_write_empty("\u200b") is True)
+    check("tts-prewrite-not-newline", is_pre_write_empty("\n") is False)
+    check("tts-prewrite-not-space", is_pre_write_empty(" ") is False)
+    check("tts-prewrite-not-zwsp-plus-line", is_pre_write_empty("\u200b" + frozen) is False)
+
+    empty_ok = FakeTtsField(after_clear="")
+    prepared_a = prepare_tts_input(empty_ok, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-A-clear-empty-allows-write", prepared_a.get("exact_match") is True and empty_ok.writes == 1)
+
+    zwsp_empty = FakeTtsField(after_clear="\u200b")
+    prepared_b = prepare_tts_input(zwsp_empty, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-B-clear-zwsp-allows-write", prepared_b.get("exact_match") is True and zwsp_empty.writes == 1)
+
+    nl_empty = FakeTtsField(after_clear="\n")
+    held_c = prepare_tts_input(nl_empty, frozen, generation_count_for_cut=0)
+    check(
+        "tts-prewrite-C-clear-newline-holds",
+        held_c.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and nl_empty.writes == 0,
+    )
+
+    space_empty = FakeTtsField(after_clear=" ")
+    held_d = prepare_tts_input(space_empty, frozen, generation_count_for_cut=0)
+    check(
+        "tts-prewrite-D-clear-space-holds",
+        held_d.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and space_empty.writes == 0,
+    )
+
+    leftover = FakeTtsField(after_clear=frozen)
+    held_prev = prepare_tts_input(leftover, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-leftover-line-holds", held_prev.get("generate") is False and leftover.writes == 0)
+    leftover_zwsp = FakeTtsField(after_clear="\u200b" + frozen)
+    held_prev_zwsp = prepare_tts_input(leftover_zwsp, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-zwsp-plus-line-holds", held_prev_zwsp.get("generate") is False and leftover_zwsp.writes == 0)
+
+    write_zwsp = FakeTtsField(prefix_on_write=["\u200b"], after_clear="\u200b")
+    prepared_e = prepare_tts_input(write_zwsp, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-E-postwrite-leading-zwsp-mismatch", prepared_e.get("exact_match") is not True and prepared_e.get("generate") is False)
+    if prepared_e.get("record"):
+        check("tts-prewrite-E-must-not-gate-generate", False, "mismatch produced a prove record")
+    else:
+        check("tts-prewrite-E-no-prove-record", True)
+
+    write_exact = FakeTtsField(after_clear="\u200b")
+    prepared_f = prepare_tts_input(write_exact, frozen, generation_count_for_cut=0)
+    check("tts-prewrite-F-postwrite-exact", prepared_f.get("exact_match") is True)
+    if prepared_f.get("exact_match") is True:
+        check("tts-prewrite-F-generate-allowed", gate_tts_generate(root, prepared_f["record"], frozen).get("generate") is True)
 
 
 def test_assembly_and_variety() -> None:

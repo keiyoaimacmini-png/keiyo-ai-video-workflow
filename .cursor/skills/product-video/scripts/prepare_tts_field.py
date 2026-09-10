@@ -5,6 +5,10 @@ Never trim, strip, ignore newlines, ignore zero-width characters, normalize
 Unicode, or treat visible/OCR text as a match. Generate is allowed only when
 the actual field value equals the frozen line. One input retry is allowed and
 does not count as a TTS generation.
+
+A lone U+200B after clear is treated as CapCut's empty marker for the
+pre-write empty check only. Post-write read-back still requires raw
+actual == frozen_line.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from typing import Any, Protocol
 
 HOLD_FIELD = "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
 MAX_INPUT_ATTEMPTS = 2
+PRE_WRITE_EMPTY_VALUES = frozenset(("", "\u200b"))
 CONTROL_NAMES = {
     "\n": "LINE FEED (LF)",
     "\r": "CARRIAGE RETURN (CR)",
@@ -28,6 +33,11 @@ class TtsField(Protocol):
     def clear(self) -> bool: ...
     def write(self, text: str) -> bool: ...
     def read_actual(self) -> str | None: ...
+
+
+def is_pre_write_empty(actual: str) -> bool:
+    """CapCut empty marker only. Do not use this after writing the frozen line."""
+    return actual in PRE_WRITE_EMPTY_VALUES
 
 
 def codepoint_label(char: str) -> str:
@@ -139,7 +149,7 @@ def _write_frozen_only(field: TtsField, frozen_line: str) -> dict[str, Any]:
             "reason": "actual textarea value unavailable",
             "diagnostic": diagnose_mismatch("", None),
         }
-    if emptied != "":
+    if not is_pre_write_empty(emptied):
         return {
             "status": "HOLD",
             "hold": HOLD_FIELD,
