@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Narration at fixed 1.2x. TTS generate only after effective text and speed read-back."""
+"""Narration source audio from CapCut; 1.2x is ChatCut clip playbackRate, not CapCut generate."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 from constants import NARRATION_SPEED
 from paths import case_root, helper_path
 from prepare_tts_field import prepare_tts_field
-from prove_tts_speed import prove_tts_speed
+from prove_tts_speed import planned_editorial_duration
 from prove_tts_textarea import FORBIDDEN_READBACK_SOURCES
 from resolve_tts_text import compare_effective_to_frozen
 from script_fidelity import assert_immutable, load_approved_script
@@ -89,23 +89,13 @@ def gate_tts_generate(project_root: Path, record: dict[str, Any], approved_line:
             "generate": False,
             "errors": decision.get("errors") or ["textarea read-back mismatch"],
         }
-    speed = prove_tts_speed(gated)
-    if speed.get("speed_ok") is not True:
-        return {
-            "status": "HOLD",
-            "hold": speed.get("hold") or "HOLD_TTS_SPEED_UNVERIFIED",
-            "generate": False,
-            "reason": speed.get("reason") or "actual CapCut speed value is unavailable",
-            "actual_speed": speed.get("actual_speed"),
-        }
     readback = gated.get("effective_tts_text")
     if readback is None:
         readback = gated.get("textarea_readback")
     return {
         "status": "OK",
         "generate": True,
-        "speed": NARRATION_SPEED,
-        "actual_speed": NARRATION_SPEED,
+        "editor_playback_rate": NARRATION_SPEED,
         "bound_frozen_line": approved_line,
         "effective_tts_text": readback,
         "readback_source": gated.get("readback_source"),
@@ -117,13 +107,23 @@ def record_clip(
     cut_id: str,
     line: str,
     audio_path: str,
-    duration_seconds: float,
-    speed: float = NARRATION_SPEED,
+    source_duration_seconds: float | None = None,
+    editor_playback_rate: float = NARRATION_SPEED,
+    source_already_accelerated: bool = False,
+    duration_seconds: float | None = None,
+    speed: float | None = None,
 ) -> dict[str, Any]:
-    if speed != NARRATION_SPEED:
-        return hold("HOLD_NARRATION_SPEED", "narration speed must be 1.2x")
-    if not isinstance(duration_seconds, (int, float)) or isinstance(duration_seconds, bool) or duration_seconds <= 0:
-        return hold("HOLD_NARRATION_DURATION", "actual playback duration is required")
+    rate = editor_playback_rate if speed is None else speed
+    if source_already_accelerated:
+        return hold("HOLD_NARRATION_SPEED", "do not record the source file as already 1.2x processed")
+    if source_duration_seconds is None:
+        return hold("HOLD_NARRATION_DURATION", "source_duration_seconds is the original file length")
+    planned = planned_editorial_duration(source_duration_seconds, rate)
+    if planned.get("status") != "OK":
+        hold_code = planned.get("hold") or "HOLD_NARRATION_SPEED"
+        if hold_code == "HOLD_TTS_SPEED_UNVERIFIED":
+            hold_code = "HOLD_NARRATION_SPEED"
+        return hold(hold_code, planned.get("reason") or "editorial 1.2x plan is unavailable")
     if not audio_path:
         return hold("HOLD_NARRATION_AUDIO", "audio path is missing")
     return {
@@ -131,8 +131,10 @@ def record_clip(
         "cut_id": cut_id,
         "line": line,
         "audio_path": audio_path,
-        "duration_seconds": float(duration_seconds),
-        "speed": NARRATION_SPEED,
+        "source_duration_seconds": planned["source_duration_seconds"],
+        "editor_playback_rate": NARRATION_SPEED,
+        "planned_duration_seconds": planned["planned_duration_seconds"],
+        "source_already_accelerated": False,
     }
 
 
@@ -140,7 +142,7 @@ def write_manifest(project_root: Path, case_id: str, clips: list[dict[str, Any]]
     dest = case_root(project_root, case_id) / "narration-manifest.json"
     payload = {
         "schema": "product_video_narration_manifest.v1",
-        "speed": NARRATION_SPEED,
+        "editor_playback_rate": NARRATION_SPEED,
         "clips": clips,
     }
     dest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

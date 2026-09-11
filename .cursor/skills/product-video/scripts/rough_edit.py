@@ -5,13 +5,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants import OPERATOR_ROUGH_MESSAGE
+from constants import NARRATION_SPEED, OPERATOR_ROUGH_MESSAGE
+from prove_tts_speed import clip_target_duration, prove_editorial_timing, prove_tts_speed
 from script_fidelity import assert_immutable
 from workflow_state import hold
 
 
 def telop_matches(approved_line: str, telop: str) -> dict[str, Any]:
     return assert_immutable(approved_line, telop, role="telop")
+
+
+def prove_placed_narration_clip(record: dict[str, Any]) -> dict[str, Any]:
+    speed = prove_tts_speed(record)
+    if speed.get("speed_ok") is not True:
+        return speed
+    return prove_editorial_timing(record)
 
 
 def build_rough_edit(
@@ -34,17 +42,26 @@ def build_rough_edit(
         matched = telop_matches(line, telop or "")
         if matched.get("status") != "OK":
             return matched
-        if cut["cut_id"] not in clips:
+        clip = clips[cut["cut_id"]] if cut["cut_id"] in clips else None
+        if clip is None:
             return hold("HOLD_NARRATION_AUDIO", f"missing narration for {cut['cut_id']}")
         if cut["cut_id"] not in plan_cuts:
             return hold("HOLD_ASSEMBLY_PLAN", f"missing assembly cut {cut['cut_id']}")
+        target = clip_target_duration(clip)
+        if target.get("status") != "OK":
+            return hold(
+                target.get("hold") or "HOLD_NARRATION_DURATION",
+                target.get("reason") or f"invalid editorial duration for {cut['cut_id']}",
+            )
         placed.append(
             {
                 "cut_id": cut["cut_id"],
                 "line": line,
                 "telop": telop,
-                "audio_path": clips[cut["cut_id"]]["audio_path"],
-                "duration_seconds": clips[cut["cut_id"]]["duration_seconds"],
+                "audio_path": clip["audio_path"],
+                "source_duration_seconds": target["source_duration_seconds"],
+                "editor_playback_rate": NARRATION_SPEED,
+                "planned_duration_seconds": target["planned_duration_seconds"],
                 "material": plan_cuts[cut["cut_id"]].get("material_id") or plan_cuts[cut["cut_id"]].get("path"),
             }
         )

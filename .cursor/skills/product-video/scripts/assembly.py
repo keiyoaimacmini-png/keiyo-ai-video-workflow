@@ -9,6 +9,7 @@ from typing import Any
 
 from constants import MAJOR_VISUAL_KEYS
 from paths import case_root
+from prove_tts_speed import clip_target_duration
 from script_fidelity import assert_immutable
 from workflow_state import hold
 
@@ -77,9 +78,13 @@ def assemble_plan(
         clip = clips.get(cut["cut_id"])
         if not clip:
             return hold("HOLD_NARRATION_DURATION", f"missing narration duration for {cut['cut_id']}")
-        duration = clip.get("duration_seconds")
-        if not isinstance(duration, (int, float)) or duration <= 0:
-            return hold("HOLD_NARRATION_DURATION", f"invalid duration for {cut['cut_id']}")
+        target = clip_target_duration(clip)
+        if target.get("status") != "OK":
+            return hold(
+                target.get("hold") or "HOLD_NARRATION_DURATION",
+                target.get("reason") or f"invalid editorial duration for {cut['cut_id']}",
+            )
+        duration = target["target_duration_seconds"]
         selected = select_cut(
             candidates_by_cut.get(cut["cut_id"]) or [],
             line=cut["line"],

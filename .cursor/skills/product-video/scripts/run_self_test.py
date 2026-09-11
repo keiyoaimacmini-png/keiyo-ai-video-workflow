@@ -25,7 +25,8 @@ from constants import (  # noqa: E402
 from delivery import may_complete, may_purge, may_start_job  # noqa: E402
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
-from prove_tts_speed import prove_tts_speed  # noqa: E402
+from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
+from rough_edit import build_rough_edit, prove_placed_narration_clip  # noqa: E402
 from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
 from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
@@ -33,7 +34,6 @@ from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_h
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
 from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
-from rough_edit import build_rough_edit  # noqa: E402
 from script_fidelity import assert_immutable  # noqa: E402
 from script_stage import accept_gemini_output  # noqa: E402
 from workflow_state import (  # noqa: E402
@@ -206,10 +206,66 @@ def test_approval_and_fidelity() -> None:
 
 def test_speed_and_tts(root: Path) -> None:
     check("speed-constant", narration_speed() == 1.2 == NARRATION_SPEED)
-    clip = record_clip(cut_id="c1", line="a", audio_path="/tmp/a.mp3", duration_seconds=3.2)
-    check("duration-recorded", clip.get("duration_seconds") == 3.2 and clip.get("speed") == 1.2)
-    bad_speed = record_clip(cut_id="c1", line="a", audio_path="/tmp/a.mp3", duration_seconds=3.2, speed=1.0)
+    six_to_five = planned_editorial_duration(6.0, 1.2)
+    check(
+        "planned-6s-at-1.2-is-5s",
+        six_to_five.get("status") == "OK" and six_to_five.get("planned_duration_seconds") == 5.0,
+    )
+    clip = record_clip(cut_id="c1", line="a", audio_path="/tmp/a.mp3", source_duration_seconds=6.0)
+    check(
+        "source-and-planned-distinguished",
+        clip.get("source_duration_seconds") == 6.0
+        and clip.get("planned_duration_seconds") == 5.0
+        and clip.get("editor_playback_rate") == 1.2
+        and clip.get("source_already_accelerated") is False
+        and "duration_seconds" not in clip,
+    )
+    pre_accelerated = record_clip(
+        cut_id="c1",
+        line="a",
+        audio_path="/tmp/a.mp3",
+        source_duration_seconds=6.0,
+        source_already_accelerated=True,
+    )
+    check("source-not-pre-accelerated", pre_accelerated.get("hold") == "HOLD_NARRATION_SPEED")
+    bad_speed = record_clip(cut_id="c1", line="a", audio_path="/tmp/a.mp3", source_duration_seconds=6.0, speed=1.0)
     check("speed-reject-1.0", bad_speed.get("hold") == "HOLD_NARRATION_SPEED")
+    copied_plan = prove_editorial_timing(
+        {
+            **clip,
+            "playback_rate": 1.2,
+            "speed_readback_source": "chatcut_item",
+            "measured_duration_seconds": 5.0,
+            "measured_duration_source": "planned",
+        }
+    )
+    check("measured-not-copied-from-plan", copied_plan.get("status") == "HOLD")
+    measured = prove_editorial_timing(
+        {
+            **clip,
+            "playback_rate": 1.2,
+            "speed_readback_source": "chatcut_item",
+            "measured_duration_seconds": 5.0,
+            "measured_duration_source": "chatcut_item",
+        }
+    )
+    check(
+        "measured-from-chatcut-item",
+        measured.get("status") == "OK"
+        and measured.get("planned_duration_seconds") == 5.0
+        and measured.get("measured_duration_seconds") == 5.0
+        and measured.get("durations_distinguished") is True,
+    )
+    placed = prove_placed_narration_clip(
+        {
+            **clip,
+            "playback_rate": 1.2,
+            "speed_readback_source": "chatcut_item",
+            "measured_duration_seconds": 5.0,
+            "measured_duration_source": "chatcut_item",
+        }
+    )
+    check("chatcut-playbackRate-1.2-required", placed.get("status") == "OK")
     frozen = "そんな時はこのサンシェード。"
     ready = gate_tts_generate(
         root,
@@ -222,8 +278,6 @@ def test_speed_and_tts(root: Path) -> None:
             "frozen_line": frozen,
             "input_tool_success": True,
             "generation_count_for_cut": 0,
-            "actual_speed": 1.2,
-            "speed_readback_source": "internal_model",
         },
         frozen,
     )
@@ -285,8 +339,6 @@ def test_tts_input_recovery(root: Path) -> None:
         "frozen_line": frozen,
         "input_tool_success": True,
         "generation_count_for_cut": 0,
-        "actual_speed": 1.2,
-        "speed_readback_source": "internal_model",
     }
     check("tts-recovery-A-exact-generate", gate_tts_generate(root, exact_record, frozen).get("generate") is True)
 
@@ -331,7 +383,7 @@ def test_tts_input_recovery(root: Path) -> None:
     if prepared.get("exact_match") is True:
         gated = gate_tts_generate(
             root,
-            {**prepared["record"], "actual_speed": 1.2, "speed_readback_source": "internal_model"},
+            {**prepared["record"]},
             frozen,
         )
         check("tts-recovery-E-generate-after-retry", gated.get("generate") is True)
@@ -394,7 +446,7 @@ def test_tts_input_recovery(root: Path) -> None:
             "tts-prewrite-F-generate-allowed",
             gate_tts_generate(
                 root,
-                {**prepared_f["record"], "actual_speed": 1.2, "speed_readback_source": "internal_model"},
+                {**prepared_f["record"]},
                 frozen,
             ).get("generate")
             is True,
@@ -412,8 +464,6 @@ def test_tts_runtime_gaps(root: Path) -> None:
         "frozen_line": frozen,
         "input_tool_success": True,
         "generation_count_for_cut": 0,
-        "actual_speed": 1.2,
-        "speed_readback_source": "internal_model",
     }
 
     html_obs = {
@@ -503,12 +553,14 @@ def test_tts_runtime_gaps(root: Path) -> None:
         frozen,
     )
     check(
-        "tts-gap-D-gate-holds-unverified-speed",
-        speed_missing.get("hold") == "HOLD_TTS_SPEED_UNVERIFIED" and speed_missing.get("generate") is False,
+        "tts-gap-D-generate-without-capcut-speed",
+        speed_missing.get("generate") is True and speed_missing.get("hold") is None,
     )
 
-    speed_ok = prove_tts_speed({"actual_speed": 1.2, "speed_readback_source": "ui"})
-    check("tts-gap-E-actual-1.2-passes", speed_ok.get("speed_ok") is True and speed_ok.get("actual_speed") == 1.2)
+    capcut_speed = prove_tts_speed({"actual_speed": 1.2, "speed_readback_source": "ui"})
+    check("tts-gap-E-capcut-actual-speed-not-clip-proof", capcut_speed.get("speed_ok") is not True)
+    speed_ok = prove_tts_speed({"playback_rate": 1.2, "speed_readback_source": "chatcut_item"})
+    check("tts-gap-E-chatcut-playbackRate-1.2-passes", speed_ok.get("speed_ok") is True and speed_ok.get("playback_rate") == 1.2)
 
     failed = record_generation_attempt(
         root,
@@ -623,8 +675,8 @@ def test_assembly_and_variety() -> None:
     }
     manifest = {
         "clips": [
-            {"cut_id": "c1", "line": "車、サウナすぎん？", "audio_path": "a.mp3", "duration_seconds": 1.8},
-            {"cut_id": "c2", "line": line, "audio_path": "b.mp3", "duration_seconds": 2.5},
+            {"cut_id": "c1", "line": "車、サウナすぎん？", "audio_path": "a.mp3", "source_duration_seconds": 6.0, "editor_playback_rate": 1.2, "planned_duration_seconds": 5.0, "source_already_accelerated": False},
+            {"cut_id": "c2", "line": line, "audio_path": "b.mp3", "source_duration_seconds": 3.0, "editor_playback_rate": 1.2, "planned_duration_seconds": 2.5, "source_already_accelerated": False},
         ]
     }
     c1 = {
@@ -644,13 +696,19 @@ def test_assembly_and_variety() -> None:
         },
     )
     check("scenario-survives", plan.get("status") == "OK" and plan["cuts"][1]["intended_scenario"] == "サンシェードを広げる手元")
-    check("assembly-consumes-duration", plan["cuts"][0]["target_duration_seconds"] == 1.8)
+    check("assembly-consumes-planned-duration", plan["cuts"][0]["target_duration_seconds"] == 5.0)
+    source_as_cut = assemble_plan(
+        {"cuts": [{"cut_id": "c1", "line": "車、サウナすぎん？", "situation": "車内でハンドルを握る人物"}]},
+        {"clips": [{"cut_id": "c1", "line": "車、サウナすぎん？", "audio_path": "a.mp3", "duration_seconds": 6.0}]},
+        {"c1": [c1]},
+    )
+    check("assembly-rejects-source-as-cut-duration", source_as_cut.get("status") == "HOLD")
 
 
 def test_telop_and_rough() -> None:
     script = {"cuts": [{"cut_id": "c1", "line": "下からチェック！"}]}
     plan = {"cuts": [{"cut_id": "c1", "material_id": "cta"}]}
-    manifest = {"clips": [{"cut_id": "c1", "audio_path": "c.mp3", "duration_seconds": 1.1}]}
+    manifest = {"clips": [{"cut_id": "c1", "audio_path": "c.mp3", "source_duration_seconds": 1.32, "editor_playback_rate": 1.2, "planned_duration_seconds": 1.1, "source_already_accelerated": False}]}
     ok = build_rough_edit(
         script,
         plan,
@@ -771,8 +829,8 @@ def test_dispatch_resume(root: Path) -> None:
     state = load_state(root, case_id)
     check("variant-frozen", state.get("selected_script_variant") == 2)
     clips = [
-        record_clip(cut_id="c1", line="車、サウナすぎん？2", audio_path="a.mp3", duration_seconds=1.7),
-        record_clip(cut_id="c2", line="これ一枚で全然違う。", audio_path="b.mp3", duration_seconds=2.1),
+        record_clip(cut_id="c1", line="車、サウナすぎん？2", audio_path="a.mp3", source_duration_seconds=2.04),
+        record_clip(cut_id="c2", line="これ一枚で全然違う。", audio_path="b.mp3", source_duration_seconds=2.52),
     ]
     write_manifest(root, case_id, clips)
     state["narration_manifest_path"] = str(root / "outputs" / case_id / "narration-manifest.json")
@@ -914,6 +972,9 @@ def test_git_tracked_helpers() -> None:
     check("narration-skill-uses-prepare-tts", "product-video/scripts/prepare_tts_field.py" in narration_skill)
     check("narration-skill-uses-resolve-tts", "product-video/scripts/resolve_tts_text.py" in narration_skill)
     check("narration-skill-uses-speed-proof", "product-video/scripts/prove_tts_speed.py" in narration_skill)
+    check("narration-skill-no-capcut-actual-speed-gate", "actual_speed == 1.2" not in narration_skill)
+    rough_skill = (skills_root / "product-video-rough-edit" / "SKILL.md").read_text(encoding="utf-8")
+    check("rough-skill-uses-chatcut-playbackRate", "playbackRate" in rough_skill and "prove_tts_speed.py" in rough_skill)
     check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
     check(
         "narration-skill-no-legacy-tts",

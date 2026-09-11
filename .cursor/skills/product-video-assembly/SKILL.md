@@ -1,6 +1,6 @@
 ---
 name: product-video-assembly
-description: Choose source clips from frozen lines, Gemini scenarios, and measured narration durations. Use only when /product-video dispatches ASSEMBLY.
+description: Choose source clips from frozen lines, Gemini scenarios, and planned editorial narration durations. Use only when /product-video dispatches ASSEMBLY.
 disable-model-invocation: true
 ---
 
@@ -14,7 +14,7 @@ For each cut, inputs are:
 
 - frozen approved line
 - Gemini intended scenario
-- measured narration duration (this is the cut duration)
+- planned editorial narration duration (`source_duration_seconds / 1.2`), not the raw source-file length
 
 Preference:
 
@@ -31,5 +31,7 @@ Prove only the chosen range:
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_source_range.py" --source <file> --in-sec <in> --out-sec <out> --output-dir <task-root>/evidence/<cut-id>
 ```
+
+Do not place ChatCut clips here if ROUGH_EDIT already owns the case editor project. Do not create a second editor project.
 
 Write `assembly-plan.json`, complete `ASSEMBLY`, return to `/product-video`. Next stage is ROUGH_EDIT.

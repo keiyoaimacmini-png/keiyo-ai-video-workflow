@@ -67,9 +67,17 @@ def last_outcome(data: dict[str, Any], cut_id: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def max_generations_for_cut(data: dict[str, Any], cut_id: str) -> int:
+    override = cut_record(data, cut_id).get("max_generations")
+    if isinstance(override, int) and not isinstance(override, bool) and override > MAX_GENERATIONS_PER_CUT:
+        return override
+    return MAX_GENERATIONS_PER_CUT
+
+
 def may_generate_cut(data: dict[str, Any], cut_id: str) -> dict[str, Any]:
     count = generation_count_for_cut(data, cut_id)
     outcome = last_outcome(data, cut_id)
+    max_for_cut = max_generations_for_cut(data, cut_id)
     if outcome == "unknown":
         return hold(
             HOLD_UNKNOWN,
@@ -78,7 +86,7 @@ def may_generate_cut(data: dict[str, Any], cut_id: str) -> dict[str, Any]:
             generation_count_for_cut=count,
             last_outcome=outcome,
         )
-    if count >= MAX_GENERATIONS_PER_CUT:
+    if count >= max_for_cut:
         return {
             "status": "HOLD",
             "hold": HOLD_ALLOWANCE,
@@ -111,6 +119,8 @@ def record_generation_attempt(
     data = load_attempts(project_root, case_id)
     current = generation_count_for_cut(data, cut_id)
     previous = last_outcome(data, cut_id)
+    max_for_cut = max_generations_for_cut(data, cut_id)
+    existing = cut_record(data, cut_id)
     if previous == "unknown":
         return hold(
             HOLD_UNKNOWN,
@@ -119,7 +129,7 @@ def record_generation_attempt(
             generation_count_for_cut=current,
             last_outcome=previous,
         )
-    if current >= MAX_GENERATIONS_PER_CUT:
+    if current >= max_for_cut:
         return {
             "status": "HOLD",
             "hold": HOLD_ALLOWANCE,
@@ -131,13 +141,18 @@ def record_generation_attempt(
     if outcome != "success":
         adopted = False
     next_count = current + 1
-    data.setdefault("cuts", {})[cut_id] = {
+    updated = {
         "generation_count": next_count,
         "last_outcome": outcome,
         "adopted_audio": adopted,
         "updated_at": now_iso(),
         "last_hold": hold_code,
     }
+    if "max_generations" in existing:
+        updated["max_generations"] = existing["max_generations"]
+    if "exception_reason" in existing:
+        updated["exception_reason"] = existing["exception_reason"]
+    data.setdefault("cuts", {})[cut_id] = updated
     path = save_attempts(project_root, data)
     return {
         "status": "OK",

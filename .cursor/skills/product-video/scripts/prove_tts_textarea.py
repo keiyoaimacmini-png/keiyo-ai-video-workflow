@@ -89,9 +89,12 @@ def decide_tts_generate(record: dict[str, Any]) -> dict[str, Any]:
         errors.append("textarea read-back must equal the frozen line exactly")
     if tool_ok and readback != frozen:
         errors.append("input_tool_success is not proof of textarea match")
+    max_for_cut = record.get("max_generations")
+    if not isinstance(max_for_cut, int) or isinstance(max_for_cut, bool) or max_for_cut < MAX_GENERATIONS_PER_CUT:
+        max_for_cut = MAX_GENERATIONS_PER_CUT
     if not isinstance(generations, int) or isinstance(generations, bool) or generations < 0:
         errors.append("generation_count_for_cut must be a non-negative integer")
-    elif generations >= MAX_GENERATIONS_PER_CUT:
+    elif generations >= max_for_cut:
         return {
             "status": "HOLD",
             "hold": HOLD_ALLOWANCE,
