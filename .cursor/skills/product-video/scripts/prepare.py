@@ -12,6 +12,7 @@ from typing import Any
 
 from constants import NARRATION_SPEED
 from paths import case_root, emit, helper_path, project_root_from
+from prove_material_videos import prove_material_videos
 from workflow_state import complete_stage, empty_state, hold, save_receipt, save_state, sha256_file
 
 MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,6}$")
@@ -124,6 +125,9 @@ def create_new_case(
     )
     if resolved.get("status") != "READY":
         return resolved
+    videos = prove_material_videos(resolved.get("material_root"))
+    if videos.get("status") != "OK":
+        return videos
     settings_path = Path(resolved["settings_path"])
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
     inputs = build_product_inputs(
@@ -145,11 +149,13 @@ def create_new_case(
     state["material_root"] = resolved["material_root"]
     state["settings_path"] = resolved["settings_path"]
     state["settings_sha256"] = resolved["settings_sha256"]
+    state["material_video_count"] = videos["material_video_count"]
     save_state(root, state)
     receipt = {
         "product_model": product_model,
         "settings_sha256": resolved["settings_sha256"],
         "material_root_exists": True,
+        "material_video_count": videos["material_video_count"],
         "drive_folder_title": resolved["drive_folder_title"],
         "product_information": inputs["product_information"],
         "product_appeal_points": inputs["product_appeal_points"],
@@ -174,6 +180,9 @@ def finish_prepare(project_root: Path, case_id: str) -> dict[str, Any]:
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
     if inputs.get("status") != "OK":
         return inputs
+    videos = prove_material_videos(state.get("material_root"))
+    if videos.get("status") != "OK":
+        return videos
     return complete_stage(
         project_root,
         state,
@@ -182,6 +191,8 @@ def finish_prepare(project_root: Path, case_id: str) -> dict[str, Any]:
             "product_information": inputs.get("product_information"),
             "product_appeal_points": inputs.get("product_appeal_points"),
             "user_campaign_focus": inputs.get("user_campaign_focus"),
+            "material_root": videos["material_root"],
+            "material_video_count": videos["material_video_count"],
         },
     )
 

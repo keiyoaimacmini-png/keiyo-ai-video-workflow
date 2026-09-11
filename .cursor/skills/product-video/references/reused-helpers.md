@@ -9,6 +9,8 @@ Owned by `/product-video`:
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/resolve_tts_text.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_tts_speed.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/tts_attempts.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_material_videos.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/classify_capcut_credit.py`
 
 Tracked helpers reused from the portable scripts directory (Git-tracked files only):
 

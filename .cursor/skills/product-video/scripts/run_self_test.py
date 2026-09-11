@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -16,8 +17,13 @@ sys.path.insert(0, str(SCRIPTS))
 
 from assembly import assemble_plan, select_cut  # noqa: E402
 from bind_script_selection import bind_script_selection  # noqa: E402
+from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
     DELIVERY_APPROVAL,
+    HOLD_CAPCUT_CREDIT_UNVERIFIED,
+    HOLD_CAPCUT_NEW_PURCHASE_REQUIRED,
+    HOLD_INPUT_MATERIALS_REQUIRED,
+    HOLD_MATERIAL_VIDEO_REQUIRED,
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
@@ -32,6 +38,7 @@ from tts_attempts import generation_count_for_cut, load_attempts, may_generate_c
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
+from prove_material_videos import prove_material_videos  # noqa: E402
 from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from script_fidelity import assert_immutable  # noqa: E402
@@ -793,7 +800,8 @@ def test_dispatch_initial_entry(root: Path) -> None:
 
 def test_dispatch_resume(root: Path) -> None:
     case_id = "pv-AN-S999-test"
-    seed_state(root, case_id, "PREPARE", [])
+    materials = root / ".runtime" / "product-video-inputs" / "AN-S999_コピー"
+    seed_state(root, case_id, "PREPARE", [], extra={"material_root": str(materials)})
     first = dispatch(root, case_id=case_id)
     check("dispatch-prepare", first.get("skill") == "product-video-prepare" and first.get("ask_continue") is False)
     finish_prepare_missing = finish_prepare(root, case_id)
@@ -811,6 +819,13 @@ def test_dispatch_resume(root: Path) -> None:
     )
     prepared = finish_prepare(root, case_id)
     check("prepare-advances", prepared.get("current_stage") == "SCRIPT")
+    prepare_receipt = json.loads(
+        (root / "outputs" / case_id / "receipts" / "prepare.json").read_text(encoding="utf-8")
+    )
+    check(
+        "material-F-prepare-receipt-video-count",
+        int(prepare_receipt.get("result", {}).get("material_video_count") or 0) >= 1,
+    )
     again = dispatch(root, case_id=case_id)
     check("resume-skips-prepare", again.get("skill") == "product-video-script")
     try:
@@ -866,6 +881,13 @@ def test_create_case(root: Path) -> None:
         check("new-case-at-prepare", state["current_stage"] == "PREPARE")
         check("case-state-exists", (root / "outputs" / created["case_id"] / "workflow-state.json").is_file())
         check("compact-state", not validate_compact(state))
+        draft = json.loads(
+            (root / "outputs" / created["case_id"] / "receipts" / "prepare_draft.json").read_text(encoding="utf-8")
+        )
+        check(
+            "material-F-draft-video-count",
+            int(draft.get("result", {}).get("material_video_count") or 0) >= 1,
+        )
 
 
 def test_prompt_template() -> None:
@@ -933,6 +955,8 @@ def test_git_tracked_helpers() -> None:
         ("resolve_tts_text", ".cursor/skills/product-video/scripts/resolve_tts_text.py"),
         ("prove_tts_speed", ".cursor/skills/product-video/scripts/prove_tts_speed.py"),
         ("tts_attempts", ".cursor/skills/product-video/scripts/tts_attempts.py"),
+        ("prove_material_videos", ".cursor/skills/product-video/scripts/prove_material_videos.py"),
+        ("classify_capcut_credit", ".cursor/skills/product-video/scripts/classify_capcut_credit.py"),
     ):
         check(f"tts-{name}-owned-path", helper_relpath(name) == rel)
         check(f"tts-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
@@ -991,6 +1015,96 @@ def test_forbidden_state() -> None:
     check("state-rejects-image-key", bool(errors2))
 
 
+def test_material_video_preflight() -> None:
+    missing = prove_material_videos(Path("/tmp/product-video-missing-material-root-does-not-exist"))
+    check("material-A-missing-root-holds", missing.get("status") == "HOLD")
+    check("material-A-missing-root-code", missing.get("hold") == HOLD_INPUT_MATERIALS_REQUIRED)
+    with tempfile.TemporaryDirectory() as raw:
+        empty = Path(raw) / "empty"
+        empty.mkdir()
+        held_empty = prove_material_videos(empty)
+        check("material-B-empty-dir", held_empty.get("hold") == HOLD_MATERIAL_VIDEO_REQUIRED)
+        check("material-B-video-count-0", held_empty.get("video_count") == 0)
+        check("material-B-reports-root", held_empty.get("material_root") == empty.as_posix())
+
+        cats = Path(raw) / "categories"
+        (cats / "設置風景").mkdir(parents=True)
+        (cats / "車内暑い").mkdir()
+        held_cats = prove_material_videos(cats)
+        check("material-C-category-dirs-only", held_cats.get("status") == "HOLD" and held_cats.get("video_count") == 0)
+
+        zero = Path(raw) / "zero"
+        zero.mkdir()
+        (zero / "clip.mp4").write_bytes(b"")
+        held_zero = prove_material_videos(zero)
+        check("material-D-zero-byte-mp4", held_zero.get("hold") == HOLD_MATERIAL_VIDEO_REQUIRED)
+
+        nested = Path(raw) / "nested"
+        (nested / "設置風景").mkdir(parents=True)
+        (nested / "設置風景" / "IMG_3894.MOV").write_bytes(b"not-a-real-video")
+        ok = prove_material_videos(nested)
+        check(
+            "material-E-subdir-MOV",
+            ok.get("status") == "OK" and int(ok.get("material_video_count") or 0) >= 1,
+        )
+
+
+def existing_credit_record(**overrides: Any) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "title": "Credits will be consumed",
+        "credits_required": 10,
+        "buttons": ["Cancel", "Got it"],
+        "pro_subscription": False,
+        "free_trial": False,
+        "purchase_credits": False,
+        "auto_reload": False,
+        "new_payment": False,
+        "plan_change": False,
+        "monthly_or_annual_price": False,
+        "payment_form": False,
+        "body_contains_pro": False,
+    }
+    record.update(overrides)
+    return record
+
+
+def test_capcut_credit_policy() -> None:
+    allowed = classify_capcut_credit(existing_credit_record())
+    check("credit-H-existing-balance-allows-got-it", allowed.get("approve_got_it") is True)
+    pro_in_body = classify_capcut_credit(existing_credit_record(body_contains_pro=True))
+    check(
+        "credit-H-pro-word-alone-is-not-hold",
+        pro_in_body.get("approve_got_it") is True,
+    )
+    new_pro = classify_capcut_credit(existing_credit_record(pro_subscription=True))
+    check(
+        "credit-H-pro-contract-holds",
+        new_pro.get("hold") == HOLD_CAPCUT_NEW_PURCHASE_REQUIRED and new_pro.get("approve_got_it") is False,
+    )
+    purchase = classify_capcut_credit(existing_credit_record(purchase_credits=True))
+    check("credit-H-extra-purchase-holds", purchase.get("hold") == HOLD_CAPCUT_NEW_PURCHASE_REQUIRED)
+    ambiguous = classify_capcut_credit({"title": "Credits will be consumed", "body_contains_pro": True})
+    check("credit-H-ambiguous-holds", ambiguous.get("hold") == HOLD_CAPCUT_CREDIT_UNVERIFIED)
+    narration = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    check("credit-H-skill-allows-existing-consume", "Credits will be consumed" in narration and "approve_got_it" in narration)
+    check(
+        "credit-H-skill-blocks-new-contract",
+        "Pro monthly/annual contract" in narration or "Pro 月額・年額契約" in narration,
+    )
+
+
+def test_chrome_mcp_docs() -> None:
+    ref = (REPO / ".cursor" / "skills" / "product-video" / "references" / "capcut-chrome-mcp.md").read_text(
+        encoding="utf-8"
+    )
+    agents = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    check("chrome-G-cdp-endpoint", "--cdp-endpoint=chrome" in ref and "--cdp-endpoint=chrome" in agents)
+    check("chrome-G-no-ide-browser-fallback", "Do not fall back to `cursor-ide-browser`" in ref)
+    check("chrome-G-mcp-json-not-git", "Do not add it to Git" in ref or "Do not add this file to Git" in ref)
+    check("chrome-G-no-namespace-literal", "user-chatcut" not in ref and "project-0-" not in ref)
+    check("chrome-G-hold-when-unavailable", "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE" in ref)
+
+
 def main() -> int:
     print(f"REPO {REPO}")
     test_parser()
@@ -1002,6 +1116,9 @@ def main() -> int:
     test_runtime_path()
     test_git_tracked_helpers()
     test_forbidden_state()
+    test_material_video_preflight()
+    test_capcut_credit_policy()
+    test_chrome_mcp_docs()
     scratch = SCRIPTS / "_scratch"
     if scratch.exists():
         shutil.rmtree(scratch)

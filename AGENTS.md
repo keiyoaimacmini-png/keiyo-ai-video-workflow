@@ -12,11 +12,12 @@ Ver2 production runs on the operator Mac Cursor Desktop Agent. Do not send produ
 
 ```bash
 python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
+python3 .cursor/skills/product-video/scripts/prove_material_videos.py --material-root <resolved material_root>
 python3 .cursor/skills/product-video/scripts/run_self_test.py
 ```
 
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
-- Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`.
+- Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`. A folder is not enough; PREPARE requires at least one regular non-zero video file under that root.
 - Stages chain automatically: PREPARE → SCRIPT → (wait for `案Nで台本OK`) → NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR → (wait for `完成・格納してください`) → DELIVERY → COMPLETE.
 - Do not ask Continue / Proceed between automatic stages. Do not require `粗編集OK`. Do not run an AI final visual-quality review.
 
@@ -44,7 +45,7 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - Routine stops are only exact `案Nで台本OK` and exact `完成・格納してください`. `粗編集OK` and `完成・書き出しOK` are not used. `編集が完了した` or `格納して` does not replace `完成・格納してください`.
 - Create a new case, task root, workflow state, and editor project. Do not modify or overwrite existing projects, exports, Drive objects, payloads, receipts, or source media.
 - Keep product media, evidence frames, editable runtime artifacts, exports, credentials, cookies, tokens, account identifiers, and session identifiers out of Git, pull requests, and ordinary logs.
-- Do not open a pull request, publish an artifact, post, send externally, purchase credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action.
+- Do not open a pull request, publish an artifact, post, send externally, start a Pro contract, buy extra CapCut credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action. Confirming an existing-balance CapCut `Credits will be consumed` dialog (Got it) is not a new purchase.
 - Standing completion is Drive 格納: after exact `完成・格納してください`, export once and, in that same turn, create one new file in the Drive folder titled with this product model in exact case. Create that file with `scripts/upload_drive_local_file.py` from local bytes; do not inline the completed video as base64. Do not open Chrome.app for 格納. Require exact new-file read-back. COMPLETE only after Drive verification.
 - After stage `COMPLETE` and verified 格納, purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`.
 
@@ -58,7 +59,8 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 ## ナレーション（1カットごと）
 
 - 編集上の再生速度は常に **1.2倍速**。速度選択アルゴリズムは使わない。CapCut 生成時に 1.2 を要求しない。ChatCut の音声クリップ `playbackRate` に 1.2 を付ける。
-- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、原音だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。
+- 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、原音だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。通常経路は起動済みの Google Chrome.app へ、このプロジェクトの Playwright MCP（`--cdp-endpoint=chrome`）で接続する。詳細は `.cursor/skills/product-video/references/capcut-chrome-mcp.md`。`cursor-ide-browser` や拡張機能方式へ自動で戻さない。
+- 既存 CapCut 残高から今回の生成分を消費する確認（`Credits will be consumed`、必要クレジット数、Cancel / Got it、月額・年額料金なし、無料体験なし、決済フォームなし、追加購入なし）は Got it で続行してよい。本文に「Pro」とあることだけを理由に止めない。Pro 月額・年額契約、無料体験、追加クレジット購入、自動チャージ、新しい決済、契約変更は自動承認しない。区別できなければ HOLD。
 - 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。
 - 生成前にテキスト欄を全置換し、読み戻しが凍結行と完全一致してから生成する。結果カードの `video`/`audio` currentSrc を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。原音の実再生時間を記録する。原音を 1.2 倍加工済みとは記録しない。
 - 1カット1クリップとして編集正本へ戻し、ChatCut でクリップ速度 1.2 を付けたあとの区間に映像とテロップを合わせる。
@@ -74,6 +76,6 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 
 - Production host is this Mac's Cursor Desktop Agent. Do not use Cloud Agent for picture, captions, export, or Drive 格納.
 - Script drafts use this Mac's logged-in Antigravity CLI (`agy --print`) at Gemini 3.8 Flash. The agent sends the prompt and reads the dialogue in the same turn. Do not leave a paste for the operator. Do not use Gemini.app, the Gemini API, or `GEMINI_API_KEY`. Do not enable AI Credit overages. Completed-video 格納 uses `scripts/upload_drive_local_file.py` in the same turn as the export read-back. Do not open Chrome.app for 格納. Drive originals/materials may use Google Chrome.app at `https://drive.google.com/`. The agent-controlled browser is not Antigravity CLI and must not be used as a substitute for that logged-in Google session. Do not use Google Drive for desktop.
-- Use the official CapCut Web origin in the agent-controlled browser only when that adapter exists. A host editor adapter (for example ChatCut) may run the same stages for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
+- Official Holiday Twist TTS uses this Mac's already-running Google Chrome.app through the project's Playwright MCP (`--cdp-endpoint=chrome`). Follow `.cursor/skills/product-video/references/capcut-chrome-mcp.md`. Do not fall back to `cursor-ide-browser` or an extension adapter. If that MCP cannot attach, stop with `HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE`. A host editor adapter (for example ChatCut) may run picture, captions, and export for this case only when it can create a new project, inspect frames, place captions, and export. Do not mix two picture timelines. Official Holiday Twist may be generated on CapCut Text to Speech and imported as audio when the editor of record cannot emit that preset; do not offer a substitute voice or a new CapCut case. Never put CapCut, TikTok, Google, or Gemini passwords in repository files or prompts.
 - When CapCut or TikTok login, CAPTCHA, 2FA, account choice, recovery, or new consent is required, stop with `HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED`. When Antigravity CLI needs the same user action, stop with `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`. When Drive Web on Chrome.app needs the same user action, stop with `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`.
 - After a usable rough edit, stop for the operator. Do not add a third or fourth AI visual-quality checkpoint.
