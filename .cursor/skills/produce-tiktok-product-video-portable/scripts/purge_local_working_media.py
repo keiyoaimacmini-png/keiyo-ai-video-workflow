@@ -42,6 +42,8 @@ MEDIA_SUFFIXES = {
 SHARED_RELATIVE_ROOTS = (
     "footage",
     "voice",
+)
+PERSISTENT_SHARED_INPUT_ROOTS = (
     ".runtime/product-video-inputs",
 )
 DESTINATION_KINDS = {"drive", "durable_store_readback"}
@@ -258,6 +260,9 @@ def collect_candidates(
             name = path.name
             if case_id in name or (completed_filename and name == completed_filename):
                 consider(path)
+
+    for relative in PERSISTENT_SHARED_INPUT_ROOTS:
+        skipped.append({"path": relative, "reason": "persistent_shared_input"})
 
     if skip_shared:
         for relative in SHARED_RELATIVE_ROOTS:
@@ -533,6 +538,7 @@ def self_test() -> int:
             root / "voice",
             root / "out",
             root / ".runtime" / "product-video-inputs" / "AN-S182_コピー",
+            root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "設置風景",
             task_root / "import-staging",
             downloads,
         ):
@@ -543,6 +549,7 @@ def self_test() -> int:
             root / "voice" / "capcut-tts.ogg": b"voice-bytes",
             root / "out" / f"{case_id}.mp4": b"export-bytes",
             root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "src.mp4": b"runtime-bytes",
+            root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "設置風景" / "clip.mov": b"nested-runtime-bytes",
             task_root / "import-staging" / "frame.jpg": b"frame-bytes",
             task_root / "keep.json": b'{"keep":true}\n',
             downloads / f"{case_id}.mp4": b"download-bytes",
@@ -568,6 +575,12 @@ def self_test() -> int:
         check("plans-export", f"out/{case_id}.mp4" in planned_paths)
         check("plans-downloads", f"Downloads/{case_id}.mp4" in planned_paths)
         check("does-not-plan-json", "outputs/AN-S182-20260902-purge/keep.json" not in planned_paths)
+        check(
+            "does-not-plan-product-video-inputs",
+            not any("product-video-inputs" in path for path in planned_paths),
+        )
+        skipped_paths = {item["path"] for item in payload["skipped"]}
+        check("skips-persistent-shared-input-root", ".runtime/product-video-inputs" in skipped_paths)
 
         early = argparse.Namespace(**{**dry.__dict__, "execute": True, "i_confirm_destination_stored": True})
         write_state(task_root, case_id, "ROUGH_EDIT", "drive", True)
@@ -618,6 +631,14 @@ def self_test() -> int:
         check("deletes-media", not (root / "out" / f"{case_id}.mp4").exists())
         check("deletes-footage", not (root / "footage" / "clip.mp4").exists())
         check("deletes-download", not (downloads / f"{case_id}.mp4").exists())
+        check(
+            "keeps-product-video-inputs",
+            (root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "src.mp4").exists(),
+        )
+        check(
+            "keeps-nested-product-video-input",
+            (root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "設置風景" / "clip.mov").exists(),
+        )
         check("keeps-json", (task_root / "keep.json").exists())
         check("keeps-state", workflow_state_path(task_root).exists())
         check("writes-receipt", (task_root / "local-working-media-purge-receipt.v1.json").is_file())

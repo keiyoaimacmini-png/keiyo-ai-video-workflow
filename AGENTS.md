@@ -47,13 +47,13 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - Keep product media, evidence frames, editable runtime artifacts, exports, credentials, cookies, tokens, account identifiers, and session identifiers out of Git, pull requests, and ordinary logs.
 - Do not open a pull request, publish an artifact, post, send externally, start a Pro contract, buy extra CapCut credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action. Confirming an existing-balance CapCut `Credits will be consumed` dialog (Got it) is not a new purchase.
 - Standing completion is Drive 格納: after exact `完成・格納してください`, export once and, in that same turn, create one new file in the Drive folder titled with this product model in exact case. Create that file with `scripts/upload_drive_local_file.py` from local bytes; do not inline the completed video as base64. Do not open Chrome.app for 格納. Require exact new-file read-back. COMPLETE only after Drive verification.
-- After stage `COMPLETE` and verified 格納, purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`.
+- After stage `COMPLETE` and verified 格納, purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`. Do not delete `.runtime/product-video-inputs`.
 
 ## 完了後のローカル削除
 
-- `完成・格納してください` と格納が済んだ案件だけ、**この Mac** から素材の作業コピーと完成動画の作業コピーを消す。
+- `完成・格納してください` と格納が済んだ案件だけ、**この Mac** からその案件の作業用 media（`outputs/<case>` の TTS・一時ファイル・ローカル完成動画の作業コピー）を消す。共有素材ライブラリ `.runtime/product-video-inputs` は消さない。
 - まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/` や `out/` を確認する。無いコピーは失敗にしない。
-- 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
+- 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件、`.runtime/product-video-inputs` 配下の再利用素材は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
 ## ナレーション（1カットごと）

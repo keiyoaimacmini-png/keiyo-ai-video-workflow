@@ -27,6 +27,7 @@ from constants import (  # noqa: E402
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
+    PERSISTENT_SHARED_INPUT_RELATIVE,
 )
 from delivery import may_complete, may_purge, may_start_job  # noqa: E402
 from dispatch import dispatch  # noqa: E402
@@ -38,6 +39,11 @@ from tts_attempts import generation_count_for_cut, load_attempts, may_generate_c
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
+from preserve_shared_inputs import (  # noqa: E402
+    PERSISTENT_SKIP_REASON,
+    is_persistent_shared_input_path,
+    planned_hits_persistent_shared_inputs,
+)
 from prove_material_videos import prove_material_videos  # noqa: E402
 from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
@@ -957,6 +963,7 @@ def test_git_tracked_helpers() -> None:
         ("tts_attempts", ".cursor/skills/product-video/scripts/tts_attempts.py"),
         ("prove_material_videos", ".cursor/skills/product-video/scripts/prove_material_videos.py"),
         ("classify_capcut_credit", ".cursor/skills/product-video/scripts/classify_capcut_credit.py"),
+        ("preserve_shared_inputs", ".cursor/skills/product-video/scripts/preserve_shared_inputs.py"),
     ):
         check(f"tts-{name}-owned-path", helper_relpath(name) == rel)
         check(f"tts-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
@@ -1105,6 +1112,91 @@ def test_chrome_mcp_docs() -> None:
     check("chrome-G-hold-when-unavailable", "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE" in ref)
 
 
+def load_purge_helper():
+    import importlib.util
+
+    path = helper_path(REPO, "purge_local_working_media")
+    spec = importlib.util.spec_from_file_location("purge_local_working_media", path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_purge_preserves_shared_inputs() -> None:
+    import argparse
+
+    helper = load_purge_helper()
+    check(
+        "purge-owned-root-constant",
+        helper.PERSISTENT_SHARED_INPUT_ROOTS == (PERSISTENT_SHARED_INPUT_RELATIVE,),
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "repo"
+        case_id = "pv-AN-S182-purge-test"
+        task_root = root / "outputs" / case_id
+        downloads = Path(directory) / "Downloads"
+        nested = root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "設置風景"
+        for path in (
+            root / "out",
+            task_root / "tts",
+            nested,
+            downloads,
+        ):
+            path.mkdir(parents=True, exist_ok=True)
+        helper.write_state(task_root, case_id, "COMPLETE", "drive", True)
+        case_mp4 = task_root / "tts" / "c1.mp3"
+        case_frame = task_root / "work.mp4"
+        export_mp4 = root / "out" / f"{case_id}.mp4"
+        library_mp4 = root / ".runtime" / "product-video-inputs" / "AN-S182_コピー" / "video.mp4"
+        library_mov = nested / "video.mov"
+        download_mp4 = downloads / f"{case_id}.mp4"
+        case_mp4.write_bytes(b"tts-bytes")
+        case_frame.write_bytes(b"case-video")
+        export_mp4.write_bytes(b"export-bytes")
+        library_mp4.write_bytes(b"library-mp4")
+        library_mov.write_bytes(b"library-mov")
+        download_mp4.write_bytes(b"download-bytes")
+        dry = argparse.Namespace(
+            project_root=root,
+            task_root=task_root,
+            case_id=case_id,
+            execute=False,
+            i_confirm_destination_stored=False,
+            destination_stored_receipt=None,
+            completed_video_filename=f"{case_id}.mp4",
+            home_downloads_dir=downloads,
+        )
+        early = argparse.Namespace(**{**dry.__dict__, "execute": True, "i_confirm_destination_stored": True})
+        helper.write_state(task_root, case_id, "ROUGH_EDIT", "drive", True)
+        code, payload = helper.run_purge(early)
+        check(
+            "purge-E-before-verified-delivery",
+            code == 2 and payload.get("hold") == helper.HOLD_NOT_DUE,
+        )
+        check("purge-E-keeps-case-media", case_mp4.exists() and library_mp4.exists())
+        helper.write_state(task_root, case_id, "COMPLETE", "drive", True)
+
+        code, payload = helper.run_purge(dry)
+        planned_paths = {entry["path"] for entry in payload.get("planned") or []}
+        check("purge-A-plans-task-tts", f"outputs/{case_id}/tts/c1.mp3" in planned_paths)
+        check("purge-A-plans-task-video", f"outputs/{case_id}/work.mp4" in planned_paths)
+        check("purge-F-no-library-in-dry-run", planned_hits_persistent_shared_inputs(payload.get("planned") or []) == [])
+        check("purge-B-root-mp4-not-planned", not any(path.endswith("video.mp4") and is_persistent_shared_input_path(path) for path in planned_paths))
+        check("purge-C-nested-mov-not-planned", not any(path.endswith("video.mov") and is_persistent_shared_input_path(path) for path in planned_paths))
+        skipped_reasons = {item.get("reason") for item in payload.get("skipped") or []}
+        check("purge-skip-reason-owned", PERSISTENT_SKIP_REASON in skipped_reasons)
+
+        execute = argparse.Namespace(**{**dry.__dict__, "execute": True, "i_confirm_destination_stored": True})
+        code, payload = helper.run_purge(execute)
+        check("purge-A-execute-ok", code == 0)
+        check("purge-A-deletes-task-media", not case_mp4.exists() and not case_frame.exists())
+        check("purge-B-keeps-library-mp4", library_mp4.exists())
+        check("purge-C-keeps-nested-mov", library_mov.exists())
+        check("purge-D-zero-in-progress-still-keeps-library", library_mp4.exists() and library_mov.exists())
+
+
 def main() -> int:
     print(f"REPO {REPO}")
     test_parser()
@@ -1119,6 +1211,7 @@ def main() -> int:
     test_material_video_preflight()
     test_capcut_credit_policy()
     test_chrome_mcp_docs()
+    test_purge_preserves_shared_inputs()
     scratch = SCRIPTS / "_scratch"
     if scratch.exists():
         shutil.rmtree(scratch)

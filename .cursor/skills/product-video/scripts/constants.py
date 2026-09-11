@@ -15,6 +15,7 @@ HOLD_CAPCUT_CREDIT_UNVERIFIED = "HOLD_CAPCUT_CREDIT_UNVERIFIED"
 HOLD_CAPCUT_NEW_PURCHASE_REQUIRED = "HOLD_CAPCUT_NEW_PURCHASE_REQUIRED"
 HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE = "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE"
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".m4v", ".avi", ".mkv"})
+PERSISTENT_SHARED_INPUT_RELATIVE = ".runtime/product-video-inputs"
 STATE_FILENAME = "workflow-state.json"
 STATE_MAX_BYTES = 16384
 RECEIPT_MAX_BYTES = 65536
@@ -106,6 +107,7 @@ OWNED_HELPERS = {
     "tts_attempts": "tts_attempts.py",
     "prove_material_videos": "prove_material_videos.py",
     "classify_capcut_credit": "classify_capcut_credit.py",
+    "preserve_shared_inputs": "preserve_shared_inputs.py",
 }
 
 LEGACY_TRACKED_HELPERS = {
@@ -127,6 +129,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/tts_attempts.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/prove_material_videos.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/classify_capcut_credit.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/preserve_shared_inputs.py", "DELIVERY"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py", "NARRATION"),
