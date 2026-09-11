@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -948,6 +949,22 @@ def test_runtime_path() -> None:
     check("entry-is-product-video", (skills_root / "product-video" / "SKILL.md").read_text(encoding="utf-8").startswith("---\nname: product-video"))
 
 
+def test_gemini_cli_transport() -> None:
+    helper = helper_path(REPO, "send_gemini_cli_prompt")
+    result = subprocess.run(
+        [sys.executable, str(helper), "--self-test"],
+        cwd=str(REPO),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    check("gemini-cli-helper-self-test", result.returncode == 0, (result.stdout or result.stderr or "")[-500:])
+    template = (REPO / ".cursor" / "skills" / "product-video" / "references" / "gemini-script-instructions.md").read_text(
+        encoding="utf-8"
+    )
+    check("creative-template-has-no-transport-prefix", "RunCommand" not in template)
+
+
 def test_git_tracked_helpers() -> None:
     owned = helper_relpath("prove_tts_textarea")
     check("tts-gate-owned-path", owned == ".cursor/skills/product-video/scripts/prove_tts_textarea.py")
@@ -1207,6 +1224,7 @@ def main() -> int:
     test_delivery_gates()
     test_runtime_path()
     test_git_tracked_helpers()
+    test_gemini_cli_transport()
     test_forbidden_state()
     test_material_video_preflight()
     test_capcut_credit_policy()

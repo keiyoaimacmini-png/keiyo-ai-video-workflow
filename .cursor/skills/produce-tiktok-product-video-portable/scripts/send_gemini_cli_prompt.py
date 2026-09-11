@@ -28,6 +28,14 @@ MODEL_REQUIRED = "gemini-3.8-flash"
 MODEL_LABEL = "Gemini 3.8 Flash"
 EFFORT_REQUIRED = "medium"
 PRINT_TIMEOUT = "2m"
+TRANSPORT_PREFIX = (
+    "これはテキスト生成だけのタスクです。\n"
+    "RunCommand、ReadFile、WriteFile、Web、MCPその他のツールを一切使用しないでください。\n"
+    "workspaceを調査しないでください。\n"
+    "コマンドを実行しないでください。\n"
+    "以下に与えた情報だけを使って、完成した回答本文を直接出力してください。\n"
+    "ツール利用の提案・確認・前置きも不要です。\n"
+)
 API_ENV_KEYS = (
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
@@ -123,13 +131,29 @@ def extract_json_object(text: str) -> dict[str, Any] | None:
     return last
 
 
+def apply_transport_prefix(prompt: str) -> str:
+    """Prepend a transport-only no-tools prefix. Do not rewrite the rendered body."""
+    if prompt.startswith(TRANSPORT_PREFIX):
+        return prompt
+    return TRANSPORT_PREFIX + prompt
+
+
+def extract_draft(payload: dict[str, Any] | None) -> str:
+    """Return model draft text only. A SUCCESS envelope with empty response is not a draft."""
+    if not payload:
+        return ""
+    for key in ("response", "text", "output"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
 def response_text(payload: dict[str, Any] | None, stdout: str) -> str:
-    if payload:
-        for key in ("response", "text", "output"):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return value
-    return (stdout or "").strip()
+    draft = extract_draft(payload)
+    if draft:
+        return draft
+    return ""
 
 
 def model_matches(payload: dict[str, Any] | None, blob: str, requested: str | None = None) -> bool:
@@ -234,10 +258,11 @@ def send_prompt(prompt: str) -> dict[str, Any]:
     agy = find_agy()
     if not agy:
         return hold(HOLD_CLI, "agy is not on PATH; install Antigravity CLI and retry this helper")
+    to_send = apply_transport_prefix(prompt)
     with tempfile.TemporaryDirectory(prefix="gemini-cli-script-") as tmp:
         tmp_path = Path(tmp)
         log_file = tmp_path / "agy.log"
-        cmd = agy_print_command(agy, prompt, log_file)
+        cmd = agy_print_command(agy, to_send, log_file)
         try:
             result = run_agy(cmd, cwd=tmp_path, timeout=150)
         except subprocess.TimeoutExpired:
@@ -253,14 +278,14 @@ def send_prompt(prompt: str) -> dict[str, Any]:
     if leftover:
         return hold(HOLD_CLI, "agy wrote workspace files; rerun as a one-shot with no file edits")
     parsed = extract_json_object(result.stdout or "")
-    if result.returncode != 0 or not response_text(parsed, result.stdout or ""):
+    text = extract_draft(parsed)
+    if result.returncode != 0 or not text:
         return classify_failure(blob)
     if not model_matches(parsed, blob, requested=MODEL_REQUIRED):
         return hold(
             HOLD_MODEL,
             f"Antigravity CLI model is not {MODEL_LABEL} ({MODEL_REQUIRED}). Do not fall back to Auto, Pro, or another Flash",
         )
-    text = response_text(parsed, result.stdout or "")
     return {
         "status": "OK",
         "action": "send",
@@ -287,10 +312,26 @@ def self_test() -> int:
     source = Path(__file__).read_text(encoding="utf-8")
     cmd = agy_print_command("agy", "hello", Path("/tmp/agy.log"))
     check("print-one-shot", cmd[1] == "--print")
-    check("pins-model", MODEL_REQUIRED in cmd)
+    check("pins-model", MODEL_REQUIRED in cmd and MODEL_REQUIRED == "gemini-3.8-flash")
     check("pins-effort", cmd[cmd.index("--effort") + 1] == EFFORT_REQUIRED if "--effort" in cmd else False)
     check("sandbox", "--sandbox" in cmd)
     check("no-skip-permissions", all(not flag.startswith("--dangerously") for flag in cmd))
+    command_src = Path(__file__).read_text(encoding="utf-8").split("def self_test")[0]
+    check("no-dangerously-in-command", "--dangerously-skip-permissions" not in command_src)
+    check("transport-prefix", "これはテキスト生成だけのタスクです" in TRANSPORT_PREFIX and "これはテキスト生成だけのタスクです" in source)
+    check("bans-runcommand", "RunCommand" in TRANSPORT_PREFIX and "使用しない" in TRANSPORT_PREFIX)
+    check("bans-file-rw", "ReadFile" in TRANSPORT_PREFIX and "WriteFile" in TRANSPORT_PREFIX)
+    check("bans-web-mcp", "Web" in TRANSPORT_PREFIX and "MCP" in TRANSPORT_PREFIX)
+    body = "あなたはTikTok向けの商品紹介ショート動画の台本作家です。\n"
+    prefixed = apply_transport_prefix(body)
+    check("prefix-preserves-body", prefixed.startswith(TRANSPORT_PREFIX) and prefixed.endswith(body) and prefixed[len(TRANSPORT_PREFIX):] == body)
+    check("prefix-idempotent", apply_transport_prefix(prefixed) == prefixed)
+    empty_success = extract_json_object('{"status":"SUCCESS","response":""}')
+    check("empty-success-not-ok", extract_draft(empty_success) == "")
+    check(
+        "empty-success-stdout-not-draft",
+        response_text(empty_success, '{"status":"SUCCESS","response":""}') == "",
+    )
     check("mentions-no-app", "Do not launch" in source and "Gemini.app" in source)
     env = scrub_env({"GEMINI_API_KEY": "secret", "PATH": "/usr/bin", "HOME": "/tmp"})
     check("scrub-api-key", "GEMINI_API_KEY" not in env)
