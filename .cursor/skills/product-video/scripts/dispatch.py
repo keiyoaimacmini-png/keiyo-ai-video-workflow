@@ -15,7 +15,7 @@ from constants import (
 )
 from bind_script_selection import bind_script_selection
 from paths import emit, project_root_from, skill_root, state_path
-from workflow_state import hold, load_state, stage_already_complete
+from workflow_state import clear_hold, hold, load_state, stage_already_complete
 
 
 def stop(reason: str, **extra: Any) -> dict[str, Any]:
@@ -42,6 +42,7 @@ def dispatch(
     case_id: str | None = None,
     utterance: str | None = None,
     product_model: str | None = None,
+    preflight_ready: bool = False,
 ) -> dict[str, Any]:
     from prepare import create_new_case, resolve_case_id
 
@@ -50,6 +51,15 @@ def dispatch(
     if resolved_case is None:
         if not product_model:
             return hold("HOLD_PRODUCT_MODEL_REQUIRED", "new case needs --product-model")
+        if not preflight_ready:
+            return {
+                "status": "OK",
+                "action": "run_preflight",
+                "stage": "PREFLIGHT",
+                "ask_continue": False,
+                "create_case": False,
+                "product_model": product_model,
+            }
         created = create_new_case(root, product_model, utterance or "")
         if created.get("status") != "OK":
             return created
@@ -73,7 +83,25 @@ def dispatch(
         return stop("complete", case_id=case_id, current_stage=stage)
 
     if state.get("hold"):
-        return stop("hold", case_id=case_id, current_stage=stage, hold=state["hold"])
+        if not preflight_ready:
+            return {
+                "status": "OK",
+                "action": "run_preflight",
+                "stage": "PREFLIGHT",
+                "reason": "held_case_retry",
+                "ask_continue": False,
+                "create_case": False,
+                "preserve_case": True,
+                "case_id": case_id,
+                "current_stage": stage,
+                "hold": state["hold"],
+                "product_model": state.get("product_model"),
+            }
+        cleared = clear_hold(root, case_id)
+        if cleared.get("status") != "OK":
+            return cleared
+        state = load_state(root, case_id)
+        stage = state["current_stage"]
 
     if stage == "SCRIPT_SELECTION":
         bound = bind_script_selection(text, state)
@@ -135,6 +163,7 @@ def main() -> int:
     parser.add_argument("--product-model")
     parser.add_argument("--utterance")
     parser.add_argument("--utterance-file", type=Path)
+    parser.add_argument("--preflight-ready", action="store_true")
     args = parser.parse_args()
     utterance = args.utterance
     if args.utterance_file:
@@ -144,6 +173,7 @@ def main() -> int:
         case_id=args.case_id,
         utterance=utterance,
         product_model=args.product_model,
+        preflight_ready=args.preflight_ready,
     )
     emit(payload)
     return 0 if payload.get("status") == "OK" else 2

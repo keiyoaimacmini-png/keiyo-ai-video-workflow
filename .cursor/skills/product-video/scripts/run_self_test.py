@@ -21,10 +21,12 @@ from bind_script_selection import bind_script_selection  # noqa: E402
 from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
     DELIVERY_APPROVAL,
+    HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
     HOLD_CAPCUT_CREDIT_UNVERIFIED,
     HOLD_CAPCUT_NEW_PURCHASE_REQUIRED,
     HOLD_INPUT_MATERIALS_REQUIRED,
     HOLD_MATERIAL_VIDEO_REQUIRED,
+    HOLD_PREFLIGHT_REQUIRED,
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
@@ -46,11 +48,13 @@ from preserve_shared_inputs import (  # noqa: E402
     planned_hits_persistent_shared_inputs,
 )
 from prove_material_videos import prove_material_videos  # noqa: E402
+from run_preflight import item, merge_preflight, retry_call, run_preflight  # noqa: E402
 from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from script_fidelity import assert_immutable  # noqa: E402
 from script_stage import accept_gemini_output  # noqa: E402
 from workflow_state import (  # noqa: E402
+    clear_hold,
     complete_stage,
     empty_state,
     load_state,
@@ -125,6 +129,10 @@ def fake_project(tmp: Path) -> Path:
     shutil.copy(
         REPO / ".cursor" / "skills" / "product-video" / "scripts" / "tts_attempts.py",
         owned_scripts / "tts_attempts.py",
+    )
+    shutil.copy(
+        REPO / ".cursor" / "skills" / "product-video" / "scripts" / "run_preflight.py",
+        owned_scripts / "run_preflight.py",
     )
     helper_dir = tmp / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
     helper_dir.mkdir(parents=True)
@@ -765,17 +773,26 @@ def test_delivery_gates() -> None:
 
 
 def test_dispatch_initial_entry(root: Path) -> None:
-    """No case_id and no active case: first dispatch must create PREPARE without NameError."""
+    """No case_id and no active case: preflight first, then PREPARE, no NameError."""
     outputs = root / "outputs"
     preexisting = [p.name for p in outputs.iterdir()] if outputs.is_dir() else []
     check("initial-entry-no-active-case", preexisting == [], str(preexisting))
     try:
-        first = dispatch(root, product_model="AN-S999")
-    except Exception as exc:  # noqa: BLE001 - this regression was a NameError
+        blocked = dispatch(root, product_model="AN-S999")
+    except Exception as exc:  # noqa: BLE001
         check("initial-entry-no-exception", False, f"{type(exc).__name__}: {exc}")
         return
     check("initial-entry-no-exception", True)
-    check("initial-entry-action", first.get("action") == "run_skill")
+    check("initial-entry-action", blocked.get("action") == "run_preflight")
+    check("initial-entry-no-case-before-preflight", blocked.get("create_case") is False)
+    cases_blocked = sorted(p.name for p in outputs.iterdir() if p.is_dir()) if outputs.is_dir() else []
+    check("initial-entry-no-case-yet", cases_blocked == [], str(cases_blocked))
+    try:
+        first = dispatch(root, product_model="AN-S999", preflight_ready=True)
+    except Exception as exc:  # noqa: BLE001
+        check("initial-entry-ready-no-exception", False, f"{type(exc).__name__}: {exc}")
+        return
+    check("initial-entry-ready-no-exception", True)
     check("initial-entry-skill", first.get("skill") == "product-video-prepare")
     check("initial-entry-stage", first.get("stage") == "PREPARE")
     case_id = first.get("case_id")
@@ -803,6 +820,84 @@ def test_dispatch_initial_entry(root: Path) -> None:
     )
     cases_after = sorted(p.name for p in outputs.iterdir() if p.is_dir()) if outputs.is_dir() else []
     check("initial-entry-no-duplicate-case", cases_after == [case_id], str(cases_after))
+
+
+def test_preflight_operator_batch(root: Path) -> None:
+    helper = subprocess.run(
+        [sys.executable, str(helper_path(REPO, "run_preflight")), "--self-test"],
+        cwd=str(REPO),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    check("preflight-helper-self-test", helper.returncode == 0, (helper.stdout or helper.stderr or "")[-400:])
+    calls = {"n": 0}
+
+    def flaky() -> dict[str, Any]:
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return {"status": "HOLD", "hold": HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE}
+        return {"status": "OK"}
+
+    recovered = retry_call(flaky, attempts=3)
+    check("preflight-retry-recovers", recovered.get("status") == "OK")
+    batched = merge_preflight(
+        [
+            item("chrome_local", {"status": "HOLD", "hold": HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE}, operator_fix="Chrome remote debugging OFF"),
+            item("drive", {"status": "HOLD", "hold": "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE"}, operator_fix="Drive OAuth期限切れ"),
+        ]
+    )
+    check("preflight-batch-hold", batched.get("hold") == HOLD_PREFLIGHT_REQUIRED)
+    check("preflight-batch-two", batched.get("operator_fixes") == ["Chrome remote debugging OFF", "Drive OAuth期限切れ"])
+
+    observation = {
+        "chrome_mcp_attached": True,
+        "capcut_tts_reachable": True,
+        "capcut_logged_in": True,
+        "holiday_twist_available": True,
+        "chatcut_connected": True,
+    }
+    payload = run_preflight(
+        root,
+        product_model="AN-S999",
+        observation=observation,
+        live=False,
+        gemini_probe_fn=lambda: {"status": "OK", "model_required": "gemini-3.8-flash"},
+        gemini_print_fn=lambda: {"status": "OK", "last_text": "PONG"},
+        chrome_fn=lambda: {"status": "OK"},
+        drive_fn=lambda: {"status": "OK"},
+    )
+    check("preflight-fake-project-ready", payload.get("status") == "READY", str(payload.get("hold")))
+    check("preflight-no-writes", payload.get("writes") is False and payload.get("tts_generated") is False)
+
+    case_id = "pv-AN-S999-held"
+    materials = root / ".runtime" / "product-video-inputs" / "AN-S999_コピー"
+    seed_state(
+        root,
+        case_id,
+        "NARRATION",
+        ["PREPARE", "SCRIPT", "SCRIPT_SELECTION"],
+        extra={
+            "material_root": str(materials),
+            "selected_script_variant": 2,
+            "hold": {"code": HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "stage": "NARRATION"},
+        },
+    )
+    blocked = dispatch(root, case_id=case_id, product_model="AN-S999")
+    check("held-case-reruns-preflight", blocked.get("action") == "run_preflight")
+    check("held-case-preserved", blocked.get("preserve_case") is True and blocked.get("case_id") == case_id)
+    check("held-case-stays-narration", blocked.get("current_stage") == "NARRATION")
+    resumed = dispatch(root, case_id=case_id, product_model="AN-S999", preflight_ready=True)
+    check("held-case-resumes-narration", resumed.get("skill") == "product-video-narration" and resumed.get("stage") == "NARRATION")
+    state = load_state(root, case_id)
+    check("held-case-hold-cleared", state.get("hold") is None)
+    check("held-case-variant-kept", state.get("selected_script_variant") == 2)
+    check(
+        "held-case-stages-kept",
+        state.get("completed_stages") == ["PREPARE", "SCRIPT", "SCRIPT_SELECTION"],
+    )
+    cleared = clear_hold(root, case_id)
+    check("clear-hold-keeps-stage", cleared.get("current_stage") == "NARRATION")
 
 
 def test_dispatch_resume(root: Path) -> None:
@@ -981,6 +1076,7 @@ def test_git_tracked_helpers() -> None:
         ("prove_material_videos", ".cursor/skills/product-video/scripts/prove_material_videos.py"),
         ("classify_capcut_credit", ".cursor/skills/product-video/scripts/classify_capcut_credit.py"),
         ("preserve_shared_inputs", ".cursor/skills/product-video/scripts/preserve_shared_inputs.py"),
+        ("run_preflight", ".cursor/skills/product-video/scripts/run_preflight.py"),
     ):
         check(f"tts-{name}-owned-path", helper_relpath(name) == rel)
         check(f"tts-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
@@ -1127,6 +1223,8 @@ def test_chrome_mcp_docs() -> None:
     check("chrome-G-mcp-json-not-git", "Do not add it to Git" in ref or "Do not add this file to Git" in ref)
     check("chrome-G-no-namespace-literal", "user-chatcut" not in ref and "project-0-" not in ref)
     check("chrome-G-hold-when-unavailable", "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE" in ref)
+    check("chrome-G-retry-then-hold", "retry up to 3" in ref)
+    check("chrome-G-batch-preflight-fixes", "開始前に直すこと" in ref)
 
 
 def load_purge_helper():
@@ -1243,6 +1341,8 @@ def main() -> int:
         test_dispatch_resume(root)
         entry_root = fake_project(scratch / "initial-entry")
         test_dispatch_initial_entry(entry_root)
+        held_root = fake_project(scratch / "held-resume")
+        test_preflight_operator_batch(held_root)
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     if FAILURES:

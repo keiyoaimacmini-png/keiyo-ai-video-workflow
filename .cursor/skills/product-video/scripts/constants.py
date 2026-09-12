@@ -14,6 +14,29 @@ HOLD_INPUT_MATERIALS_REQUIRED = "HOLD_INPUT_MATERIALS_REQUIRED"
 HOLD_CAPCUT_CREDIT_UNVERIFIED = "HOLD_CAPCUT_CREDIT_UNVERIFIED"
 HOLD_CAPCUT_NEW_PURCHASE_REQUIRED = "HOLD_CAPCUT_NEW_PURCHASE_REQUIRED"
 HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE = "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE"
+HOLD_PREFLIGHT_REQUIRED = "HOLD_PREFLIGHT_REQUIRED"
+HOLD_CHATCUT_UNAVAILABLE = "HOLD_CHATCUT_UNAVAILABLE"
+MAX_TRANSIENT_RETRIES = 3
+HUMAN_HOLD_CODES = frozenset(
+    {
+        "HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED",
+        "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED",
+        "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED",
+        "HOLD_CAPCUT_NEW_PURCHASE_REQUIRED",
+        "HOLD_MATERIAL_VIDEO_REQUIRED",
+        "HOLD_INPUT_MATERIALS_REQUIRED",
+        "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
+        "HOLD_DRIVE_SCOPE_AMBIGUOUS",
+    }
+)
+TRANSIENT_HOLD_CODES = frozenset(
+    {
+        HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
+        "HOLD_GEMINI_CLI_NOT_VERIFIED",
+        "HOLD_CHATCUT_UNAVAILABLE",
+        "HOLD_DRIVE_LOOKUP_TRANSIENT",
+    }
+)
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mov", ".m4v", ".avi", ".mkv"})
 PERSISTENT_SHARED_INPUT_RELATIVE = ".runtime/product-video-inputs"
 STATE_FILENAME = "workflow-state.json"
@@ -108,6 +131,7 @@ OWNED_HELPERS = {
     "prove_material_videos": "prove_material_videos.py",
     "classify_capcut_credit": "classify_capcut_credit.py",
     "preserve_shared_inputs": "preserve_shared_inputs.py",
+    "run_preflight": "run_preflight.py",
 }
 
 LEGACY_TRACKED_HELPERS = {
@@ -128,6 +152,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/prove_tts_speed.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/tts_attempts.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/prove_material_videos.py", "PREPARE"),
+    (".cursor/skills/product-video/scripts/run_preflight.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/classify_capcut_credit.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/preserve_shared_inputs.py", "DELIVERY"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),

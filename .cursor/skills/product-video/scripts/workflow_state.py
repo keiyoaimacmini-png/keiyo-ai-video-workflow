@@ -161,6 +161,19 @@ def stage_already_complete(state: dict[str, Any], stage: str) -> bool:
     return stage in state.get("completed_stages", [])
 
 
+def clear_hold(project_root: Path, case_id: str) -> dict[str, Any]:
+    state = load_state(project_root, case_id)
+    state["hold"] = None
+    save_state(project_root, state)
+    return {
+        "status": "OK",
+        "case_id": case_id,
+        "current_stage": state["current_stage"],
+        "completed_stages": list(state.get("completed_stages") or []),
+        "hold": None,
+    }
+
+
 def complete_stage(
     project_root: Path,
     state: dict[str, Any],

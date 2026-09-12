@@ -12,6 +12,7 @@ Owned by `/product-video`:
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_material_videos.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/classify_capcut_credit.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/preserve_shared_inputs.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/run_preflight.py`
 
 Tracked helpers reused from the portable scripts directory (Git-tracked files only):
 

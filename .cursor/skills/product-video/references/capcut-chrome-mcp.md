@@ -6,8 +6,8 @@ Holiday Twist generation uses this Mac's already-running **Google Chrome.app**, 
 
 1. Google Chrome.app is already running.
 2. Cursor connects through this project's **Playwright MCP** with `--cdp-endpoint=chrome`.
-3. Resolve whichever Playwright MCP is available in this session. Do not hard-code an MCP namespace string; namespace names are host-dependent.
-4. Open CapCut official Text to Speech on that attached Chrome session.
+3. Resolve whichever Playwright MCP is available in this session. Do not hard-code an MCP namespace string; namespace names are host-dependent. If the first attach fails, retry up to 3 times before HOLD.
+4. Open CapCut official Text to Speech on that attached Chrome session. Do not click Generate during preflight.
 
 `.cursor/mcp.json` is a local host setting. Do not add it to Git.
 
@@ -19,7 +19,7 @@ Holiday Twist generation uses this Mac's already-running **Google Chrome.app**, 
 
 ## When the MCP cannot attach
 
-Stop with `HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE`. Tell the operator the local setup; do not invent another browser path.
+Retry up to 3 times. Do not ask the operator about a transient miss. If it still cannot attach, stop with `HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE`. During start-time preflight, keep checking the other independent items and include this in one **開始前に直すこと** list. Tell the operator the local setup; do not invent another browser path.
 
 Operator setup (no secrets):
 

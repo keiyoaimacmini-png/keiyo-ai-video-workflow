@@ -232,6 +232,18 @@ def probe() -> dict[str, Any]:
     }
 
 
+def probe_print() -> dict[str, Any]:
+    payload = send_prompt("Reply with exactly PONG and nothing else.")
+    if payload.get("status") != "OK":
+        return payload
+    text = payload.get("last_text") or ""
+    if not str(text).strip():
+        return hold(HOLD_CLI, "text-only one-shot returned empty body")
+    payload["action"] = "probe_print"
+    payload["draft_chars"] = len(str(text))
+    return payload
+
+
 def agy_print_command(agy: str, prompt: str, log_file: Path) -> list[str]:
     return [
         agy,
@@ -353,6 +365,7 @@ def self_test() -> int:
         model_matches({"status": "SUCCESS"}, "claude-sonnet-4-6", requested=MODEL_REQUIRED) is False,
     )
     check("hold-cli", hold(HOLD_CLI, "x")["hold"] == HOLD_CLI)
+    check("probe-print-exists", "def probe_print" in source)
     if not all(ok for _, ok in checks):
         print("SELF-TEST FAILED: send_gemini_cli_prompt", flush=True)
         return 1
@@ -364,6 +377,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--probe", action="store_true")
+    parser.add_argument("--probe-print", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -373,8 +387,12 @@ def main() -> int:
             payload = probe()
             emit(payload)
             return 0 if payload.get("status") == "OK" else 2
+        if args.probe_print:
+            payload = probe_print()
+            emit(payload)
+            return 0 if payload.get("status") == "OK" else 2
         if args.prompt_file is None:
-            parser.error("--prompt-file is required unless --probe or --self-test is used")
+            parser.error("--prompt-file is required unless --probe, --probe-print, or --self-test is used")
         prompt = args.prompt_file.read_text(encoding="utf-8")
         payload = send_prompt(prompt)
         emit(payload)
