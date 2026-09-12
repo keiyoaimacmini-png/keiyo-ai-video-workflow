@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 
 from paths import emit, skill_root
+from script_grounding import label_product_blocks
 from workflow_state import hold
 
 PLACEHOLDERS = (
@@ -30,9 +31,10 @@ def render_script_prompt(
 ) -> str:
     if not product_information.strip():
         raise ValueError("PRODUCT_INFORMATION is required")
+    labeled = label_product_blocks(product_information, product_appeal_points)
     prompt = template
-    prompt = prompt.replace("{{PRODUCT_INFORMATION}}", product_information.strip() or "（なし）")
-    prompt = prompt.replace("{{PRODUCT_APPEAL_POINTS}}", product_appeal_points.strip() or "（なし）")
+    prompt = prompt.replace("{{PRODUCT_INFORMATION}}", labeled["product_information"])
+    prompt = prompt.replace("{{PRODUCT_APPEAL_POINTS}}", labeled["product_appeal_points"])
     prompt = prompt.replace("{{USER_CAMPAIGN_FOCUS}}", user_campaign_focus.strip())
     for token in PLACEHOLDERS:
         if token in prompt:

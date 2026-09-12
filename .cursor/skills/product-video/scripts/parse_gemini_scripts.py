@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from paths import emit
+from script_grounding import parse_evidence_ids
 from workflow_state import hold
 
 VARIANT_RE = re.compile(
@@ -18,6 +19,7 @@ VARIANT_RE = re.compile(
 DURATION_RE = re.compile(r"想定完成尺：\s*約\s*(\d+)\s*秒")
 CUT_RE = re.compile(
     r"カット\s*(\d+)\s*"
+    r"(?:根拠ID\s*[：:]\s*([^\n]+)\s*)?"
     r"シチュエーション：\s*「(.*?)」\s*"
     r"セリフ：\s*「(.*?)」",
     re.DOTALL,
@@ -43,8 +45,9 @@ def parse_gemini_scripts(text: str) -> dict[str, Any]:
                 {
                     "cut_id": f"c{cut.group(1)}",
                     "index": int(cut.group(1)),
-                    "situation": cut.group(2).strip(),
-                    "line": cut.group(3).strip(),
+                    "evidence_ids": parse_evidence_ids(cut.group(2)),
+                    "situation": cut.group(3).strip(),
+                    "line": cut.group(4).strip(),
                 }
             )
         if not cuts:

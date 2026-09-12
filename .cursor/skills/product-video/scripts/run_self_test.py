@@ -27,6 +27,7 @@ from constants import (  # noqa: E402
     HOLD_INPUT_MATERIALS_REQUIRED,
     HOLD_MATERIAL_VIDEO_REQUIRED,
     HOLD_PREFLIGHT_REQUIRED,
+    HOLD_SCRIPT_PRODUCT_GROUNDING,
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
@@ -51,7 +52,13 @@ from prove_material_videos import prove_material_videos  # noqa: E402
 from run_preflight import item, merge_preflight, retry_call, run_preflight  # noqa: E402
 from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_write_empty  # noqa: E402
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
-from script_fidelity import assert_immutable  # noqa: E402
+from script_fidelity import assert_immutable, freeze_approved_script  # noqa: E402
+from script_grounding import (  # noqa: E402
+    build_fact_catalog,
+    present_for_operator,
+    prove_scripts_grounding,
+    prove_variant_grounding,
+)
 from script_stage import accept_gemini_output  # noqa: E402
 from workflow_state import (  # noqa: E402
     clear_hold,
@@ -95,6 +102,48 @@ def sample_variant(n: int, title: str) -> str:
 def sample_scripts(count: int) -> str:
     titles = ["熱中症型", "時短型", "共感型", "使用シーン型", "比較型", "余分類"]
     body = "".join(sample_variant(i, titles[i - 1]) for i in range(1, count + 1))
+    return body + "案1は熱さ、案2は時短、案3は共感。\n"
+
+
+def grounded_sample_scripts(count: int) -> str:
+    titles = ["熱中症型", "時短型", "共感型", "使用シーン型", "比較型"]
+    body = ""
+    for index in range(1, count + 1):
+        body += (
+            f"【案{index}：{titles[index - 1]}】\n"
+            "想定完成尺：約45秒\n"
+            "※ナレーション1.2倍速での想定\n"
+            "カット1\n"
+            "根拠ID：HOOK\n"
+            "シチュエーション：\n"
+            "「車内でハンドルを握る人物」\n"
+            "セリフ：\n"
+            "「車、サウナすぎん？」\n"
+            "カット2\n"
+            "根拠ID：F1\n"
+            "シチュエーション：\n"
+            "「サンシェードを広げる手元」\n"
+            "セリフ：\n"
+            "「日差しをサンシェードで遮る」\n"
+            "カット3\n"
+            "根拠ID：F2\n"
+            "シチュエーション：\n"
+            "「傘型サンシェードを開く手元」\n"
+            "セリフ：\n"
+            "「傘型でパッと開く」\n"
+            "カット4\n"
+            "根拠ID：F4\n"
+            "シチュエーション：\n"
+            "「サンシェードを装着する手元」\n"
+            "セリフ：\n"
+            "「装着が簡単すぎる」\n"
+            "カット5\n"
+            "根拠ID：CTA\n"
+            "シチュエーション：\n"
+            "「画面下のリンクを指す」\n"
+            "セリフ：\n"
+            "「下からチェック！」\n"
+        )
     return body + "案1は熱さ、案2は時短、案3は共感。\n"
 
 
@@ -929,7 +978,7 @@ def test_dispatch_resume(root: Path) -> None:
     check("prepare-needs-inputs", finish_prepare_missing.get("status") == "HOLD")
     inputs = build_product_inputs(
         {"product_model": "AN-S999", "cta": {"text": "下からチェック！"}},
-        verified_facts=["車内の日差しを遮るサンシェード"],
+        verified_facts=["車内の日差しを遮るサンシェード", "傘型でパッと開く"],
         appeal_points=["装着が簡単"],
         user_campaign_focus="夏の車内",
     )
@@ -954,9 +1003,10 @@ def test_dispatch_resume(root: Path) -> None:
         check("no-duplicate-prepare", False)
     except ValueError:
         check("no-duplicate-prepare", True)
-    (root / "outputs" / case_id / "gemini-output.txt").write_text(sample_scripts(3), encoding="utf-8")
-    stored = accept_gemini_output(root, case_id, sample_scripts(3))
+    (root / "outputs" / case_id / "gemini-output.txt").write_text(grounded_sample_scripts(3), encoding="utf-8")
+    stored = accept_gemini_output(root, case_id, grounded_sample_scripts(3))
     check("script-stops-for-selection", stored.get("current_stage") == "SCRIPT_SELECTION")
+    check("script-hides-evidence-ids", "evidence_ids" not in json.dumps(stored.get("operator_variants") or []))
     waiting = dispatch(root, case_id=case_id, utterance="進めてください")
     check("invalid-does-not-approve", waiting.get("reason") == "waiting_script_selection")
     check("script-not-rerun", waiting.get("skill") is None)
@@ -1011,11 +1061,158 @@ def test_create_case(root: Path) -> None:
         )
 
 
+def _grounding_cut(index: int, line: str, evidence: list[str], situation: str = "手元") -> dict:
+    return {
+        "cut_id": f"c{index}",
+        "index": index,
+        "evidence_ids": evidence,
+        "situation": situation,
+        "line": line,
+    }
+
+
+def _grounding_variant(cuts: list[dict], variant_id: int = 1, title: str = "接地型") -> dict:
+    return {"variant_id": variant_id, "title": title, "estimated_seconds": 45, "cuts": cuts}
+
+
+def test_script_grounding() -> None:
+    info = "- 車内の日差しを遮るサンシェード\n- 傘型でパッと開く\n- 製品型番はAN-S182"
+    appeals = "- 装着が簡単"
+    catalog = build_fact_catalog(info, appeals)
+    check(
+        "grounding-ids-skip-model",
+        [item["id"] for item in catalog["facts"]] == ["F1", "F2", "F3"]
+        and catalog["by_id"]["F3"]["text"] == "装着が簡単",
+    )
+    grounded_cuts = [
+        _grounding_cut(1, "車、サウナすぎん？", ["HOOK"], "車内でハンドルを握る人物"),
+        _grounding_cut(2, "日差しをサンシェードで遮る", ["F1"], "サンシェードを広げる手元"),
+        _grounding_cut(3, "傘型でパッと開く", ["F2"], "傘型サンシェードを開く手元"),
+        _grounding_cut(4, "装着が簡単すぎる", ["F3"], "装着する手元"),
+        _grounding_cut(5, "下からチェック！", ["CTA"], "画面下を指す"),
+    ]
+    pass_one = prove_variant_grounding(
+        _grounding_variant(grounded_cuts),
+        catalog,
+        product_information=info,
+        product_appeal_points=appeals,
+    )
+    check("grounding-A-uses-three-facts", pass_one.get("status") == "OK", str(pass_one))
+    check("grounding-E-hook-cta-ok", pass_one.get("status") == "OK")
+    check("grounding-F-no-model-required", pass_one.get("status") == "OK" and "AN-S182" not in "".join(cut["line"] for cut in grounded_cuts))
+
+    generic_cuts = [
+        _grounding_cut(1, "ガチで買って大正解だった", ["HOOK"]),
+        _grounding_cut(2, "最近の中で一番の当たり枠", ["HOOK"]),
+        _grounding_cut(3, "気になって試してみたら", ["HOOK"]),
+        _grounding_cut(4, "下からチェック！", ["CTA"]),
+    ]
+    generic = prove_variant_grounding(
+        _grounding_variant(generic_cuts),
+        catalog,
+        product_information=info,
+        product_appeal_points=appeals,
+    )
+    check("grounding-B-generic-holds", generic.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    one_id_cuts = list(grounded_cuts)
+    one_id_cuts[2] = _grounding_cut(3, "日差しをもう一回遮る", ["F1"], "サンシェード")
+    one_id_cuts[3] = _grounding_cut(4, "日差しが違う", ["F1"], "サンシェード")
+    one_id = prove_variant_grounding(
+        _grounding_variant(one_id_cuts),
+        catalog,
+        product_information=info,
+        product_appeal_points=appeals,
+    )
+    check("grounding-C-one-fid-holds", one_id.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    hook_only_product = [
+        _grounding_cut(1, "日差しをサンシェードで遮る", ["HOOK"], "サンシェードを広げる手元"),
+        _grounding_cut(2, "期待を余裕で超えてきた", ["HOOK"]),
+        _grounding_cut(3, "シンプルで使い勝手も完璧", ["HOOK"]),
+        _grounding_cut(4, "下からチェック！", ["CTA"]),
+    ]
+    hook_rest = prove_variant_grounding(
+        _grounding_variant(hook_only_product),
+        catalog,
+        product_information=info,
+        product_appeal_points=appeals,
+    )
+    check("grounding-D-hook-then-generic-holds", hook_rest.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    invented = list(grounded_cuts)
+    invented[1] = _grounding_cut(2, "日差しカット99パーセント", ["F1"], "サンシェード")
+    invented_hold = prove_variant_grounding(
+        _grounding_variant(invented),
+        catalog,
+        product_information=info,
+        product_appeal_points=appeals,
+    )
+    check("grounding-G-invented-number-holds", invented_hold.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    parsed = parse_gemini_scripts(grounded_sample_scripts(3))
+    check("grounding-parser-evidence", parsed.get("status") == "OK" and parsed["variants"][0]["cuts"][0]["evidence_ids"] == ["HOOK"])
+    presented = json.dumps(present_for_operator(parsed), ensure_ascii=False)
+    check("grounding-H-hide-ids", "evidence_ids" not in presented and "根拠ID" not in presented and "F1" not in presented)
+
+    three = {
+        "status": "OK",
+        "variant_count": 3,
+        "variants": [_grounding_variant(grounded_cuts, variant_id=n, title=f"案{n}") for n in (1, 2, 3)],
+    }
+    ok_all = prove_scripts_grounding(three, info, appeals)
+    check("grounding-A-all-variants-pass", ok_all.get("status") == "OK", str(ok_all))
+    generic_batch = {
+        "status": "OK",
+        "variant_count": 3,
+        "variants": [_grounding_variant(generic_cuts, variant_id=n) for n in (1, 2, 3)],
+    }
+    held_batch = prove_scripts_grounding(generic_batch, info, appeals)
+    check("grounding-B-batch-holds", held_batch.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    skill = (REPO / ".cursor" / "skills" / "product-video-script" / "SKILL.md").read_text(encoding="utf-8")
+    check("grounding-regen-once", "once more" in skill or "同じ" in skill)
+    check("grounding-no-third-regen", "third" in skill or "3" in skill or "再生成" in skill)
+    check("grounding-hold-code", HOLD_SCRIPT_PRODUCT_GROUNDING in skill)
+    check("grounding-hide-from-operator", "根拠ID" in skill and "Do **not** show" in skill)
+
+    with tempfile.TemporaryDirectory() as raw:
+        root = fake_project(Path(raw) / "grounding")
+        case_id = "pv-AN-S999-ground"
+        materials = root / ".runtime" / "product-video-inputs" / "AN-S999_コピー"
+        seed_state(root, case_id, "SCRIPT", ["PREPARE"], extra={"material_root": str(materials)})
+        inputs = build_product_inputs(
+            {"product_model": "AN-S999", "cta": {"text": "下からチェック！"}},
+            verified_facts=["車内の日差しを遮るサンシェード", "傘型でパッと開く"],
+            appeal_points=["装着が簡単"],
+        )
+        (root / "outputs" / case_id / "product-inputs.json").write_text(
+            json.dumps(inputs, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        first = accept_gemini_output(root, case_id, sample_scripts(3))
+        check("grounding-regen-first", first.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING and first.get("regenerate") is True)
+        second = accept_gemini_output(root, case_id, sample_scripts(3))
+        check(
+            "grounding-regen-second-holds",
+            second.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING and second.get("regenerate") is False,
+        )
+        check("grounding-stage-not-complete", load_state(root, case_id)["current_stage"] == "SCRIPT")
+        frozen_ok = accept_gemini_output(root, case_id, grounded_sample_scripts(3))
+        check("grounding-pass-completes", frozen_ok.get("current_stage") == "SCRIPT_SELECTION", str(frozen_ok.get("hold")))
+        if frozen_ok.get("status") == "OK":
+            freeze = freeze_approved_script(root, load_state(root, case_id), 2)
+            check("grounding-freeze-ok", freeze.get("status") == "OK")
+            approved = json.loads((root / "outputs" / case_id / "approved-script.json").read_text(encoding="utf-8"))
+            blob = json.dumps(approved, ensure_ascii=False)
+            check("grounding-H-frozen-hides-ids", "evidence_ids" not in blob and "根拠ID" not in blob)
+
+
 def test_prompt_template() -> None:
     template = load_template(REPO)
     prompt = render_script_prompt(
         template,
-        product_information="- 車内の日差しを遮るサンシェード",
+        product_information="- 車内の日差しを遮るサンシェード\n- 傘型でパッと開く\n- 製品型番はAN-S182",
         product_appeal_points="- 装着が簡単",
         user_campaign_focus="夏の車内",
     )
@@ -1027,6 +1224,13 @@ def test_prompt_template() -> None:
     check("prompt-bans-model-in-cta", "CTAにも型番を入れない" in prompt)
     check("prompt-short-line-range", "12〜22文字" in prompt)
     check("prompt-short-line-cap", "25文字を大きく超えない" in prompt)
+    check("prompt-requires-evidence-id", "根拠ID" in prompt)
+    check("prompt-labels-f1", "F1: 車内の日差しを遮るサンシェード" in prompt)
+    check("prompt-labels-f2", "F2: 傘型でパッと開く" in prompt)
+    check("prompt-labels-appeal-f3", "F3: 装着が簡単" in prompt)
+    check("prompt-keeps-model-unlabeled", "製品型番はAN-S182" in prompt and "F4:" not in prompt)
+    check("prompt-model-not-assigned-fid", not re.search(r"F\d+:\s*製品型番はAN-S182", prompt))
+    check("prompt-no-runcommand", "RunCommand" not in prompt)
 
 
 def test_runtime_path() -> None:
@@ -1337,6 +1541,7 @@ def main() -> int:
     test_parser()
     test_approval_and_fidelity()
     test_prompt_template()
+    test_script_grounding()
     test_assembly_and_variety()
     test_telop_and_rough()
     test_delivery_gates()
