@@ -870,6 +870,25 @@ def test_preflight_operator_batch(root: Path) -> None:
     check("preflight-fake-project-ready", payload.get("status") == "READY", str(payload.get("hold")))
     check("preflight-no-writes", payload.get("writes") is False and payload.get("tts_generated") is False)
 
+    mcp_only = run_preflight(
+        root,
+        product_model="AN-S999",
+        observation={
+            "chrome_mcp_attached": False,
+            "chatcut_connected": True,
+        },
+        live=False,
+        gemini_probe_fn=lambda: {"status": "OK", "model_required": "gemini-3.8-flash"},
+        gemini_print_fn=lambda: {"status": "OK", "last_text": "PONG"},
+        chrome_fn=lambda: {"status": "OK", "remote_debugging": "READY", "port": 9222},
+        drive_fn=lambda: {"status": "OK"},
+    )
+    message = mcp_only.get("message_ja") or ""
+    check("mcp-fail-holds", mcp_only.get("status") == "HOLD")
+    check("mcp-fail-not-rd-off", "remote debugging を許可する" not in message and "Remote Debuggingを許可" not in message)
+    check("mcp-fail-records-attach", "Playwright MCP attach失敗" in message)
+    check("mcp-fail-chrome-ready", "Chrome 9222 READY" in message)
+
     case_id = "pv-AN-S999-held"
     materials = root / ".runtime" / "product-video-inputs" / "AN-S999_コピー"
     seed_state(
@@ -1225,6 +1244,7 @@ def test_chrome_mcp_docs() -> None:
     check("chrome-G-hold-when-unavailable", "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE" in ref)
     check("chrome-G-retry-then-hold", "retry up to 3" in ref)
     check("chrome-G-batch-preflight-fixes", "開始前に直すこと" in ref)
+    check("chrome-G-9222-ready-not-rd-off", "127.0.0.1:9222 is already listening" in ref)
 
 
 def load_purge_helper():

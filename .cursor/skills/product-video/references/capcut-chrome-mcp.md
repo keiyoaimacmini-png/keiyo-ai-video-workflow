@@ -19,9 +19,9 @@ Holiday Twist generation uses this Mac's already-running **Google Chrome.app**, 
 
 ## When the MCP cannot attach
 
-Retry up to 3 times. Do not ask the operator about a transient miss. If it still cannot attach, stop with `HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE`. During start-time preflight, keep checking the other independent items and include this in one **開始前に直すこと** list. Tell the operator the local setup; do not invent another browser path.
+Retry up to 3 times. Do not ask the operator about a transient miss. If 127.0.0.1:9222 is already listening, Chrome Remote Debugging is READY — do not tell the operator to allow remote debugging again. If Playwright still cannot attach, stop with `HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE` and record the MCP attach error gist. During start-time preflight, keep checking the other independent items and include genuine operator fixes in one **開始前に直すこと** list.
 
-Operator setup (no secrets):
+Operator setup, only when 9222 is not listening (no secrets):
 
 1. Start Google Chrome.app on this Mac.
 2. In this project's local `.cursor/mcp.json` (untracked), configure Playwright MCP args to include `--cdp-endpoint=chrome`.

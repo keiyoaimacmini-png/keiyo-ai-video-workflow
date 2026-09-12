@@ -142,7 +142,7 @@ def read_devtools_active_port(path: Path | None = None) -> dict[str, Any]:
     if "/devtools/browser/" not in ws_path:
         return hold(
             HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
-            "Chrome websocket path has no browser id; enable remote debugging",
+            "Chrome websocket path has no browser id",
         )
     return {"status": "OK", "port": int(port), "ws_path": ws_path}
 
@@ -155,30 +155,50 @@ def port_listening(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
-def cdp_http_ok(port: int) -> bool:
+def read_cdp_version(port: int) -> dict[str, Any] | None:
     url = f"http://127.0.0.1:{port}/json/version"
     try:
         with urlopen(url, timeout=2) as response:
-            return int(getattr(response, "status", 0) or 0) == 200
-    except (HTTPError, URLError, TimeoutError, OSError):
-        return False
+            if int(getattr(response, "status", 0) or 0) != 200:
+                return None
+            data = json.loads(response.read().decode("utf-8"))
+            return data if isinstance(data, dict) else None
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError, UnicodeError):
+        return None
 
 
-def check_chrome_local(*, running_fn=chrome_running, port_file_fn=read_devtools_active_port) -> dict[str, Any]:
+def check_chrome_local(
+    *,
+    running_fn=chrome_running,
+    port_file_fn=read_devtools_active_port,
+    listen_fn=port_listening,
+    version_fn=read_cdp_version,
+) -> dict[str, Any]:
     if not running_fn():
         return hold(HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "Google Chrome.app is not running")
     info = port_file_fn()
     if info.get("status") != "OK":
         return info
     port = int(info["port"])
-    if not port_listening(port):
+    if not listen_fn(port):
         return hold(HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "Chrome debug port is not listening")
-    if not cdp_http_ok(port):
-        return hold(
-            HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
-            "Chrome debug HTTP is not usable; enable chrome://inspect/#remote-debugging",
-        )
-    return {"status": "OK", "hold": None, "port": port}
+    version = version_fn(port)
+    ws_from_json = ""
+    if isinstance(version, dict):
+        ws_from_json = str(version.get("webSocketDebuggerUrl") or "").strip()
+    ws = ws_from_json
+    if not ws:
+        ws_path = str(info.get("ws_path") or "").strip()
+        if ws_path:
+            ws = f"ws://127.0.0.1:{port}{ws_path}"
+    return {
+        "status": "OK",
+        "hold": None,
+        "port": port,
+        "remote_debugging": "READY",
+        "webSocketDebuggerUrl": ws,
+        "json_version_ok": bool(ws_from_json),
+    }
 
 
 def check_drive(project_root: Path, product_model: str, *, live: bool) -> dict[str, Any]:
@@ -301,13 +321,12 @@ def run_preflight(
         HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
         "Playwright MCP --cdp-endpoint=chrome could not attach",
     )
-    items.append(
-        item(
-            "chrome_mcp",
-            chrome_mcp,
-            operator_fix="Google Chrome.app を起動し、chrome://inspect/#remote-debugging で remote debugging を許可する",
+    mcp_fix = None
+    if chrome_mcp.get("status") != "OK" and chrome_local.get("status") == "OK":
+        mcp_fix = str(obs.get("chrome_mcp_error") or "").strip() or (
+            "Playwright MCP attach失敗: resolved ws://localhost:9222/devtools/browser（Chrome 9222 READY）"
         )
-    )
+    items.append(item("chrome_mcp", chrome_mcp, operator_fix=mcp_fix))
     if chrome_mcp.get("status") == "OK":
         capcut_tts = observation_check(
             obs,
@@ -433,6 +452,28 @@ def self_test() -> int:
     check("batch-message", "開始前に直すこと" in (merged.get("message_ja") or ""))
     ready = merge_preflight([item("material", {"status": "OK"}), item("gemini", {"status": "OK"})])
     check("ready-when-all-ok", ready.get("status") == "READY")
+    endpoint_ready = check_chrome_local(
+        running_fn=lambda: True,
+        port_file_fn=lambda: {"status": "OK", "port": 9222, "ws_path": "/devtools/browser/abc"},
+        listen_fn=lambda port: True,
+        version_fn=lambda port: None,
+    )
+    check("rd-ready-when-9222-listens", endpoint_ready.get("status") == "OK" and endpoint_ready.get("remote_debugging") == "READY")
+    check("rd-ready-without-json-version", endpoint_ready.get("json_version_ok") is False)
+    json_ready = check_chrome_local(
+        running_fn=lambda: True,
+        port_file_fn=lambda: {"status": "OK", "port": 9222, "ws_path": "/devtools/browser/abc"},
+        listen_fn=lambda port: True,
+        version_fn=lambda port: {"webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/abc"},
+    )
+    check("rd-ready-from-websocket-url", json_ready.get("json_version_ok") is True)
+    missing_endpoint = check_chrome_local(
+        running_fn=lambda: True,
+        port_file_fn=lambda: hold(HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "Chrome DevToolsActivePort is missing"),
+        listen_fn=lambda port: False,
+        version_fn=lambda port: None,
+    )
+    check("rd-hold-when-endpoint-missing", missing_endpoint.get("status") == "HOLD")
     try:
         helper = load_module(Path(__file__).resolve().parents[4], "upload_drive_local_file")
         check("load-drive-helper", hasattr(helper, "load_oauth_client"))
