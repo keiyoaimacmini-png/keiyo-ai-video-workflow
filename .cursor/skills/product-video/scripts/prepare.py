@@ -12,6 +12,7 @@ from typing import Any
 
 from constants import NARRATION_SPEED
 from paths import case_root, emit, helper_path, project_root_from
+from product_facts import facts_path_for, load_product_facts_profile, prove_usable_product_facts
 from prove_material_videos import prove_material_videos
 from workflow_state import complete_stage, empty_state, hold, save_receipt, save_state, sha256_file
 
@@ -100,6 +101,8 @@ def build_product_inputs(
         "status": "OK",
         "product_information": product_information,
         "product_appeal_points": appeal_text,
+        "verified_facts": list(verified_strings(verified_facts or [])),
+        "appeal_points": list(appeals),
         "user_campaign_focus": user_campaign_focus.strip(),
         "invented_claims": False,
     }
@@ -130,14 +133,29 @@ def create_new_case(
         return videos
     settings_path = Path(resolved["settings_path"])
     settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    profile = load_product_facts_profile(root, product_model)
+    if profile.get("status") != "OK":
+        return profile
+    merged_facts = list(profile.get("verified_facts") or [])
+    merged_appeals = list(profile.get("appeal_points") or [])
+    merged_facts.extend(verified_strings(verified_facts or []))
+    merged_appeals.extend(verified_strings(appeal_points or []))
     inputs = build_product_inputs(
         settings,
-        verified_facts=verified_facts,
-        appeal_points=appeal_points,
+        verified_facts=merged_facts,
+        appeal_points=merged_appeals,
         user_campaign_focus=user_campaign_focus,
     )
     if inputs.get("status") != "OK":
         return inputs
+    proof = prove_usable_product_facts(
+        str(inputs.get("product_information") or ""),
+        str(inputs.get("product_appeal_points") or ""),
+        product_model=product_model,
+        facts_path=profile["facts_path"],
+    )
+    if proof.get("status") != "OK":
+        return proof
     case_id = new_case_id(product_model)
     dest = case_root(root, case_id)
     if dest.exists():
@@ -160,6 +178,8 @@ def create_new_case(
         "product_information": inputs["product_information"],
         "product_appeal_points": inputs["product_appeal_points"],
         "user_campaign_focus": inputs["user_campaign_focus"],
+        "facts_profile_path": profile["facts_path"],
+        "usable_fact_count": proof["usable_fact_count"],
         "settings_file_sha256": sha256_file(settings_path),
     }
     save_receipt(root, case_id, "PREPARE_DRAFT", receipt)
@@ -180,6 +200,14 @@ def finish_prepare(project_root: Path, case_id: str) -> dict[str, Any]:
     inputs = json.loads(inputs_path.read_text(encoding="utf-8"))
     if inputs.get("status") != "OK":
         return inputs
+    proof = prove_usable_product_facts(
+        str(inputs.get("product_information") or ""),
+        str(inputs.get("product_appeal_points") or ""),
+        product_model=str(state.get("product_model") or ""),
+        facts_path=facts_path_for(project_root, str(state.get("product_model") or "")),
+    )
+    if proof.get("status") != "OK":
+        return proof
     videos = prove_material_videos(state.get("material_root"))
     if videos.get("status") != "OK":
         return videos

@@ -27,6 +27,7 @@ from constants import (  # noqa: E402
     HOLD_INPUT_MATERIALS_REQUIRED,
     HOLD_MATERIAL_VIDEO_REQUIRED,
     HOLD_PREFLIGHT_REQUIRED,
+    HOLD_PRODUCT_FACTS_REQUIRED,
     HOLD_SCRIPT_PRODUCT_GROUNDING,
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
@@ -43,6 +44,12 @@ from tts_attempts import generation_count_for_cut, load_attempts, may_generate_c
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
+from product_facts import (  # noqa: E402
+    facts_path_for,
+    load_product_facts_profile,
+    prove_usable_product_facts,
+    usable_product_facts,
+)
 from preserve_shared_inputs import (  # noqa: E402
     PERSISTENT_SKIP_REASON,
     is_persistent_shared_input_path,
@@ -211,6 +218,16 @@ def fake_project(tmp: Path) -> Path:
     }
     (config / "product_video_settings_AN-S999.v1.json").write_text(
         json.dumps(settings, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    facts_profile = {
+        "schema_version": "1",
+        "product_model": "AN-S999",
+        "verified_facts": ["車内の日差しを遮るサンシェード", "傘型でパッと開く"],
+        "appeal_points": ["装着が簡単", "使わないときは畳んで収納できる"],
+    }
+    (config / "product_video_product_facts_AN-S999.v1.json").write_text(
+        json.dumps(facts_profile, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     materials = tmp / ".runtime" / "product-video-inputs" / "AN-S999_コピー"
@@ -1059,6 +1076,145 @@ def test_create_case(root: Path) -> None:
             "material-F-draft-video-count",
             int(draft.get("result", {}).get("material_video_count") or 0) >= 1,
         )
+        inputs = json.loads(
+            (root / "outputs" / created["case_id"] / "product-inputs.json").read_text(encoding="utf-8")
+        )
+        check(
+            "prepare-F-inputs-have-facts",
+            "車内の日差しを遮るサンシェード" in (inputs.get("product_information") or "")
+            and "装着が簡単" in (inputs.get("product_appeal_points") or "")
+            and "車内の日差しを遮るサンシェード" in (inputs.get("verified_facts") or []),
+        )
+
+
+def test_product_facts_prepare(root: Path) -> None:
+    completed = []
+    outputs = REPO / "outputs"
+    if outputs.is_dir():
+        for path in sorted(outputs.glob("pv-*/product-inputs.json")):
+            state = path.parent / "workflow-state.json"
+            completed.append(
+                (
+                    path.as_posix(),
+                    path.read_bytes(),
+                    state.read_bytes() if state.is_file() else b"",
+                )
+            )
+
+    loaded = load_product_facts_profile(REPO, "AN-S182")
+    check("facts-A-an-s182-pass", loaded.get("status") == "OK", str(loaded))
+    check("facts-A-usable-at-least-3", int(loaded.get("usable_fact_count") or 0) >= 3)
+    check(
+        "facts-A-expected-path",
+        loaded.get("expected_facts_profile_path") == facts_path_for(REPO, "AN-S182").as_posix(),
+    )
+    usable_texts = " ".join(loaded.get("verified_facts") or []) + " " + " ".join(loaded.get("appeal_points") or [])
+    check("facts-C-profile-has-no-jan-asin-model-as-required-count", "JAN" not in usable_texts and "ASIN" not in usable_texts)
+
+    identifiers_only = prove_usable_product_facts(
+        "- 製品型番はAN-S182\n- JAN 4901234567890\n- ASIN B0ABCDEFGH\n- CTAは「下からチェック！」",
+        "",
+        product_model="AN-S182",
+        facts_path=facts_path_for(REPO, "AN-S182"),
+    )
+    check("facts-B-model-cta-holds", identifiers_only.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
+    check("facts-B-count-zero", identifiers_only.get("usable_fact_count") == 0)
+    check("facts-B-has-model", identifiers_only.get("product_model") == "AN-S182")
+    check(
+        "facts-B-has-path",
+        identifiers_only.get("expected_facts_profile_path") == facts_path_for(REPO, "AN-S182").as_posix(),
+    )
+
+    two_real = prove_usable_product_facts(
+        "- 製品型番はAN-S182\n- JAN 4901234567890\n- ASIN B0ABCDEFGH\n- 折りたたみ傘のように開いてフロントガラス内側へ設置できる",
+        "- 傘のようにパッと開いて設置しやすい",
+        product_model="AN-S182",
+        facts_path=facts_path_for(REPO, "AN-S182"),
+    )
+    check("facts-C-identifiers-not-counted", two_real.get("usable_fact_count") == 2)
+    check("facts-C-identifiers-hold", two_real.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
+
+    missing = load_product_facts_profile(root, "AN-Z001")
+    check("facts-D-missing-holds", missing.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
+    check("facts-D-count-zero", missing.get("usable_fact_count") == 0)
+    check(
+        "facts-D-path",
+        missing.get("expected_facts_profile_path") == facts_path_for(root, "AN-Z001").as_posix(),
+    )
+
+    thin = {
+        "schema_version": "1",
+        "product_model": "AN-S998",
+        "verified_facts": ["製品型番はAN-S998", "JAN 4901234567890"],
+        "appeal_points": [],
+    }
+    settings = {
+        "schema_version": "1",
+        "status": "active",
+        "product_model": "AN-S998",
+        "cta": {"text": "下からチェック！", "literal_match_required": True},
+    }
+    (root / "config" / "product_video_settings_AN-S998.v1.json").write_text(
+        json.dumps(settings, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (root / "config" / "product_video_product_facts_AN-S998.v1.json").write_text(
+        json.dumps(thin, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (root / ".runtime" / "product-video-inputs" / "AN-S998_コピー").mkdir(parents=True)
+    (root / ".runtime" / "product-video-inputs" / "AN-S998_コピー" / "clip.mov").write_bytes(b"not-a-real-video")
+    campaign_only = create_new_case(root, "AN-S998", "夏の車内を涼しく")
+    check("facts-E-campaign-does-not-fill", campaign_only.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
+    check("facts-E-campaign-count", int(campaign_only.get("usable_fact_count") or 0) < 3)
+
+    created = next(
+        (
+            path
+            for path in sorted((root / "outputs").glob("pv-AN-S999-*"), reverse=True)
+            if (path / "product-inputs.json").is_file()
+        ),
+        None,
+    )
+    check("facts-F-create-ok", created is not None)
+    if created is not None:
+        inputs = json.loads((created / "product-inputs.json").read_text(encoding="utf-8"))
+        check("facts-F-verified-facts", "車内の日差しを遮るサンシェード" in (inputs.get("verified_facts") or []))
+        check("facts-F-appeal-points", "装着が簡単" in (inputs.get("appeal_points") or []))
+        catalog = build_fact_catalog(inputs.get("product_information") or "", inputs.get("product_appeal_points") or "")
+        ids = [item["id"] for item in catalog["facts"]]
+        check("facts-G-f-ids-from-profile", "F1" in ids and "F2" in ids and "F3" in ids)
+        check(
+            "facts-G-f1-from-profile",
+            catalog["by_id"]["F1"]["text"] == "車内の日差しを遮るサンシェード",
+        )
+
+    after = []
+    if outputs.is_dir():
+        for path in sorted(outputs.glob("pv-*/product-inputs.json")):
+            state = path.parent / "workflow-state.json"
+            completed_now = (
+                path.as_posix(),
+                path.read_bytes(),
+                state.read_bytes() if state.is_file() else b"",
+            )
+            after.append(completed_now)
+    check("facts-H-completed-untouched", after == completed)
+
+    settings_only = build_product_inputs(
+        {"product_model": "AN-S182", "cta": {"text": "下からチェック！"}},
+        verified_facts=[],
+        appeal_points=[],
+        user_campaign_focus="優先訴求だけ",
+    )
+    thin_proof = prove_usable_product_facts(
+        str(settings_only.get("product_information") or ""),
+        str(settings_only.get("product_appeal_points") or ""),
+        product_model="AN-S182",
+        facts_path=facts_path_for(REPO, "AN-S182"),
+    )
+    check("facts-B-build-cta-model-holds", thin_proof.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
+    check("facts-E-focus-not-in-information", "優先訴求だけ" not in (settings_only.get("product_information") or ""))
 
 
 def _grounding_cut(index: int, line: str, evidence: list[str], situation: str = "手元") -> dict:
@@ -1563,6 +1719,7 @@ def main() -> int:
         test_tts_input_recovery(root)
         test_tts_runtime_gaps(root)
         test_create_case(root)
+        test_product_facts_prepare(root)
         test_dispatch_resume(root)
         entry_root = fake_project(scratch / "initial-entry")
         test_dispatch_initial_entry(entry_root)

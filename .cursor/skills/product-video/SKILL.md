@@ -21,7 +21,7 @@ Usual operator input is only:
 2. exact `案Nで台本OK`
 3. exact `完成・格納してください`
 
-Do not ask the operator about anything that can be retried or auto-recovered. Human HOLDs are only login, CAPTCHA, 2FA, account choice, new terms/consent, Pro contract, extra purchase, new payment, or missing source materials.
+Do not ask the operator about anything that can be retried or auto-recovered. Human HOLDs are only login, CAPTCHA, 2FA, account choice, new terms/consent, Pro contract, extra purchase, new payment, missing source materials, or a missing product facts profile for a new model. Do not ask for product facts on each video when `config/product_video_product_facts_<MODEL>.v1.json` already exists.
 
 ## Every turn
 
