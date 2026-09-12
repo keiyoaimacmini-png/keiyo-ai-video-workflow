@@ -9,6 +9,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
@@ -33,6 +34,7 @@ def load_module(project_root: Path, name: str):
     if spec is None or spec.loader is None:
         raise FileNotFoundError(path)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -65,6 +67,16 @@ def item(name: str, payload: dict[str, Any], *, operator_fix: str | None = None)
     if operator_fix and payload.get("status") != "OK":
         row["operator_fix"] = operator_fix
     return row
+
+
+def guarded(name: str, fn: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    try:
+        payload = fn()
+        if isinstance(payload, dict):
+            return payload
+        return hold(HOLD_PREFLIGHT_REQUIRED, f"{name} returned non-object")
+    except Exception as exc:  # noqa: BLE001
+        return hold(HOLD_PREFLIGHT_REQUIRED, f"{name} check crashed: {type(exc).__name__}")
 
 
 def check_material(project_root: Path, product_model: str) -> dict[str, Any]:
@@ -242,7 +254,7 @@ def run_preflight(
     obs = observation or {}
     items: list[dict[str, Any]] = []
 
-    material = check_material(root, product_model)
+    material = guarded("material", lambda: check_material(root, product_model))
     items.append(
         item(
             "material",
@@ -251,24 +263,31 @@ def run_preflight(
         )
     )
 
-    if gemini_probe_fn is None or gemini_print_fn is None:
-        gemini = load_module(root, "send_gemini_cli_prompt")
+    def run_gemini() -> dict[str, Any]:
+        probe = gemini_probe_fn
+        printer = gemini_print_fn
+        if probe is None or printer is None:
+            gemini = load_module(root, "send_gemini_cli_prompt")
 
-        def gemini_probe_fn() -> dict[str, Any]:
-            return gemini.probe()
+            def probe() -> dict[str, Any]:
+                return gemini.probe()
 
-        def gemini_print_fn() -> dict[str, Any]:
-            if not live:
-                return {"status": "OK", "last_text": "PONG"}
-            return gemini.probe_print()
+            def printer() -> dict[str, Any]:
+                if not live:
+                    return {"status": "OK", "last_text": "PONG"}
+                return gemini.probe_print()
 
-    gemini_result = check_gemini(probe_fn=gemini_probe_fn, print_fn=gemini_print_fn)
+        return check_gemini(probe_fn=probe, print_fn=printer)
+
+    gemini_result = guarded("gemini", run_gemini)
     gemini_fix = "Terminal で `agy` を起動して Google ログインする"
     if gemini_result.get("hold") == "HOLD_GEMINI_CLI_NOT_VERIFIED":
         gemini_fix = "Antigravity CLI の一発印刷を修復する（上振れ課金は使わない）"
     items.append(item("gemini", gemini_result, operator_fix=gemini_fix))
 
-    chrome_local = retry_call(chrome_fn or check_chrome_local)
+    chrome_local = retry_call(
+        lambda: guarded("chrome_local", chrome_fn or check_chrome_local)
+    )
     items.append(
         item(
             "chrome_local",
@@ -286,48 +305,49 @@ def run_preflight(
         item(
             "chrome_mcp",
             chrome_mcp,
-            operator_fix="Playwright MCP を Refresh し、起動済み Chrome へ --cdp-endpoint=chrome で接続する",
+            operator_fix="Google Chrome.app を起動し、chrome://inspect/#remote-debugging で remote debugging を許可する",
         )
     )
-    capcut_tts = observation_check(
-        obs,
-        "capcut_tts_reachable",
-        HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
-        "CapCut official Text to Speech is not reachable",
-    )
-    items.append(
-        item(
-            "capcut_tts",
-            capcut_tts,
-            operator_fix="起動済み Chrome で CapCut 公式 Text to Speech を開ける状態にする",
+    if chrome_mcp.get("status") == "OK":
+        capcut_tts = observation_check(
+            obs,
+            "capcut_tts_reachable",
+            HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
+            "CapCut official Text to Speech is not reachable",
         )
-    )
-    capcut_login = observation_check(
-        obs,
-        "capcut_logged_in",
-        "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED",
-        "CapCut login, CAPTCHA, 2FA, or account choice is required",
-    )
-    items.append(
-        item(
-            "capcut_login",
-            capcut_login,
-            operator_fix="CapCut のログイン / CAPTCHA / 2FA / アカウント選択を完了する",
+        items.append(
+            item(
+                "capcut_tts",
+                capcut_tts,
+                operator_fix="起動済み Chrome で CapCut 公式 Text to Speech を開ける状態にする",
+            )
         )
-    )
-    holiday = observation_check(
-        obs,
-        "holiday_twist_available",
-        HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
-        "Holiday Twist is not available",
-    )
-    items.append(
-        item(
-            "holiday_twist",
-            holiday,
-            operator_fix="CapCut 公式 Text to Speech でホリデーツイストが選べる状態にする",
+        capcut_login = observation_check(
+            obs,
+            "capcut_logged_in",
+            "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED",
+            "CapCut login, CAPTCHA, 2FA, or account choice is required",
         )
-    )
+        items.append(
+            item(
+                "capcut_login",
+                capcut_login,
+                operator_fix="CapCut のログイン / CAPTCHA / 2FA / アカウント選択を完了する",
+            )
+        )
+        holiday = observation_check(
+            obs,
+            "holiday_twist_available",
+            HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
+            "Holiday Twist is not available",
+        )
+        items.append(
+            item(
+                "holiday_twist",
+                holiday,
+                operator_fix="CapCut 公式 Text to Speech でホリデーツイストが選べる状態にする",
+            )
+        )
 
     chatcut = observation_check(
         obs,
@@ -343,7 +363,12 @@ def run_preflight(
         )
     )
 
-    drive = retry_call(drive_fn or (lambda: check_drive(root, product_model, live=live)))
+    drive = retry_call(
+        lambda: guarded(
+            "drive",
+            drive_fn or (lambda: check_drive(root, product_model, live=live)),
+        )
+    )
     items.append(
         item(
             "drive",
@@ -408,6 +433,12 @@ def self_test() -> int:
     check("batch-message", "開始前に直すこと" in (merged.get("message_ja") or ""))
     ready = merge_preflight([item("material", {"status": "OK"}), item("gemini", {"status": "OK"})])
     check("ready-when-all-ok", ready.get("status") == "READY")
+    try:
+        helper = load_module(Path(__file__).resolve().parents[4], "upload_drive_local_file")
+        check("load-drive-helper", hasattr(helper, "load_oauth_client"))
+    except Exception as exc:  # noqa: BLE001
+        check("load-drive-helper", False)
+        print(f"FAIL load-drive-helper {type(exc).__name__}: {exc}", flush=True)
     if not all(ok for _, ok in checks):
         print("SELF-TEST FAILED: run_preflight", flush=True)
         return 1
