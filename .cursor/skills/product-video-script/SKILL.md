@@ -32,7 +32,7 @@ If that helper HOLDs, stop with that HOLD.
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/script_stage.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --gemini-output <task-root>/gemini-output.txt
 ```
 
-Grounding is objective product-fact use only. Do not add a subjective quality review.
+Grounding is objective product-fact use in the spoken lines. Gemini 根拠ID values are hints, not a letter-perfect classification test. Do not HOLD only because a line's actual fact differs from the assigned F-ID. Do not add a subjective quality review.
 
 If the helper returns `HOLD_SCRIPT_PRODUCT_GROUNDING` and `regenerate` is true, send the **same** rendered prompt once more and run `script_stage.py` again. Do not present variants. Do not regenerate a third time.
 

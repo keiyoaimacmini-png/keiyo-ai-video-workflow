@@ -20,7 +20,27 @@ IDENTIFIER_LINE_RE = re.compile(
 MODEL_IN_LINE_RE = re.compile(r"\bAN-[A-Z0-9]{4,6}\b")
 ASIN_IN_LINE_RE = re.compile(r"\bB0[A-Z0-9]{8}\b")
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
-TOKEN_RE = re.compile(r"[A-Za-z]{3,}|[0-9]+(?:\.\d+)?|[一-龠]{2,}|[ァ-ヴー]{2,}|[ぁ-ん]{3,}")
+LATIN_RE = re.compile(r"[A-Za-z]{2,}")
+KATAKANA_RE = re.compile(r"[ァ-ヴー]{2,}")
+KANJI_RUN_RE = re.compile(r"[一-龠]{2,}")
+CONTENT_KANJI = frozenset("傘骨開折")
+KEY_PHRASES = (
+    "uv",
+    "upf",
+    "チタンシルバー",
+    "ルームミラー",
+    "フロントガラス",
+    "折りたたみ",
+    "紫外線",
+    "日差し",
+    "10本骨",
+    "本骨",
+    "収納",
+    "サンシェード",
+    "コーティング",
+    "v字",
+)
+CTA_FACT_RE = re.compile(r"(?i)^\s*CTA[は:：]")
 QUOTED_RE = re.compile(r"「([^」]+)」")
 STOPWORDS = frozenset(
     {
@@ -192,15 +212,57 @@ def parse_evidence_ids(raw: str | None) -> list[str]:
     return found
 
 
+def is_cta_fact(line: str) -> bool:
+    return bool(CTA_FACT_RE.search((line or "").strip()))
+
+
+def product_facts(catalog: dict[str, Any]) -> list[dict[str, str]]:
+    return [item for item in catalog.get("facts") or [] if not is_cta_fact(item.get("text") or "")]
+
+
+def _is_number(token: str) -> bool:
+    return bool(NUMBER_RE.fullmatch(token))
+
+
+def distinctive_markers(text: str) -> set[str]:
+    compact = _norm(text)
+    markers: set[str] = set()
+    for match in LATIN_RE.findall(compact):
+        token = match.lower()
+        if token not in STOPWORDS:
+            markers.add(token)
+    for match in NUMBER_RE.findall(compact):
+        markers.add(match)
+    for match in KATAKANA_RE.findall(compact):
+        if match not in STOPWORDS:
+            markers.add(match)
+    for match in KANJI_RUN_RE.findall(compact):
+        if match not in STOPWORDS:
+            markers.add(match)
+    for kanji in CONTENT_KANJI:
+        if kanji in compact:
+            markers.add(kanji)
+    folded = compact.lower()
+    for phrase in KEY_PHRASES:
+        if phrase in folded or phrase in compact:
+            markers.add(phrase)
+    return markers
+
+
 def significant_tokens(text: str) -> set[str]:
-    tokens = set()
-    for match in TOKEN_RE.findall(_norm(text)):
-        if match in STOPWORDS:
-            continue
-        if match.isdigit() and len(match) == 1:
-            continue
-        tokens.add(match)
-    return tokens
+    return distinctive_markers(text)
+
+
+def markers_overlap(fact_markers: set[str], line_markers: set[str]) -> bool:
+    for left in fact_markers:
+        for right in line_markers:
+            if left == right:
+                return True
+            if _is_number(left) or _is_number(right):
+                continue
+            if len(left) >= 2 and len(right) >= 2 and (left in right or right in left):
+                return True
+    return False
 
 
 def line_matches_fact(line: str, fact_text: str) -> bool:
@@ -215,11 +277,15 @@ def line_matches_fact(line: str, fact_text: str) -> bool:
         return True
     if len(spoken) >= 4 and spoken in fact:
         return True
-    fact_tokens = significant_tokens(fact_text)
-    line_tokens = significant_tokens(line)
-    if fact_tokens and line_tokens & fact_tokens:
-        return True
-    return False
+    return markers_overlap(distinctive_markers(fact_text), distinctive_markers(line))
+
+
+def actual_facts_for_line(line: str, catalog: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for item in product_facts(catalog):
+        if line_matches_fact(line, item["text"]):
+            found.append(item["id"])
+    return found
 
 
 def numbers_in(text: str) -> set[str]:
@@ -260,7 +326,7 @@ def prove_variant_grounding(
 ) -> dict[str, Any]:
     by_id: dict[str, Any] = catalog.get("by_id") or {}
     allowed_facts = set(by_id)
-    if len(allowed_facts) < 3:
+    if len(product_facts(catalog)) < 3:
         return hold(
             HOLD_SCRIPT_PRODUCT_GROUNDING,
             "fewer than 3 product facts after excluding identifiers",
@@ -270,53 +336,48 @@ def prove_variant_grounding(
     allowed_numbers = numbers_in(product_information) | numbers_in(product_appeal_points)
     cuts = list(variant.get("cuts") or [])
     used: set[str] = set()
-    generic_only = True
+    mismatches: list[dict[str, Any]] = []
     reasons: list[str] = []
     for index, cut in enumerate(cuts):
         ids = [str(item) for item in (cut.get("evidence_ids") or [])]
         line = str(cut.get("line") or "")
         role = {item for item in ids if item in HOOK_OR_CTA}
-        facts = [item for item in ids if item not in HOOK_OR_CTA]
+        assigned = [item for item in ids if item not in HOOK_OR_CTA]
         if not ids:
             reasons.append(f"cut {cut.get('index')} missing 根拠ID")
-            continue
-        if role and facts:
+        elif role and assigned:
             reasons.append(f"cut {cut.get('index')} mixed HOOK/CTA with F-IDs")
-            continue
-        if len(role) > 1:
+        elif len(role) > 1:
             reasons.append(f"cut {cut.get('index')} has both HOOK and CTA")
-            continue
-        if role:
-            continue
-        if not facts:
-            reasons.append(f"cut {cut.get('index')} has no F-ID")
-            continue
-        for fact_id in facts:
+        for fact_id in assigned:
             if fact_id not in allowed_facts:
                 reasons.append(f"cut {cut.get('index')} unknown {fact_id}")
-                continue
-            if line_matches_fact(line, by_id[fact_id]["text"]):
-                used.add(fact_id)
-                generic_only = False
-            else:
-                reasons.append(f"cut {cut.get('index')} line unrelated to {fact_id}")
+        actual = actual_facts_for_line(line, catalog)
+        cut["actual_fact_ids"] = actual
+        assigned_known = [item for item in assigned if item in allowed_facts]
+        mismatch = bool(assigned_known) and set(assigned_known) != set(actual)
+        cut["evidence_id_mismatch"] = mismatch
+        if mismatch:
+            mismatches.append(
+                {
+                    "cut_id": cut.get("cut_id"),
+                    "evidence_ids": assigned_known,
+                    "actual_fact_ids": actual,
+                }
+            )
+        used.update(actual)
         invented = numbers_in(line) - allowed_numbers
         if invented:
             reasons.append(f"cut {cut.get('index')} invented number {sorted(invented)}")
         if MODEL_IN_LINE_RE.search(_norm(line)) or ASIN_IN_LINE_RE.search(_norm(line)):
             reasons.append(f"cut {cut.get('index')} contains a product identifier")
-        if index < 3 and facts:
-            generic_only = False
     first_three = cuts[:3]
-    early_fact = any(
-        any(item not in HOOK_OR_CTA for item in (cut.get("evidence_ids") or []))
-        for cut in first_three
-    )
+    early_fact = any(bool(cut.get("actual_fact_ids")) for cut in first_three)
     if not early_fact:
-        reasons.append("no F-ID in the first 3 cuts")
+        reasons.append("no product fact in the first 3 cuts")
     if len(used) < 3:
-        reasons.append(f"used {len(used)} distinct F-IDs, need 3")
-    if generic_only or not used:
+        reasons.append(f"used {len(used)} distinct product facts, need 3")
+    if not used:
         reasons.append("script is HOOK/generic only")
     if reasons:
         return hold(
@@ -324,9 +385,15 @@ def prove_variant_grounding(
             "; ".join(reasons),
             regenerate=True,
             variant_id=variant.get("variant_id"),
-            used_fact_ids=sorted(used, key=lambda item: int(item[1:]) if item[1:].isdigit() else 0),
+            actual_used_fact_ids=sorted(used, key=lambda item: int(item[1:]) if item[1:].isdigit() else 0),
+            evidence_id_mismatch=mismatches,
         )
-    return {"status": "OK", "used_fact_ids": sorted(used, key=lambda item: int(item[1:]))}
+    return {
+        "status": "OK",
+        "actual_used_fact_ids": sorted(used, key=lambda item: int(item[1:])),
+        "used_fact_ids": sorted(used, key=lambda item: int(item[1:])),
+        "evidence_id_mismatch": mismatches,
+    }
 
 
 def prove_scripts_grounding(
@@ -335,14 +402,16 @@ def prove_scripts_grounding(
     product_appeal_points: str = "",
 ) -> dict[str, Any]:
     catalog = build_fact_catalog(product_information, product_appeal_points)
-    if len(catalog["facts"]) < 3:
+    usable = product_facts(catalog)
+    if len(usable) < 3:
         return hold(
             HOLD_SCRIPT_PRODUCT_GROUNDING,
             "fewer than 3 product facts after excluding identifiers",
             regenerate=False,
-            fact_count=len(catalog["facts"]),
+            fact_count=len(usable),
         )
     failures: list[dict[str, Any]] = []
+    mismatches: list[dict[str, Any]] = []
     for variant in parsed.get("variants") or []:
         proof = prove_variant_grounding(
             variant,
@@ -352,6 +421,14 @@ def prove_scripts_grounding(
         )
         if proof.get("status") != "OK":
             failures.append(proof)
+            continue
+        if proof.get("evidence_id_mismatch"):
+            mismatches.append(
+                {
+                    "variant_id": variant.get("variant_id"),
+                    "mismatches": proof["evidence_id_mismatch"],
+                }
+            )
     if failures:
         return hold(
             HOLD_SCRIPT_PRODUCT_GROUNDING,
@@ -364,6 +441,7 @@ def prove_scripts_grounding(
         "status": "OK",
         "fact_ids": [item["id"] for item in catalog["facts"]],
         "presentation": present_for_operator(parsed),
+        "evidence_id_mismatch": mismatches,
     }
 
 

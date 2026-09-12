@@ -61,7 +61,9 @@ from prepare_tts_field import compare_tts_readback, diagnose_mismatch, is_pre_wr
 from render_script_prompt import load_template, render_script_prompt  # noqa: E402
 from script_fidelity import assert_immutable, freeze_approved_script  # noqa: E402
 from script_grounding import (  # noqa: E402
+    actual_facts_for_line,
     build_fact_catalog,
+    line_matches_fact,
     present_for_operator,
     prove_scripts_grounding,
     prove_variant_grounding,
@@ -1306,10 +1308,108 @@ def test_script_grounding() -> None:
     )
     check("grounding-G-invented-number-holds", invented_hold.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
 
+    an_info = (
+        "- 折りたたみ傘のように開いてフロントガラス内側へ設置できる\n"
+        "- UVカット率約99％、UPF40以上\n"
+        "- 表面にチタンシルバーコーティングを採用\n"
+        "- 上部V字カットでルームミラーへの干渉を避けやすい\n"
+        "- 10本骨構造\n"
+        "- 使用後はスリムに折りたためて収納ポーチへ収納できる"
+    )
+    an_appeals = (
+        "- 傘のようにパッと開いて設置しやすい\n"
+        "- 日差し・紫外線対策に使える\n"
+        "- ルームミラー周辺へ合わせやすい\n"
+        "- 使わない時はコンパクトに収納しやすい"
+    )
+    an_catalog = build_fact_catalog(an_info, an_appeals)
+    umbrella_fact = next(item["text"] for item in an_catalog["facts"] if "傘" in item["text"] and "開" in item["text"])
+    titanium_fact = next(item["text"] for item in an_catalog["facts"] if "チタンシルバー" in item["text"])
+    uv_fact = next(item["text"] for item in an_catalog["facts"] if "UV" in item["text"])
+    check("grounding-C-umbrella-paraphrase", line_matches_fact("傘みたいにパッと開く", umbrella_fact))
+    check("grounding-D-titanium-paraphrase", line_matches_fact("チタンシルバーでガード", titanium_fact))
+    check("grounding-E-uv99", line_matches_fact("UV99％", uv_fact))
+    check(
+        "grounding-paraphrase-not-generic",
+        not line_matches_fact("これ便利", umbrella_fact)
+        and not line_matches_fact("買って正解", titanium_fact),
+    )
+
+    mismatched_cuts = [
+        _grounding_cut(1, "車、サウナすぎん？", ["HOOK"]),
+        _grounding_cut(2, "チタンシルバーで日差し対策", ["F1"]),
+        _grounding_cut(3, "傘みたいにパッと開く", ["F2"]),
+        _grounding_cut(4, "UV99％", ["F4"]),
+        _grounding_cut(5, "下からチェック！", ["CTA"]),
+    ]
+    mismatch_ok = prove_variant_grounding(
+        _grounding_variant(mismatched_cuts),
+        an_catalog,
+        product_information=an_info,
+        product_appeal_points=an_appeals,
+    )
+    check("grounding-A-mismatch-still-pass", mismatch_ok.get("status") == "OK", str(mismatch_ok))
+    check("grounding-G-three-actual-facts", len(mismatch_ok.get("actual_used_fact_ids") or []) >= 3, str(mismatch_ok))
+    check("grounding-mismatch-recorded", bool(mismatch_ok.get("evidence_id_mismatch")), str(mismatch_ok))
+    check(
+        "grounding-mismatch-not-hold-reason",
+        "unrelated" not in str(mismatch_ok.get("reason") or ""),
+    )
+
+    labeled_generic = [
+        _grounding_cut(1, "これ便利", ["HOOK"]),
+        _grounding_cut(2, "買って正解", ["F1"]),
+        _grounding_cut(3, "気になって試してみたら", ["F2"]),
+        _grounding_cut(4, "最近の中で一番の当たり枠", ["F3"]),
+        _grounding_cut(5, "下からチェック！", ["CTA"]),
+    ]
+    labeled_generic_hold = prove_variant_grounding(
+        _grounding_variant(labeled_generic),
+        an_catalog,
+        product_information=an_info,
+        product_appeal_points=an_appeals,
+    )
+    check("grounding-B-correct-ids-generic-holds", labeled_generic_hold.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
+
+    invented_uv = list(mismatched_cuts)
+    invented_uv[3] = _grounding_cut(4, "UV100％", ["F2"])
+    invented_uv_hold = prove_variant_grounding(
+        _grounding_variant(invented_uv),
+        an_catalog,
+        product_information=an_info,
+        product_appeal_points=an_appeals,
+    )
+    check("grounding-F-uv100-invented-holds", invented_uv_hold.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING, str(invented_uv_hold))
+
+    thin_cuts = [
+        _grounding_cut(1, "車、サウナすぎん？", ["HOOK"]),
+        _grounding_cut(2, "チタンシルバーでガード", ["F1"]),
+        _grounding_cut(3, "買って正解", ["F2"]),
+        _grounding_cut(4, "下からチェック！", ["CTA"]),
+    ]
+    thin_hold = prove_variant_grounding(
+        _grounding_variant(thin_cuts),
+        an_catalog,
+        product_information=an_info,
+        product_appeal_points=an_appeals,
+    )
+    check("grounding-H-one-or-two-facts-hold", thin_hold.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING, str(thin_hold))
+    check(
+        "grounding-actual-ids-from-line",
+        "F3" in actual_facts_for_line("チタンシルバーでガード", an_catalog),
+    )
+
     parsed = parse_gemini_scripts(grounded_sample_scripts(3))
     check("grounding-parser-evidence", parsed.get("status") == "OK" and parsed["variants"][0]["cuts"][0]["evidence_ids"] == ["HOOK"])
     presented = json.dumps(present_for_operator(parsed), ensure_ascii=False)
-    check("grounding-H-hide-ids", "evidence_ids" not in presented and "根拠ID" not in presented and "F1" not in presented)
+    check(
+        "grounding-H-hide-ids",
+        "evidence_ids" not in presented
+        and "根拠ID" not in presented
+        and "F1" not in presented
+        and "actual_fact_ids" not in presented
+        and "evidence_id_mismatch" not in presented,
+    )
 
     three = {
         "status": "OK",
@@ -1356,6 +1456,7 @@ def test_script_grounding() -> None:
         check("grounding-stage-not-complete", load_state(root, case_id)["current_stage"] == "SCRIPT")
         frozen_ok = accept_gemini_output(root, case_id, grounded_sample_scripts(3))
         check("grounding-pass-completes", frozen_ok.get("current_stage") == "SCRIPT_SELECTION", str(frozen_ok.get("hold")))
+        check("grounding-attempts-kept-on-pass", load_state(root, case_id).get("script_grounding_attempts") == 2)
         if frozen_ok.get("status") == "OK":
             freeze = freeze_approved_script(root, load_state(root, case_id), 2)
             check("grounding-freeze-ok", freeze.get("status") == "OK")

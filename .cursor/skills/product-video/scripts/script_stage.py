@@ -67,7 +67,11 @@ def accept_gemini_output(project_root: Path, case_id: str, raw_text: str) -> dic
         project_root,
         state,
         "SCRIPT",
-        {"variant_count": parsed["variant_count"], "variants_path": path.as_posix()},
+        {
+            "variant_count": parsed["variant_count"],
+            "variants_path": path.as_posix(),
+            "evidence_id_mismatch_count": len(proof.get("evidence_id_mismatch") or []),
+        },
     )
     receipt["message_ja"] = "台本案を提示します。採用する案を「案Nで台本OK」で指定してください。"
     receipt["variants"] = [
