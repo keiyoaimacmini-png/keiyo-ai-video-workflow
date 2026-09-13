@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(SCRIPTS))
 
 from assembly import assemble_plan, select_cut  # noqa: E402
+from approved_shots import load_history, record_shots  # noqa: E402
 from bind_script_selection import bind_script_selection  # noqa: E402
 from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
@@ -33,14 +34,16 @@ from constants import (  # noqa: E402
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
     PERSISTENT_SHARED_INPUT_RELATIVE,
+    PERSISTENT_SHARED_INPUT_ROOTS,
 )
-from delivery import may_complete, may_purge, may_start_job  # noqa: E402
+from delivery import may_complete, may_purge, may_start_job, record_final_approved_shots  # noqa: E402
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
 from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
 from rough_edit import build_rough_edit, prove_placed_narration_clip  # noqa: E402
 from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
 from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
+from tts_session import may_reuse_session, prove_session_setup, record_session_setup  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
 from paths import git_tracks, helper_path, helper_relpath, missing_git_tracked_helpers  # noqa: E402
 from prepare import build_product_inputs, create_new_case, finish_prepare  # noqa: E402
@@ -793,6 +796,172 @@ def test_assembly_and_variety() -> None:
         {"c1": [c1]},
     )
     check("assembly-rejects-source-as-cut-duration", source_as_cut.get("status") == "HOLD")
+
+
+def ready_tts_session_observation(**overrides: Any) -> dict[str, Any]:
+    observation = {
+        "chrome_mcp_attached": True,
+        "capcut_tts_page_ready": True,
+        "holiday_twist_selected": True,
+        "tts_input_field_identified": True,
+        "credit_policy_ready": True,
+        "field_id": "capcut-tts-textarea",
+    }
+    observation.update(overrides)
+    return observation
+
+
+def test_tts_session(root: Path) -> None:
+    case_id = "pv-AN-S999-tts-session"
+    first = record_session_setup(root, case_id, ready_tts_session_observation())
+    check("session-setup-once", first.get("setup") is True and first.get("reuse") is True)
+    reused = may_reuse_session({"schema": "product_video_tts_session.v1", "setup": True, "recover_count": 0}, ready_tts_session_observation())
+    check("session-reuse-skips-setup", reused.get("reuse") is True and reused.get("setup") is False)
+    check("session-reuse-skips-mcp", reused.get("skip_mcp_rediscovery") is True)
+    check("session-reuse-skips-page", reused.get("skip_page_research") is True)
+    check("session-reuse-skips-voice", reused.get("skip_holiday_twist_reselect") is True)
+    lost = prove_session_setup({"chrome_mcp_attached": False}, recover_count=0)
+    check("session-lost-recovers", lost.get("recover") is True and lost.get("hold") is None)
+    held = prove_session_setup({"chrome_mcp_attached": False}, recover_count=3)
+    check("session-lost-existing-hold", held.get("hold") == HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE)
+    login = prove_session_setup({"capcut_login_required": True}, recover_count=3)
+    check("session-lost-login-existing-hold", login.get("hold") == "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED")
+    src = (REPO / ".cursor" / "skills" / "product-video" / "scripts" / "tts_session.py").read_text(encoding="utf-8")
+    holds = set(re.findall(r"HOLD_[A-Z0-9_]+", src))
+    check(
+        "session-no-new-hold",
+        holds <= {HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED"},
+        str(holds),
+    )
+    skill = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    check("session-skill-once", "Session setup (once)" in skill)
+    check("session-skill-no-per-cut-chat", "Do not chat after a successful cut" in skill)
+    check("session-skill-keep-page", "same Chrome tab" in skill or "same session" in skill)
+
+
+def test_approved_shot_history(root: Path) -> None:
+    line = "これ一枚で全然違う。"
+    situation = "サンシェードを広げる手元"
+    history_source = ".runtime/product-video-inputs/AN-S999_コピー/clip.mov"
+    recorded = record_shots(
+        root,
+        "AN-S999",
+        "pv-AN-S999-hist",
+        [
+            {
+                "source": history_source,
+                "in_sec": 1.0,
+                "out_sec": 3.5,
+                "line": line,
+                "situation": situation,
+                "semantic_tags": [situation],
+                "visual": visual("hands", "close", "dash"),
+            },
+            {
+                "source": "outputs/pv-AN-S999-hist/2026_0913_AN-S999_AI作成①.mp4",
+                "line": line,
+                "situation": situation,
+            },
+        ],
+    )
+    check("history-writes-source-only", recorded.get("status") == "OK" and recorded.get("shot_count") == 1)
+    history = load_history(root, "AN-S999")
+    check("history-skips-completed-export", history["shots"][0]["source"] == history_source)
+    other = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "scenario_tags": [situation],
+        "material_id": "fresh",
+        "source": ".runtime/product-video-inputs/AN-S999_コピー/other.mov",
+        "visual": visual("hands", "wide", "dash"),
+    }
+    chosen = select_cut(
+        [other],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=2.5,
+        history=history,
+    )
+    check("history-is-first-candidate", chosen.get("selection", {}).get("from_approved_history") is True)
+    check("history-keeps-range", chosen.get("selection", {}).get("in_sec") == 1.0)
+    fallback = select_cut([other], line=line, intended_scenario=situation, duration_seconds=2.5)
+    check("no-history-uses-current", fallback.get("selection", {}).get("material_id") == "fresh")
+    same = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "source": history_source,
+        "material_id": "same",
+        "visual": visual("hands", "close", "dash"),
+    }
+    alt = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "source": ".runtime/product-video-inputs/AN-S999_コピー/other.mov",
+        "material_id": "varied",
+        "visual": visual("person", "wide", "car"),
+    }
+    previous = {"source": history_source, "visual": visual("hands", "close", "dash")}
+    avoided = select_cut(
+        [same, alt],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=2.5,
+        previous=previous,
+    )
+    check("consecutive-same-source-angle-avoided", avoided.get("selection", {}).get("material_id") == "varied")
+    case_id = "pv-AN-S999-final"
+    case = root / "outputs" / case_id
+    receipts = case / "receipts"
+    receipts.mkdir(parents=True, exist_ok=True)
+    (case / "approved-script.json").write_text(
+        json.dumps({"cuts": [{"cut_id": "c1", "line": line, "situation": situation}]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    (case / "assembly-plan.json").write_text(
+        json.dumps(
+            {
+                "cuts": [
+                    {
+                        "cut_id": "c1",
+                        "line": line,
+                        "situation": situation,
+                        "source": ".runtime/product-video-inputs/AN-S999_コピー/old.mov",
+                        "in_sec": 0.0,
+                        "out_sec": 2.0,
+                        "scenario_tags": [situation],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (receipts / "picture_swap_c1.json").write_text(
+        json.dumps(
+            {
+                "cuts": {
+                    "c1": {
+                        "source": ".runtime/product-video-inputs/AN-S999_コピー/swapped.mov",
+                        "in_sec": 4.5,
+                        "out_sec": 7.0,
+                    }
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    swapped = record_final_approved_shots(root, {"case_id": case_id, "product_model": "AN-S999"})
+    check("complete-records-swap", swapped.get("recorded") is True)
+    stored = load_history(root, "AN-S999")
+    check(
+        "complete-uses-final-source",
+        any(item.get("source", "").endswith("swapped.mov") and item.get("in_sec") == 4.5 for item in stored["shots"]),
+    )
+    check("complete-does-not-hold", swapped.get("hold") is None)
 
 
 def test_telop_and_rough() -> None:
@@ -1555,6 +1724,8 @@ def test_git_tracked_helpers() -> None:
         ("tts_attempts", ".cursor/skills/product-video/scripts/tts_attempts.py"),
         ("prove_material_videos", ".cursor/skills/product-video/scripts/prove_material_videos.py"),
         ("classify_capcut_credit", ".cursor/skills/product-video/scripts/classify_capcut_credit.py"),
+        ("tts_session", ".cursor/skills/product-video/scripts/tts_session.py"),
+        ("approved_shots", ".cursor/skills/product-video/scripts/approved_shots.py"),
         ("preserve_shared_inputs", ".cursor/skills/product-video/scripts/preserve_shared_inputs.py"),
         ("run_preflight", ".cursor/skills/product-video/scripts/run_preflight.py"),
     ):
@@ -1600,10 +1771,16 @@ def test_git_tracked_helpers() -> None:
     rough_skill = (skills_root / "product-video-rough-edit" / "SKILL.md").read_text(encoding="utf-8")
     check("rough-skill-uses-chatcut-playbackRate", "playbackRate" in rough_skill and "prove_tts_speed.py" in rough_skill)
     check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
+    check("narration-skill-uses-session", "product-video/scripts/tts_session.py" in narration_skill)
     check(
         "narration-skill-no-legacy-tts",
         "produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" not in narration_skill,
     )
+    assembly_skill = (skills_root / "product-video-assembly" / "SKILL.md").read_text(encoding="utf-8")
+    check("assembly-skill-uses-history", "product-video/scripts/approved_shots.py" in assembly_skill)
+    delivery_skill = (skills_root / "product-video-delivery" / "SKILL.md").read_text(encoding="utf-8")
+    check("delivery-skill-records-history", "approved_shots.py" in delivery_skill and "--record-final" in delivery_skill)
+    check("delivery-skill-keeps-history", "product-video-approved-shots" in delivery_skill)
     if portable_untracked.is_file():
         check("does-not-use-untracked-copy-as-runtime", resolved != portable_untracked.resolve())
 
@@ -1704,6 +1881,7 @@ def test_chrome_mcp_docs() -> None:
     check("chrome-G-no-namespace-literal", "user-chatcut" not in ref and "project-0-" not in ref)
     check("chrome-G-hold-when-unavailable", "HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE" in ref)
     check("chrome-G-retry-then-hold", "retry up to 3" in ref)
+    check("chrome-G-narration-reuses-session", "keep that same attached page" in ref)
     check("chrome-G-batch-preflight-fixes", "開始前に直すこと" in ref)
     check("chrome-G-9222-ready-not-rd-off", "127.0.0.1:9222 is already listening" in ref)
 
@@ -1726,7 +1904,7 @@ def test_purge_preserves_shared_inputs() -> None:
     helper = load_purge_helper()
     check(
         "purge-owned-root-constant",
-        helper.PERSISTENT_SHARED_INPUT_ROOTS == (PERSISTENT_SHARED_INPUT_RELATIVE,),
+        helper.PERSISTENT_SHARED_INPUT_ROOTS == PERSISTENT_SHARED_INPUT_ROOTS,
     )
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory) / "repo"
@@ -1779,6 +1957,8 @@ def test_purge_preserves_shared_inputs() -> None:
         check("purge-A-plans-task-tts", f"outputs/{case_id}/tts/c1.mp3" in planned_paths)
         check("purge-A-plans-task-video", f"outputs/{case_id}/work.mp4" in planned_paths)
         check("purge-F-no-library-in-dry-run", planned_hits_persistent_shared_inputs(payload.get("planned") or []) == [])
+        skipped_paths = {item.get("path") for item in payload.get("skipped") or []}
+        check("purge-skip-approved-shots-root", ".runtime/product-video-approved-shots" in skipped_paths)
         check("purge-B-root-mp4-not-planned", not any(path.endswith("video.mp4") and is_persistent_shared_input_path(path) for path in planned_paths))
         check("purge-C-nested-mov-not-planned", not any(path.endswith("video.mov") and is_persistent_shared_input_path(path) for path in planned_paths))
         skipped_reasons = {item.get("reason") for item in payload.get("skipped") or []}
@@ -1819,6 +1999,8 @@ def main() -> int:
         test_speed_and_tts(root)
         test_tts_input_recovery(root)
         test_tts_runtime_gaps(root)
+        test_tts_session(root)
+        test_approved_shot_history(root)
         test_create_case(root)
         test_product_facts_prepare(root)
         test_dispatch_resume(root)

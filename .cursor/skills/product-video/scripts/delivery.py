@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from approved_shots import record_case_final_timeline
 from constants import DELIVERY_APPROVAL, UNKNOWN_JOB_STATUSES
 from paths import case_root, helper_path
 from workflow_state import complete_stage, hold, save_state
@@ -52,6 +53,23 @@ def may_complete(delivery: dict[str, Any]) -> dict[str, Any]:
     if delivery.get("drive_uploaded") is not True or delivery.get("drive_readback_verified") is not True:
         return hold("HOLD_DRIVE_READBACK_REQUIRED", "Drive verification is required before COMPLETE")
     return {"status": "OK"}
+
+
+def record_final_approved_shots(
+    project_root: Path,
+    state: dict[str, Any],
+    timeline_cuts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    product_model = str(state.get("product_model") or "")
+    case_id = str(state.get("case_id") or "")
+    if not product_model or not case_id:
+        return {"status": "OK", "recorded": False}
+    try:
+        payload = record_case_final_timeline(project_root, case_id, product_model, timeline_cuts)
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return {"status": "OK", "recorded": False}
+    payload["recorded"] = True
+    return payload
 
 
 def may_purge(state: dict[str, Any], delivery: dict[str, Any]) -> dict[str, Any]:

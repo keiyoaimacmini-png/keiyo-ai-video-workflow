@@ -14,7 +14,20 @@ from prove_tts_speed import planned_editorial_duration
 from prove_tts_textarea import FORBIDDEN_READBACK_SOURCES
 from resolve_tts_text import compare_effective_to_frozen
 from script_fidelity import assert_immutable, load_approved_script
+from tts_session import may_reuse_session, prove_session_setup, record_session_setup
 from workflow_state import hold
+
+
+def prove_narration_session(observation, recover_count: int = 0) -> dict[str, Any]:
+    return prove_session_setup(observation, recover_count=recover_count)
+
+
+def may_reuse_narration_session(session: dict[str, Any], observation: dict[str, Any] | None) -> dict[str, Any]:
+    return may_reuse_session(session, observation)
+
+
+def record_narration_session(project_root: Path, case_id: str, observation: dict[str, Any], *, recover_count: int = 0) -> dict[str, Any]:
+    return record_session_setup(project_root, case_id, observation, recover_count=recover_count)
 
 
 def load_tts_helper(project_root: Path):

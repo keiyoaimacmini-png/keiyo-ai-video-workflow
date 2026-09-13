@@ -8,19 +8,28 @@ disable-model-invocation: true
 
 Read this file only when dispatch says `product-video-assembly`.
 
-Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip.
+Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip. Do not analyze the whole library and do not run AI picture scoring.
+
+Load this product's adopted-shot history first:
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL>
+```
 
 For each cut, inputs are:
 
 - frozen approved line
 - Gemini intended scenario
 - planned editorial narration duration (`source_duration_seconds / 1.2`), not the raw source-file length
+- matching shots from approved-shot history, when present
 
 Preference:
 
-1. Material must support the approved line.
-2. Prefer a clip that reproduces the intended scenario.
-3. Among valid candidates, prefer visual variety versus the previous cut.
+1. If history has a source/range whose frozen line or Gemini situation matches this cut, use it as the first candidate. Do not rescan the whole library for that cut.
+2. Otherwise use the current semantically valid material selection.
+3. Material must support the approved line.
+4. Prefer a clip that reproduces the intended scenario.
+5. Avoid only consecutive cuts that reuse the same source and the same framing. If that is the only valid option, keep it.
 
 If an exact scenario match is missing, use the closest semantically valid clip. Do not invent a new claim. Do not search forever.
 

@@ -29,7 +29,7 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - 使用モデルは **`gemini-3.8-flash`**。Auto / Pro / 別の Flash には落とさない。違うモデルなら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。`agy` が無い、一発印刷が失敗する、枠が尽きた、ファイルを書き始めた場合は `HOLD_GEMINI_CLI_NOT_VERIFIED`。
 - 送りは `product-video/scripts/render_script_prompt.py` の出力を `produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py` で送る。プロンプト本文を手で書き換えない。ヘルパーが HOLD したら探索に入らずその HOLD で止める。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA、アカウント選択だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。オペレーターは Terminal で `agy` を起動して Google ログインする。エージェントはログインを起動しない。
 - 採用は exact `案Nで台本OK` のみ。別の言い回しを承認に変換しない。凍結後は SCRIPT LINE == NARRATION == TELOP。言い換え・短縮・句読点変更をしない。
-- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明する。
+- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明する。ASSEMBLY は `.runtime/product-video-approved-shots/<MODEL>.v1.json` に、以前の完成タイムラインで採用された source/range があればそれを第一候補にする。無ければ通常選定。同じ素材・同じ画角の連続だけ避ける。全素材の再解析や AI 画質採点はしない。
 - 作業が止まったら同じターンで続けるか、該当 HOLD で止めてオペレーターが動けるようにする。一晩待たない。
 
 ## Google Drive（格納はローカルパス。デスクトップアプリは使わない）
@@ -49,19 +49,20 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - Keep product media, evidence frames, editable runtime artifacts, exports, credentials, cookies, tokens, account identifiers, and session identifiers out of Git, pull requests, and ordinary logs.
 - Do not open a pull request, publish an artifact, post, send externally, start a Pro contract, buy extra CapCut credit, retry an unknown export/upload, overwrite, or delete originals, Drive objects, receipts, or another case unless the user separately authorizes that exact action. Confirming an existing-balance CapCut `Credits will be consumed` dialog (Got it) is not a new purchase.
 - Standing completion is Drive 格納: after exact `完成・格納してください`, export once and, in that same turn, create one new file in the Drive folder titled with this product model in exact case. Create that file with `scripts/upload_drive_local_file.py` from local bytes; do not inline the completed video as base64. Do not open Chrome.app for 格納. Require exact new-file read-back. COMPLETE only after Drive verification.
-- After stage `COMPLETE` and verified 格納, purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`. Do not delete `.runtime/product-video-inputs`.
+- After stage `COMPLETE` and verified 格納, record this case's final timeline source/range into `.runtime/product-video-approved-shots/<MODEL>.v1.json`, then purge this case's local working media **on this Mac** through `scripts/purge_local_working_media.py`. Never purge before verified delivery. Default is dry-run; execute only with `--execute --i-confirm-destination-stored`. Do not delete `.runtime/product-video-inputs` or `.runtime/product-video-approved-shots`.
 
 ## 完了後のローカル削除
 
-- `完成・格納してください` と格納が済んだ案件だけ、**この Mac** からその案件の作業用 media（`outputs/<case>` の TTS・一時ファイル・ローカル完成動画の作業コピー）を消す。共有素材ライブラリ `.runtime/product-video-inputs` は消さない。
+- `完成・格納してください` と格納が済んだ案件だけ、**この Mac** からその案件の作業用 media（`outputs/<case>` の TTS・一時ファイル・ローカル完成動画の作業コピー）を消す。共有素材ライブラリ `.runtime/product-video-inputs` と採用ショット履歴 `.runtime/product-video-approved-shots` は消さない。
 - まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/` や `out/` を確認する。無いコピーは失敗にしない。
-- 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件、`.runtime/product-video-inputs` 配下の再利用素材は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
+- 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件、`.runtime/product-video-inputs` 配下の再利用素材、`.runtime/product-video-approved-shots` の採用履歴は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
-## ナレーション（1カットごと）
+## ナレーション（session 1回 + 1カットずつ生成）
 
 - 編集上の再生速度は常に **1.2倍速**。速度選択アルゴリズムは使わない。CapCut 生成時に 1.2 を要求しない。ChatCut の音声クリップ `playbackRate` に 1.2 を付ける。
 - 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、原音だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。通常経路は起動済みの Google Chrome.app へ、このプロジェクトの Playwright MCP（`--cdp-endpoint=chrome`）で接続する。詳細は `.cursor/skills/product-video/references/capcut-chrome-mcp.md`。`cursor-ide-browser` や拡張機能方式へ自動で戻さない。
+- NARRATION 開始時に Chrome / MCP / CapCut TTS ページ / Holiday Twist / 入力欄を **1回だけ** 確認する。同じページ・同じ session のまま c1→c2→… と連続生成する。成功したカットをチャット報告せず次へ進む。session が失われたときだけ接続復旧を最大3回。カットごとに MCP 再探索、Chrome preflight、ページ再探索、Holiday Twist 再選択、voice ID 再解決はしない。
 - 既存 CapCut 残高から今回の生成分を消費する確認（`Credits will be consumed`、必要クレジット数、Cancel / Got it、月額・年額料金なし、無料体験なし、決済フォームなし、追加購入なし）は Got it で続行してよい。本文に「Pro」とあることだけを理由に止めない。Pro 月額・年額契約、無料体験、追加クレジット購入、自動チャージ、新しい決済、契約変更は自動承認しない。区別できなければ HOLD。
 - 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。
 - 生成前にテキスト欄を全置換し、読み戻しが凍結行と完全一致してから生成する。結果カードの `video`/`audio` currentSrc を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。原音の実再生時間を記録する。原音を 1.2 倍加工済みとは記録しない。

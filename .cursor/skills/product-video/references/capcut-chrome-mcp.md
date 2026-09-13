@@ -8,6 +8,7 @@ Holiday Twist generation uses this Mac's already-running **Google Chrome.app**, 
 2. Cursor connects through this project's **Playwright MCP** with `--cdp-endpoint=chrome`.
 3. Resolve whichever Playwright MCP is available in this session. Do not hard-code an MCP namespace string; namespace names are host-dependent. If the first attach fails, retry up to 3 times before HOLD.
 4. Open CapCut official Text to Speech on that attached Chrome session. Do not click Generate during preflight.
+5. During NARRATION, keep that same attached page for every cut. Re-resolve MCP, re-attach Chrome, re-open CapCut, or re-select Holiday Twist only when the session is actually lost (then retry up to 3 times). Do not repeat those checks between successful cuts.
 
 `.cursor/mcp.json` is a local host setting. Do not add it to Git.
 

@@ -20,7 +20,13 @@ python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/sc
 ```
 
 5. Read back the new Drive file (exact name, MIME, size, parent title, time). COMPLETE only after that verification.
-6. After COMPLETE and verified storage, dry-run then execute the existing purge helper. Never purge before verified delivery. Do not delete `.runtime/product-video-inputs`; that tree is a persistent shared product library, including videos and images in classification subfolders.
+6. Record the **final** timeline's adopted source/range into product-level shot history. Use the editor timeline after operator picture swaps, not the first ASSEMBLY draft. Do not store the completed export. Do not modify source videos.
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --case-id <CASE_ID> --record-final [--timeline-json '<final cuts>']
+```
+
+7. After COMPLETE and verified storage, dry-run then execute the existing purge helper. Never purge before verified delivery. Do not delete `.runtime/product-video-inputs` or `.runtime/product-video-approved-shots`; those trees are persistent reusable product data, including videos, images, and adopted-shot history.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py" --project-root <PROJECT_ROOT> --task-root <task-root> --case-id <CASE_ID>

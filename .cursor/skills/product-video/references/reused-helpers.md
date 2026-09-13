@@ -11,6 +11,8 @@ Owned by `/product-video`:
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/tts_attempts.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_material_videos.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/classify_capcut_credit.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/tts_session.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/approved_shots.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/preserve_shared_inputs.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/run_preflight.py`
 
