@@ -73,7 +73,7 @@ When the helper returns `READY` (including `delivery_ready: false`):
 python3 "${SKILL_ROOT}/scripts/dispatch.py" --project-root <PROJECT_ROOT> --product-model <MODEL> [--case-id <CASE_ID>] --preflight-ready
 ```
 
-After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in `product-video-narration` until the queue helper says `queue_complete`; do not re-dispatch between cuts. `完成・格納してください` continues only after Drive is READY: then DELIVERY → Drive read-back → COMPLETE → purge in this turn. If Drive is still not READY, do not export; report login only and wait for the same phrase. Do not chat mid-stage timing.
+After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in `product-video-narration` until the queue helper says `queue_complete`; do not re-dispatch between cuts. During ROUGH_EDIT, stay in `product-video-rough-edit` and run `edit-plan.json` `chatcut_steps` one-pass (batch import / audio / playbackRate / video / captions, then one `final_verify`); do not re-dispatch between steps or rebuild the plan. `完成・格納してください` continues only after Drive is READY: then DELIVERY → Drive read-back → COMPLETE → purge in this turn. If Drive is still not READY, do not export; report login only and wait for the same phrase. Do not chat mid-stage timing.
 
 Helper path:
 

@@ -72,12 +72,12 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 
 - 最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。
 - ChatCut では保存済みユーザープリセット `product-video-center` を一度 `preset_apply` する。案件ごとに太字・縁を作り直さない。背景帯は付けない。
-- テロップ文言は凍結行と完全一致。表示用改行は `edit-plan.json` の `caption_visual_wrap` を配置前に使う。単語途中、助詞だけ次行、数字と単位、UV / UPF / チタンシルバーなどの語分断、1文字だけの行を避ける。ChatCut へ置いてから改行位置を考えない。文字の追加・削除・並べ替えはしない。
+- テロップ文言は凍結行と完全一致。表示用改行は `edit-plan.json` の `caption_visual_wrap` を配置前に使う。`caption_wrap.py` は14文字前後の候補から句読点・意味句・節境界・助詞を優先し、商品名・UVカット / UPF40以上 / 約99パーセント / チタンシルバー / V字カット / ルームミラー / フロントガラス / 数字と単位の途中、助詞だけ次行、1〜2文字の最終行を避ける。ChatCut へ置いてから改行位置を考えない。文字の追加・削除・並べ替えはしない。
 - 太字の見出しフォント（Dela Gothic One）と白い文字、太い黒縁、ドロップシャドウで目立たせる。背景帯は付けない。
 
 ## 計測
 
-案件の `timing.json` にだけ自動記録する。チャットへ途中報告しない。記録するのは SCRIPT 実処理時間、NARRATION 開始〜終了、カット数、平均 TTS 秒/cut、ASSEMBLY plan 作成時間、ChatCut 配置時間、人間の素材差し替え数、Export/Drive 時間。
+案件の `timing.json` にだけ自動記録する。チャットへ途中報告しない。記録するのは SCRIPT 実処理時間、NARRATION 開始〜終了、カット数、平均 TTS 秒/cut、ASSEMBLY plan 作成時間、ChatCut 配置時間（project setup / import / place_audio / playback_rate / place_video / caption_preset / place_captions / final_verify の秒数）、人間の素材差し替え数、Export/Drive 時間。
 
 ## Cursor Desktop browser and human handoff
 

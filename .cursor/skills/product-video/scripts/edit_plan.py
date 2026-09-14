@@ -91,8 +91,10 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
         steps.append({"op": "set_playback_rate", "updates": rate_updates, "playbackRate": NARRATION_SPEED})
     if video_adds:
         steps.append({"op": "place_video", "adds": video_adds})
-    steps.append({"op": "caption_preset", "preset": CAPTION_PRESET, "action": "preset_apply"})
-    steps.append({"op": "place_captions", "cards": captions})
+        steps.append({"op": "caption_preset", "preset": CAPTION_PRESET, "action": "preset_apply"})
+    if captions:
+        steps.append({"op": "place_captions", "cards": captions})
+    steps.append({"op": "final_verify"})
     return steps
 
 

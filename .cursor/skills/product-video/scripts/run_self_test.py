@@ -19,7 +19,7 @@ sys.path.insert(0, str(SCRIPTS))
 from assembly import as_full_clip, assemble_plan, duration_passes, select_cut  # noqa: E402
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
-from edit_plan import build_edit_plan  # noqa: E402
+from edit_plan import build_edit_plan, chatcut_execution_steps  # noqa: E402
 from material_index import (  # noqa: E402
     candidates_from_index,
     load_aliases,
@@ -28,7 +28,14 @@ from material_index import (  # noqa: E402
     save_aliases,
 )
 from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
-from timing import load_timing, mark_stage_end, mark_stage_start, summarize  # noqa: E402
+from timing import (  # noqa: E402
+    ROUGH_EDIT_METRIC_KEYS,
+    load_timing,
+    mark_stage_end,
+    mark_stage_start,
+    record_rough_edit_metrics,
+    summarize,
+)
 from bind_script_selection import bind_script_selection  # noqa: E402
 from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
@@ -1275,8 +1282,50 @@ def test_material_index_and_edit_plan(root: Path) -> None:
     check("edit-plan-exact-caption", cut.get("caption_text") == line)
     check("edit-plan-no-reselect", planned.get("reselect_in_editor") is False)
     check("edit-plan-has-import-batches", bool(planned.get("chatcut_steps")))
+    ops = [step.get("op") for step in planned.get("chatcut_steps") or [] if isinstance(step, dict)]
+    check("edit-plan-one-place-audio", ops.count("place_audio") == 1)
+    check("edit-plan-one-playback-rate", ops.count("set_playback_rate") == 1)
+    check("edit-plan-one-place-video", ops.count("place_video") == 1)
+    check("edit-plan-one-place-captions", ops.count("place_captions") == 1)
+    check("edit-plan-final-verify-last", ops[-1] == "final_verify")
+    audio_step = next(step for step in planned.get("chatcut_steps") or [] if step.get("op") == "place_audio")
+    check("edit-plan-audio-adds-batched", isinstance(audio_step.get("adds"), list) and len(audio_step.get("adds") or []) == 1)
     executed = execute_from_edit_plan(planned, editor_project_identity="chatcut:proj-speed")
     check("rough-executes-plan", executed.get("usable_rough_edit") is True and executed.get("reselect_in_editor") is False)
+    batched = chatcut_execution_steps(
+        {
+            "cuts": [
+                {
+                    "cut_id": "c1",
+                    "narration_audio_path": "a1.mp3",
+                    "video_source": "v1.mov",
+                    "timeline_start_frame": 0,
+                    "duration_frames": 10,
+                    "source_in": 0.0,
+                    "caption_text": "一行目です。",
+                    "caption_visual_wrap": "一行目です。",
+                },
+                {
+                    "cut_id": "c2",
+                    "narration_audio_path": "a2.mp3",
+                    "video_source": "v2.mov",
+                    "timeline_start_frame": 10,
+                    "duration_frames": 12,
+                    "source_in": 1.0,
+                    "caption_text": "二行目です。",
+                    "caption_visual_wrap": "二行目です。",
+                },
+            ]
+        }
+    )
+    audio_adds = next(step["adds"] for step in batched if step.get("op") == "place_audio")
+    rate_updates = next(step["updates"] for step in batched if step.get("op") == "set_playback_rate")
+    video_adds = next(step["adds"] for step in batched if step.get("op") == "place_video")
+    cards = next(step["cards"] for step in batched if step.get("op") == "place_captions")
+    check("edit-plan-audio-two-cuts-one-call", len(audio_adds) == 2)
+    check("edit-plan-rate-two-cuts-one-call", len(rate_updates) == 2)
+    check("edit-plan-video-two-cuts-one-call", len(video_adds) == 2)
+    check("edit-plan-captions-two-cuts-one-call", len(cards) == 2)
 
 
 def test_semantic_folder_aliases(root: Path) -> None:
@@ -1421,6 +1470,30 @@ def test_caption_wrap() -> None:
     lines = (particle.get("caption_visual_wrap") or "").split("\n")
     check("wrap-no-one-char-line", all(len(line) != 1 for line in lines))
     check("wrap-no-particle-only-line", all(line not in {"は", "が", "を", "に", "で", "と", "も", "の"} for line in lines))
+    shade = wrap_caption("吸盤がすぐ落ちるサンシェード、もう限界…")
+    check("wrap-comma-stays-with-clause", (shade.get("caption_visual_wrap") or "").startswith("吸盤がすぐ落ちるサンシェード、"))
+    many = wrap_caption("ミラー周りが浮いちゃうこと多くない？")
+    check("wrap-does-not-split-ookunai", "多\nくない" not in (many.get("caption_visual_wrap") or ""))
+    once = wrap_caption("これなら折りたたみ傘感覚で一発装着！")
+    check("wrap-does-not-split-ippatsu", "一\n発" not in (once.get("caption_visual_wrap") or ""))
+    block = wrap_caption("日差しや紫外線をしっかりブロック！")
+    check("wrap-does-not-split-block", "ブロ\nック" not in (block.get("caption_visual_wrap") or ""))
+    sag = wrap_caption("頑丈な10本骨だからへたりにくい！")
+    check("wrap-does-not-split-hetari", "へたりに\nくい" not in (sag.get("caption_visual_wrap") or ""))
+    pouch = wrap_caption("ポーチへスリムに収まって場所を取らない！")
+    check("wrap-break-after-te", (pouch.get("caption_visual_wrap") or "").startswith("ポーチへスリムに収まって\n"))
+    vcut = wrap_caption("こだわりのV字カット加工で…")
+    vwrap = vcut.get("caption_visual_wrap") or ""
+    check("wrap-keeps-vcut-phrase", "V字\nカット" not in vwrap and "V字カット" in vwrap)
+    check("wrap-before-protected-compound", vwrap.startswith("こだわりの\n"))
+    measure = wrap_caption("UV約99パーセントカット＆UPF40以上！")
+    mwrap = measure.get("caption_visual_wrap") or ""
+    check("wrap-keeps-percent-unit", "約99\nパーセント" not in mwrap and mwrap.startswith("UV約99パーセント\n"))
+    check("wrap-keeps-upf-unit", "UPF40以上" in mwrap and "UPF\n" not in mwrap)
+    short_ok = wrap_caption("下からチェック！")
+    check("wrap-keeps-short-line", (short_ok.get("caption_visual_wrap") or "") == "下からチェック！")
+    last_lines = (wrap_caption("チタンシルバーの特殊コーティング採用！").get("caption_visual_wrap") or "").split("\n")
+    check("wrap-no-tiny-last-line", all(len(line) > 2 for line in last_lines))
 
 
 def test_timing_metrics(root: Path) -> None:
@@ -1446,6 +1519,26 @@ def test_timing_metrics(root: Path) -> None:
     check("timing-chatcut", isinstance(summary.get("chatcut_placement_elapsed_seconds"), float))
     check("timing-picture-swaps", summary.get("human_picture_swap_count") == 1)
     check("timing-export-drive", isinstance(summary.get("export_drive_elapsed_seconds"), float))
+    recorded = record_rough_edit_metrics(
+        root,
+        case_id,
+        {
+            "chatcut_project_setup_seconds": 1.0,
+            "import_seconds": 2.0,
+            "place_audio_seconds": 3.0,
+            "playback_rate_seconds": 4.0,
+            "place_video_seconds": 5.0,
+            "caption_preset_seconds": 6.0,
+            "place_captions_seconds": 7.0,
+            "final_verify_seconds": 8.0,
+        },
+    )
+    check("timing-rough-steps-recorded", recorded.get("status") == "OK")
+    loaded = load_timing(root, case_id)
+    metrics = loaded.get("metrics") or {}
+    for key in ROUGH_EDIT_METRIC_KEYS:
+        check(f"timing-has-{key}", isinstance(metrics.get(key), float), key)
+    check("timing-rough-total-from-stage", metrics.get("rough_edit_total_seconds") == summary.get("chatcut_placement_elapsed_seconds"))
 
 
 def test_dispatch_initial_entry(root: Path) -> None:
@@ -2221,6 +2314,8 @@ def test_git_tracked_helpers() -> None:
     check("narration-skill-no-capcut-actual-speed-gate", "actual_speed == 1.2" not in narration_skill)
     rough_skill = (skills_root / "product-video-rough-edit" / "SKILL.md").read_text(encoding="utf-8")
     check("rough-skill-uses-chatcut-playbackRate", "playbackRate" in rough_skill and "prove_tts_speed.py" in rough_skill)
+    check("rough-skill-one-pass", "one-pass" in rough_skill and "final_verify" in rough_skill)
+    check("rough-skill-no-per-cut-inspect", "Do not call `inspect_item` after each write" in rough_skill)
     check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
     check("narration-skill-uses-session", "product-video/scripts/tts_session.py" in narration_skill)
     check(

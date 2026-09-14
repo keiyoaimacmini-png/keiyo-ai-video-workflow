@@ -20,6 +20,27 @@ STAGE_KEYS = {
     "ROUGH_EDIT": "chatcut_placement",
     "DELIVERY": "export_drive",
 }
+ROUGH_EDIT_METRIC_KEYS = (
+    "chatcut_project_setup_seconds",
+    "import_seconds",
+    "place_audio_seconds",
+    "playback_rate_seconds",
+    "place_video_seconds",
+    "caption_preset_seconds",
+    "place_captions_seconds",
+    "final_verify_seconds",
+    "rough_edit_total_seconds",
+)
+ROUGH_EDIT_STEP_TO_KEY = {
+    "project_setup": "chatcut_project_setup_seconds",
+    "import": "import_seconds",
+    "place_audio": "place_audio_seconds",
+    "playback_rate": "playback_rate_seconds",
+    "place_video": "place_video_seconds",
+    "caption_preset": "caption_preset_seconds",
+    "place_captions": "place_captions_seconds",
+    "final_verify": "final_verify_seconds",
+}
 
 
 def _now() -> datetime:
@@ -100,7 +121,7 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
     avg_tts = metrics.get("avg_tts_seconds_per_cut")
     if avg_tts is None and isinstance(narration, float) and isinstance(cut_count, int) and cut_count > 0:
         avg_tts = narration / cut_count
-    return {
+    summary = {
         "script_elapsed_seconds": script,
         "narration_started_at": (stages.get("NARRATION") or {}).get("started_at") if isinstance(stages.get("NARRATION"), dict) else None,
         "narration_ended_at": (stages.get("NARRATION") or {}).get("ended_at") if isinstance(stages.get("NARRATION"), dict) else None,
@@ -112,6 +133,10 @@ def summarize(data: dict[str, Any]) -> dict[str, Any]:
         "human_picture_swap_count": metrics.get("human_picture_swap_count"),
         "export_drive_elapsed_seconds": elapsed("DELIVERY"),
     }
+    for key in ROUGH_EDIT_METRIC_KEYS:
+        if key in metrics:
+            summary[key] = metrics[key]
+    return summary
 
 
 def mark_stage_start(project_root: Path, case_id: str, stage: str) -> dict[str, Any]:
@@ -157,9 +182,63 @@ def mark_stage_end(
                 metrics["avg_tts_seconds_per_cut"] = current["elapsed_seconds"] / cut_count
     if stage in {"DELIVERY", "COMPLETE", "ROUGH_EDIT"}:
         metrics["human_picture_swap_count"] = count_picture_swaps(project_root, case_id)
+    if stage == "ROUGH_EDIT":
+        metrics["rough_edit_total_seconds"] = current["elapsed_seconds"]
     data["summary"] = summarize(data)
     save_timing(project_root, data)
     return {"status": "OK", "stage": stage, "summary": data["summary"]}
+
+
+def record_rough_edit_metrics(project_root: Path, case_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    data = load_timing(project_root, case_id)
+    metrics = data.setdefault("metrics", {})
+    recorded: dict[str, float] = {}
+    for key in ROUGH_EDIT_METRIC_KEYS:
+        raw = values.get(key)
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            metrics[key] = float(raw)
+            recorded[key] = float(raw)
+    data["summary"] = summarize(data)
+    save_timing(project_root, data)
+    return {"status": "OK", "metrics": recorded}
+
+
+def mark_rough_edit_step_start(project_root: Path, case_id: str, step: str) -> dict[str, Any]:
+    if step not in ROUGH_EDIT_STEP_TO_KEY:
+        return {"status": "OK", "ignored": True, "step": step}
+    data = load_timing(project_root, case_id)
+    rough = data.setdefault("stages", {}).setdefault("ROUGH_EDIT", {})
+    marks = rough.setdefault("step_marks", {})
+    current = marks.get(step) if isinstance(marks.get(step), dict) else {}
+    if not current.get("started_at"):
+        current["started_at"] = _iso(_now())
+    marks[step] = current
+    save_timing(project_root, data)
+    return {"status": "OK", "step": step, "started_at": current["started_at"]}
+
+
+def mark_rough_edit_step_end(project_root: Path, case_id: str, step: str) -> dict[str, Any]:
+    key = ROUGH_EDIT_STEP_TO_KEY.get(step)
+    if key is None:
+        return {"status": "OK", "ignored": True, "step": step}
+    data = load_timing(project_root, case_id)
+    rough = data.setdefault("stages", {}).setdefault("ROUGH_EDIT", {})
+    marks = rough.setdefault("step_marks", {})
+    current = dict(marks.get(step) if isinstance(marks.get(step), dict) else {})
+    ended = _now()
+    current["ended_at"] = _iso(ended)
+    start = _parse(current.get("started_at"))
+    if start is None:
+        current["started_at"] = current["ended_at"]
+        start = ended
+    elapsed = max(0.0, (ended - start).total_seconds())
+    current["elapsed_seconds"] = elapsed
+    marks[step] = current
+    metrics = data.setdefault("metrics", {})
+    metrics[key] = elapsed
+    data["summary"] = summarize(data)
+    save_timing(project_root, data)
+    return {"status": "OK", "step": step, "metric": key, "elapsed_seconds": elapsed}
 
 
 def main() -> int:
@@ -168,6 +247,9 @@ def main() -> int:
     parser.add_argument("--case-id", required=True)
     parser.add_argument("--mark-start")
     parser.add_argument("--mark-end")
+    parser.add_argument("--mark-step-start")
+    parser.add_argument("--mark-step-end")
+    parser.add_argument("--record-rough-edit-json")
     parser.add_argument("--print", action="store_true")
     args = parser.parse_args()
     root = Path(args.project_root)
@@ -175,6 +257,12 @@ def main() -> int:
         payload = mark_stage_start(root, args.case_id, args.mark_start)
     elif args.mark_end:
         payload = mark_stage_end(root, args.case_id, args.mark_end)
+    elif args.mark_step_start:
+        payload = mark_rough_edit_step_start(root, args.case_id, args.mark_step_start)
+    elif args.mark_step_end:
+        payload = mark_rough_edit_step_end(root, args.case_id, args.mark_step_end)
+    elif args.record_rough_edit_json:
+        payload = record_rough_edit_metrics(root, args.case_id, json.loads(args.record_rough_edit_json))
     else:
         data = load_timing(root, args.case_id)
         payload = {"status": "OK", "summary": summarize(data), "path": timing_path(root, args.case_id).as_posix()}
