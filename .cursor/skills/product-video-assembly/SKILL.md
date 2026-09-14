@@ -27,11 +27,13 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/edit_plan.py" --pr
 
 That helper ranks duration-passing index + history candidates, then writes `assembly-plan.json` and `edit-plan.json`. Rank order:
 
-1. the frozen line's meaning
+1. the frozen line's meaning (sidecar situation exact, sidecar tags, classification folder, then product-level folder aliases)
 2. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
 3. Gemini situation
 4. approved-shot history
 5. avoid the same source and framing as the previous cut
+
+Folder meaning is product-level, not per-script. Load `config/product_video_material_aliases_<MODEL>.v1.json` into `.runtime/product-video-material-index/<MODEL>.semantic-aliases.v1.json`. Do not rewrite material sidecars to match this case's frozen lines. Do not add per-script aliases. Do not add a new quality HOLD.
 
 If a candidate has `source_in` / `source_out` (or a scene range in md), `available_duration = source_out - source_in`. A full clip uses the md source duration. A history shot with a short range is not adopted.
 

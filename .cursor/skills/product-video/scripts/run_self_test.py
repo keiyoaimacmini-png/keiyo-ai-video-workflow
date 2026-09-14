@@ -20,7 +20,13 @@ from assembly import as_full_clip, assemble_plan, duration_passes, select_cut  #
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
 from edit_plan import build_edit_plan  # noqa: E402
-from material_index import refresh_index  # noqa: E402
+from material_index import (  # noqa: E402
+    candidates_from_index,
+    load_aliases,
+    meaning_match,
+    refresh_index,
+    save_aliases,
+)
 from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
 from timing import load_timing, mark_stage_end, mark_stage_start, summarize  # noqa: E402
 from bind_script_selection import bind_script_selection  # noqa: E402
@@ -1273,6 +1279,136 @@ def test_material_index_and_edit_plan(root: Path) -> None:
     check("rough-executes-plan", executed.get("usable_rough_edit") is True and executed.get("reselect_in_editor") is False)
 
 
+def test_semantic_folder_aliases(root: Path) -> None:
+    product = "AN-S996"
+    aliases = {
+        "他社製品比較": ["吸盤", "蛇腹", "落ちる", "外れる", "ズレる", "他社", "比較"],
+        "設置風景": ["設置", "フロントガラス", "V字", "V字カット", "ミラー", "ルームミラー", "フィット", "合わせる"],
+        "車内涼しい": ["日差し", "直射日光", "紫外線", "UV", "UPF", "遮る", "ブロック", "陰"],
+        "コンパクト収納": ["閉じる", "畳む", "たたむ", "収納", "ポーチ", "スリム", "コンパクト"],
+    }
+    save_aliases(root, {"product_model": product, "folder_aliases": aliases})
+    loaded = load_aliases(root, product)
+    check("aliases-persist-product-level", loaded.get("他社製品比較") == aliases["他社製品比較"])
+
+    competitor = {
+        "classification_folder": "他社製品比較",
+        "situation": "",
+        "semantic_tags": ["他社製品比較"],
+        "source": "competitor.mov",
+        "full_duration": 10.0,
+    }
+    install = {
+        "classification_folder": "設置風景",
+        "situation": "",
+        "semantic_tags": ["設置風景"],
+        "source": "install.mov",
+        "full_duration": 10.0,
+    }
+    cool = {
+        "classification_folder": "車内涼しい",
+        "situation": "",
+        "semantic_tags": ["車内涼しい"],
+        "source": "cool.mov",
+        "full_duration": 8.0,
+    }
+    packed = {
+        "classification_folder": "コンパクト収納",
+        "situation": "",
+        "semantic_tags": ["コンパクト収納"],
+        "source": "pack.mov",
+        "full_duration": 9.0,
+    }
+    exact = {
+        "classification_folder": "設置風景",
+        "situation": "専用の完全一致シチュエーション",
+        "semantic_tags": ["設置風景"],
+        "source": "exact.mov",
+        "full_duration": 11.0,
+    }
+
+    def folders_for(line: str, situation: str) -> set[str]:
+        index = {"files": {"a": competitor, "b": install, "c": cool, "d": packed, "e": exact}}
+        matched = [
+            item["classification_folder"]
+            for item in candidates_from_index(index, line=line, situation=situation, folder_aliases=loaded)
+            if item.get("semantic_valid") is True
+        ]
+        return set(matched)
+
+    check(
+        "alias-sucker-to-competitor",
+        folders_for("吸盤がすぐ落ちるサンシェード、もう限界…", "蛇腹式の吸盤サンシェードがペラッと落ちてきてイラッとする人物")
+        == {"他社製品比較"},
+    )
+    check(
+        "alias-vcut-to-install",
+        folders_for("こだわりのV字カット加工で…", "V字カットがルームミラーの支柱をきれいに逃がしている様子")
+        == {"設置風景"},
+    )
+    check(
+        "alias-uv-to-cool",
+        folders_for("UV約99パーセントカット＆UPF40以上！", "車内が陰になって快適に過ごせている様子")
+        == {"車内涼しい"},
+    )
+    check(
+        "alias-close-to-storage",
+        folders_for("使い終わったらシュッと閉じて…", "傘をシュッと閉じてコンパクトにまとめる一連の動作")
+        >= {"コンパクト収納"},
+    )
+    check(
+        "alias-close-word",
+        meaning_match(packed, "使い終わったら閉じる", "", folder_aliases=loaded) is True,
+    )
+    check(
+        "alias-storage-word",
+        meaning_match(packed, "付属ポーチへ収納", "", folder_aliases=loaded) is True,
+    )
+    check(
+        "alias-unrelated-does-not-match",
+        folders_for("りんごを切る", "台所のテーブル") == set(),
+    )
+    check(
+        "alias-sidecar-exact-still-used",
+        meaning_match(exact, "別のセリフでもよい", "専用の完全一致シチュエーション", folder_aliases=loaded) is True,
+    )
+
+    short = {
+        "semantic_valid": True,
+        "supported_line": None,
+        "situation": "吸盤が落ちる従来品",
+        "classification_folder": "他社製品比較",
+        "material_id": "short",
+        "source": "short.mov",
+        "source_duration_seconds": 1.2,
+        "visual": visual("hands", "close", "dash"),
+    }
+    long_enough = {
+        "semantic_valid": True,
+        "supported_line": None,
+        "situation": "吸盤が落ちる従来品",
+        "classification_folder": "他社製品比較",
+        "material_id": "long",
+        "source": "long.mov",
+        "source_duration_seconds": 10.0,
+        "visual": visual("hands", "wide", "car"),
+    }
+    duration_hold = select_cut(
+        [short],
+        line="吸盤が落ちる",
+        intended_scenario="従来品が落ちる",
+        duration_seconds=3.0,
+    )
+    check("alias-short-still-excluded", duration_hold.get("status") == "HOLD")
+    chosen = select_cut(
+        [short, long_enough],
+        line="吸盤が落ちる",
+        intended_scenario="従来品が落ちる",
+        duration_seconds=3.0,
+    )
+    check("alias-duration-keeps-long", chosen.get("selection", {}).get("material_id") == "long")
+
+
 def test_caption_wrap() -> None:
     uv = wrap_caption("UVカット率はなんと約99パーセント！")
     wrapped = uv.get("caption_visual_wrap") or ""
@@ -2458,6 +2594,7 @@ def main() -> int:
         test_tts_session(root)
         test_narration_queue(root)
         test_material_index_and_edit_plan(root)
+        test_semantic_folder_aliases(root)
         test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)

@@ -11,7 +11,8 @@ from typing import Any
 from assembly import assemble_plan, write_plan
 from caption_wrap import wrap_caption
 from constants import NARRATION_SPEED
-from material_index import candidates_from_index, load_index
+from approved_shots import load_history
+from material_index import candidates_from_index, load_aliases, load_index
 from paths import case_root, emit
 from prove_tts_speed import clip_target_duration
 from script_fidelity import assert_immutable, load_approved_script
@@ -192,9 +193,17 @@ def assemble_and_plan(
     if narration_manifest is None:
         narration_manifest = json.loads((case_root(root, case_id) / "narration-manifest.json").read_text(encoding="utf-8"))
     index = load_index(root, product_model)
+    aliases = load_aliases(root, product_model)
+    if history is None:
+        history = load_history(root, product_model)
     candidates: dict[str, list[dict[str, Any]]] = {}
     for cut in script.get("cuts") or []:
-        candidates[cut["cut_id"]] = candidates_from_index(index, line=cut["line"], situation=cut["situation"])
+        candidates[cut["cut_id"]] = candidates_from_index(
+            index,
+            line=cut["line"],
+            situation=cut["situation"],
+            folder_aliases=aliases,
+        )
     assembled = assemble_plan(script, narration_manifest, candidates, history=history)
     if assembled.get("status") != "OK":
         return assembled

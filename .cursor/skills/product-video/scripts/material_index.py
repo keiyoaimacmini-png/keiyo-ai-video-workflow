@@ -23,6 +23,8 @@ from paths import emit
 from workflow_state import atomic_write
 
 SCHEMA = "product_video_material_index.v1"
+ALIASES_SCHEMA = "product_video_material_semantic_aliases.v1"
+MIN_ALIAS_CHARS = 2
 SIDECAR_SITUATION = re.compile(r"^(?:situation|シチュエーション)\s*[:=]\s*(.+)$", re.IGNORECASE)
 SIDECAR_TAGS = re.compile(r"^(?:tags?|semantic_tags?|scenario_tags?)\s*[:=]\s*(.+)$", re.IGNORECASE)
 SIDECAR_FRAMING = re.compile(r"^(?:framing|camera_distance|画角|距離)\s*[:=]\s*(.+)$", re.IGNORECASE)
@@ -39,6 +41,14 @@ def index_dir(project_root: Path) -> Path:
 
 def index_path(project_root: Path, product_model: str) -> Path:
     return index_dir(project_root) / f"{product_model}.v1.json"
+
+
+def aliases_runtime_path(project_root: Path, product_model: str) -> Path:
+    return index_dir(project_root) / f"{product_model}.semantic-aliases.v1.json"
+
+
+def aliases_config_path(project_root: Path, product_model: str) -> Path:
+    return Path(project_root) / "config" / f"product_video_material_aliases_{product_model}.v1.json"
 
 
 def empty_index(product_model: str) -> dict[str, Any]:
@@ -168,22 +178,101 @@ def _tokens(*values: str) -> set[str]:
     return found
 
 
-def meaning_match(entry: dict[str, Any], line: str, situation: str) -> bool:
+def _alias_list(values: Any) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    if not isinstance(values, list):
+        return found
+    for item in values:
+        text = str(item or "").strip()
+        if len(text) < MIN_ALIAS_CHARS or text in seen:
+            continue
+        seen.add(text)
+        found.append(text)
+    return found
+
+
+def normalize_folder_aliases(payload: dict[str, Any] | None) -> dict[str, list[str]]:
+    if not isinstance(payload, dict):
+        return {}
+    raw = payload.get("folder_aliases")
+    if not isinstance(raw, dict):
+        raw = payload.get("aliases")
+    if not isinstance(raw, dict):
+        return {}
+    mapping: dict[str, list[str]] = {}
+    for folder, values in raw.items():
+        name = str(folder or "").strip()
+        aliases = _alias_list(values)
+        if name and aliases:
+            mapping[name] = aliases
+    return mapping
+
+
+def _read_aliases_file(path: Path, product_model: str) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != ALIASES_SCHEMA:
+        return None
+    if data.get("product_model") != product_model:
+        return None
+    return data
+
+
+def save_aliases(project_root: Path, data: dict[str, Any]) -> Path:
+    product_model = str(data["product_model"])
+    payload = {
+        "schema": ALIASES_SCHEMA,
+        "product_model": product_model,
+        "folder_aliases": normalize_folder_aliases(data),
+    }
+    path = aliases_runtime_path(project_root, product_model)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    return path
+
+
+def load_aliases(project_root: Path, product_model: str) -> dict[str, list[str]]:
+    root = Path(project_root)
+    runtime_path = aliases_runtime_path(root, product_model)
+    data = _read_aliases_file(runtime_path, product_model)
+    if data is None:
+        data = _read_aliases_file(aliases_config_path(root, product_model), product_model)
+        if data is not None and not runtime_path.is_file():
+            save_aliases(root, data)
+    return normalize_folder_aliases(data)
+
+
+def contained_in_script(needle: str, line: str, situation: str) -> bool:
+    text = (needle or "").strip()
+    if len(text) < MIN_ALIAS_CHARS:
+        return False
+    return text in (line or "") or text in (situation or "")
+
+
+def meaning_match(
+    entry: dict[str, Any],
+    line: str,
+    situation: str,
+    *,
+    folder_aliases: dict[str, list[str]] | None = None,
+) -> bool:
     intended = (situation or "").strip()
-    if intended and (entry.get("situation") == intended or intended in (entry.get("semantic_tags") or [])):
+    tags = [str(tag).strip() for tag in (entry.get("semantic_tags") or []) if str(tag).strip()]
+    if intended and (entry.get("situation") == intended or intended in tags):
         return True
-    folder = str(entry.get("classification_folder") or "")
-    hay = " ".join(
-        [
-            str(entry.get("situation") or ""),
-            folder,
-            " ".join(str(tag) for tag in entry.get("semantic_tags") or []),
-        ]
-    )
-    needles = _tokens(line, situation)
-    if folder and (folder in line or folder in situation):
+    for tag in tags:
+        if contained_in_script(tag, line, situation):
+            return True
+    folder = str(entry.get("classification_folder") or "").strip()
+    if folder and contained_in_script(folder, line, situation):
         return True
-    return any(token in hay for token in needles)
+    aliases = (folder_aliases or {}).get(folder) or []
+    return any(contained_in_script(str(alias), line, situation) for alias in aliases)
 
 
 def available_from_entry(entry: dict[str, Any]) -> float | None:
@@ -200,10 +289,16 @@ def available_from_entry(entry: dict[str, Any]) -> float | None:
     return None
 
 
-def expand_entry(entry: dict[str, Any], *, line: str, situation: str) -> list[dict[str, Any]]:
+def expand_entry(
+    entry: dict[str, Any],
+    *,
+    line: str,
+    situation: str,
+    folder_aliases: dict[str, list[str]] | None = None,
+) -> list[dict[str, Any]]:
     if not isinstance(entry, dict):
         return []
-    valid = meaning_match(entry, line, situation)
+    valid = meaning_match(entry, line, situation, folder_aliases=folder_aliases)
     visual = {
         "framing": entry.get("framing") or "",
         "camera_distance": entry.get("camera_distance") or entry.get("framing") or "",
@@ -256,13 +351,16 @@ def candidates_from_index(
     *,
     line: str,
     situation: str,
+    folder_aliases: dict[str, list[str]] | None = None,
 ) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     files = index.get("files") if isinstance(index, dict) else None
     if not isinstance(files, dict):
         return found
+    aliases = folder_aliases if folder_aliases is not None else index.get("folder_aliases")
+    mapping = aliases if isinstance(aliases, dict) else {}
     for entry in files.values():
-        found.extend(expand_entry(entry, line=line, situation=situation))
+        found.extend(expand_entry(entry, line=line, situation=situation, folder_aliases=mapping))
     return found
 
 
