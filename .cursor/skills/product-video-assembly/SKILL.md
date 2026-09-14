@@ -8,32 +8,34 @@ disable-model-invocation: true
 
 Read this file only when dispatch says `product-video-assembly`.
 
-Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip. Do not analyze the whole library and do not run AI picture scoring.
+Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip. Do not analyze the whole library and do not run AI picture scoring. Do not place anything on ChatCut in this stage.
 
-Load this product's adopted-shot history first:
+Load history and refresh the persistent material index. Unchanged files are reused from `.runtime/product-video-material-index/<MODEL>.v1.json`; only mtime/size/sidecar changes are updated.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL>
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/material_index.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --material-root <MATERIAL_ROOT> --refresh
 ```
 
-For each cut, inputs are:
+Do not place a clip on ChatCut to learn its duration. Do not re-watch or re-probe a file whose stamp still matches the index.
 
-- frozen approved line
-- Gemini intended scenario
-- planned editorial narration duration (`source_duration_seconds / 1.2`), not the raw source-file length
-- matching shots from approved-shot history, when present
+Finish the **edit-plan locally** for every cut before ROUGH_EDIT:
 
-Preference:
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/edit_plan.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --product-model <MODEL>
+```
 
-1. If history has a source/range whose frozen line or Gemini situation matches this cut, use it as the first candidate. Do not rescan the whole library for that cut.
-2. Otherwise use the current semantically valid material selection.
-3. Material must support the approved line.
-4. Prefer a clip that reproduces the intended scenario.
-5. Avoid only consecutive cuts that reuse the same source and the same framing. If that is the only valid option, keep it.
+That helper ranks duration-passing index + history candidates, then writes `assembly-plan.json` and `edit-plan.json`. Rank order:
 
-If an exact scenario match is missing, use the closest semantically valid clip. Do not invent a new claim. Do not search forever.
+1. the frozen line's meaning
+2. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
+3. Gemini situation
+4. approved-shot history
+5. avoid the same source and framing as the previous cut
 
-Keep a compact shot plan on disk. Compare neighboring selected cuts from that plan, not from rereading all media.
+If a candidate has `source_in` / `source_out` (or a scene range in md), `available_duration = source_out - source_in`. A full clip uses the md source duration. A history shot with a short range is not adopted.
+
+`edit-plan.json` already has narration duration, target duration, video source/in/out, timeline start/end, exact caption text, and display wrap. Do not leave wrap or clip choice for ChatCut.
 
 Prove only the chosen range:
 
@@ -41,6 +43,4 @@ Prove only the chosen range:
 python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_source_range.py" --source <file> --in-sec <in> --out-sec <out> --output-dir <task-root>/evidence/<cut-id>
 ```
 
-Do not place ChatCut clips here if ROUGH_EDIT already owns the case editor project. Do not create a second editor project.
-
-Write `assembly-plan.json`, complete `ASSEMBLY`, return to `/product-video`. Next stage is ROUGH_EDIT.
+Do not create a second editor project. Complete `ASSEMBLY`, return to `/product-video`. Next stage is ROUGH_EDIT.

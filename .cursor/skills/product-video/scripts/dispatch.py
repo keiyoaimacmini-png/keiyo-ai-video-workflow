@@ -24,7 +24,7 @@ def stop(reason: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
-def run_skill(skill: str, stage: str, **extra: Any) -> dict[str, Any]:
+def run_skill(skill: str, stage: str, *, project_root: Path | None = None, **extra: Any) -> dict[str, Any]:
     payload = {
         "status": "OK",
         "action": "run_skill",
@@ -33,6 +33,14 @@ def run_skill(skill: str, stage: str, **extra: Any) -> dict[str, Any]:
         "ask_continue": False,
     }
     payload.update(extra)
+    case_id = extra.get("case_id")
+    if project_root is not None and case_id:
+        try:
+            from timing import mark_stage_start
+
+            mark_stage_start(Path(project_root), str(case_id), stage)
+        except Exception:
+            pass
     return payload
 
 
@@ -66,6 +74,7 @@ def dispatch(
         return run_skill(
             "product-video-prepare",
             "PREPARE",
+            project_root=root,
             case_id=created["case_id"],
             skill_root=str(skill_root(root) / ".." / "product-video-prepare"),
         )
@@ -119,7 +128,7 @@ def dispatch(
         if frozen.get("status") != "OK":
             return frozen
         state = load_state(root, case_id)
-        return run_skill("product-video-narration", "NARRATION", case_id=case_id)
+        return run_skill("product-video-narration", "NARRATION", project_root=root, case_id=case_id)
 
     if stage == "WAITING_FOR_OPERATOR":
         if text != DELIVERY_APPROVAL:
@@ -135,7 +144,7 @@ def dispatch(
         if authorized.get("status") != "OK":
             return authorized
         state = load_state(root, case_id)
-        return run_skill("product-video-delivery", "DELIVERY", case_id=case_id)
+        return run_skill("product-video-delivery", "DELIVERY", project_root=root, case_id=case_id)
 
     if stage in STOP_STAGES:
         return stop("wait", case_id=case_id, current_stage=stage)
@@ -153,7 +162,7 @@ def dispatch(
     extra = {"case_id": case_id}
     if stage == "ROUGH_EDIT":
         extra["on_success_message_ja"] = OPERATOR_ROUGH_MESSAGE
-    return run_skill(skill, stage, **extra)
+    return run_skill(skill, stage, project_root=root, **extra)
 
 
 def main() -> int:

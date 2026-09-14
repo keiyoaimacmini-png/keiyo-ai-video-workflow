@@ -69,7 +69,7 @@ When the helper returns `READY`:
 python3 "${SKILL_ROOT}/scripts/dispatch.py" --project-root <PROJECT_ROOT> --product-model <MODEL> [--case-id <CASE_ID>] --preflight-ready
 ```
 
-After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. `完成・格納してください` continues DELIVERY → Drive read-back → COMPLETE → purge in this turn.
+After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in `product-video-narration` until the queue helper says `queue_complete`; do not re-dispatch between cuts. `完成・格納してください` continues DELIVERY → Drive read-back → COMPLETE → purge in this turn. Do not chat mid-stage timing.
 
 Helper path:
 

@@ -16,8 +16,13 @@ SCRIPTS = Path(__file__).resolve().parent
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(SCRIPTS))
 
-from assembly import assemble_plan, select_cut  # noqa: E402
+from assembly import as_full_clip, assemble_plan, duration_passes, select_cut  # noqa: E402
 from approved_shots import load_history, record_shots  # noqa: E402
+from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
+from edit_plan import build_edit_plan  # noqa: E402
+from material_index import refresh_index  # noqa: E402
+from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
+from timing import load_timing, mark_stage_end, mark_stage_start, summarize  # noqa: E402
 from bind_script_selection import bind_script_selection  # noqa: E402
 from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
@@ -40,7 +45,7 @@ from delivery import may_complete, may_purge, may_start_job, record_final_approv
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
 from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
-from rough_edit import build_rough_edit, prove_placed_narration_clip  # noqa: E402
+from rough_edit import build_rough_edit, execute_from_edit_plan, prove_placed_narration_clip  # noqa: E402
 from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
 from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
 from tts_session import may_reuse_session, prove_session_setup, record_session_setup  # noqa: E402
@@ -726,6 +731,7 @@ def test_assembly_and_variety() -> None:
         "situation": "サンシェードを広げる手元",
         "scenario_tags": ["サンシェードを広げる手元"],
         "material_id": "similar",
+        "source_duration_seconds": 10.0,
         "visual": visual("person", "wide", "car"),
     }
     varied = {
@@ -734,6 +740,7 @@ def test_assembly_and_variety() -> None:
         "situation": "サンシェードを広げる手元",
         "scenario_tags": ["サンシェードを広げる手元"],
         "material_id": "varied",
+        "source_duration_seconds": 10.0,
         "visual": visual("hands", "close", "dash"),
     }
     invalid = {
@@ -741,6 +748,7 @@ def test_assembly_and_variety() -> None:
         "supported_line": line,
         "situation": "無関係な風景",
         "material_id": "invalid",
+        "source_duration_seconds": 10.0,
         "visual": visual("hands", "close", "park"),
     }
     chosen = select_cut(
@@ -778,6 +786,7 @@ def test_assembly_and_variety() -> None:
         "situation": "車内でハンドルを握る人物",
         "scenario_tags": ["車内でハンドルを握る人物"],
         "material_id": "c1-person",
+        "source_duration_seconds": 10.0,
         "visual": visual("person", "wide", "car"),
     }
     plan = assemble_plan(
@@ -796,6 +805,116 @@ def test_assembly_and_variety() -> None:
         {"c1": [c1]},
     )
     check("assembly-rejects-source-as-cut-duration", source_as_cut.get("status") == "HOLD")
+
+
+def test_assembly_duration_gate() -> None:
+    line = "これ一枚で全然違う。"
+    situation = "サンシェードを広げる手元"
+    long_enough = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "scenario_tags": [situation],
+        "material_id": "long",
+        "source": "long.mov",
+        "source_duration_seconds": 12.0,
+        "visual": visual("hands", "close", "dash"),
+    }
+    scene_short = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "scenario_tags": [situation],
+        "material_id": "scene-short",
+        "source": "umbrella.mov",
+        "source_in": 1.5,
+        "source_out": 3.8,
+        "source_duration_seconds": 12.0,
+        "visual": visual("hands", "close", "dash"),
+    }
+    file_short = {
+        "semantic_valid": True,
+        "supported_line": line,
+        "situation": situation,
+        "scenario_tags": [situation],
+        "material_id": "file-short",
+        "source": "tiny.mov",
+        "source_duration_seconds": 2.0,
+        "visual": visual("person", "wide", "car"),
+    }
+    excluded = select_cut(
+        [scene_short, file_short],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=3.0,
+    )
+    check("duration-excludes-short-scene-and-file", excluded.get("status") == "HOLD")
+    check("duration-scene-range-not-file-length", duration_passes(scene_short, 3.0) is False)
+    check("duration-full-clip-uses-file-length", duration_passes(long_enough, 3.0) is True)
+    chosen = select_cut(
+        [scene_short, long_enough],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=3.0,
+    )
+    check("duration-ranks-only-passers", chosen.get("selection", {}).get("material_id") == "long")
+    check("duration-stamps-target", chosen.get("selection", {}).get("target_duration_seconds") == 3.0)
+    check("duration-stamps-available", chosen.get("selection", {}).get("available_duration") == 3.0)
+    check("duration-stamps-source-range", chosen.get("selection", {}).get("source_in") == 0.0)
+    weaker_history = {
+        "schema": "product_video_approved_shot_history.v1",
+        "shots": [
+            {
+                "source": ".runtime/product-video-inputs/AN-S999_コピー/old.mov",
+                "in_sec": 0.0,
+                "out_sec": 4.0,
+                "line": line,
+                "situation": "別アングルの車外",
+                "semantic_tags": ["別アングルの車外"],
+                "visual": visual("person", "wide", "park"),
+            }
+        ],
+    }
+    situation_first = select_cut(
+        [long_enough],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=3.0,
+        history=weaker_history,
+    )
+    check(
+        "situation-beats-weaker-history",
+        situation_first.get("selection", {}).get("material_id") == "long"
+        and situation_first.get("selection", {}).get("from_approved_history") is not True,
+    )
+    history = {
+        "schema": "product_video_approved_shot_history.v1",
+        "shots": [
+            {
+                "source": ".runtime/product-video-inputs/AN-S999_コピー/clip.mov",
+                "in_sec": 3.5,
+                "out_sec": 5.92,
+                "line": line,
+                "situation": situation,
+                "semantic_tags": [situation],
+                "visual": visual("hands", "close", "dash"),
+            }
+        ],
+    }
+    history_short = select_cut(
+        [long_enough],
+        line=line,
+        intended_scenario=situation,
+        duration_seconds=3.52,
+        history=history,
+    )
+    check(
+        "duration-rejects-short-history",
+        history_short.get("selection", {}).get("from_approved_history") is not True
+        and history_short.get("selection", {}).get("material_id") == "long",
+    )
+    expanded = as_full_clip(scene_short, 12.0, 3.0)
+    check("full-clip-helper-fits-target", expanded is not None and expanded["available_duration"] >= 3.0)
 
 
 def ready_tts_session_observation(**overrides: Any) -> dict[str, Any]:
@@ -837,6 +956,8 @@ def test_tts_session(root: Path) -> None:
     check("session-skill-once", "Session setup (once)" in skill)
     check("session-skill-no-per-cut-chat", "Do not chat after a successful cut" in skill)
     check("session-skill-keep-page", "same Chrome tab" in skill or "same session" in skill)
+    check("session-skill-queue", "narration_queue.py" in skill)
+    check("session-skill-no-dispatch-mid-queue", "Do not return to `/product-video` dispatch" in skill)
 
 
 def test_approved_shot_history(root: Path) -> None:
@@ -874,6 +995,7 @@ def test_approved_shot_history(root: Path) -> None:
         "scenario_tags": [situation],
         "material_id": "fresh",
         "source": ".runtime/product-video-inputs/AN-S999_コピー/other.mov",
+        "source_duration_seconds": 10.0,
         "visual": visual("hands", "wide", "dash"),
     }
     chosen = select_cut(
@@ -893,6 +1015,7 @@ def test_approved_shot_history(root: Path) -> None:
         "situation": situation,
         "source": history_source,
         "material_id": "same",
+        "source_duration_seconds": 10.0,
         "visual": visual("hands", "close", "dash"),
     }
     alt = {
@@ -901,6 +1024,7 @@ def test_approved_shot_history(root: Path) -> None:
         "situation": situation,
         "source": ".runtime/product-video-inputs/AN-S999_コピー/other.mov",
         "material_id": "varied",
+        "source_duration_seconds": 10.0,
         "visual": visual("person", "wide", "car"),
     }
     previous = {"source": history_source, "visual": visual("hands", "close", "dash")}
@@ -1007,6 +1131,170 @@ def test_delivery_gates() -> None:
     check("purge-not-before-complete", early.get("hold") == "HOLD_POST_COMPLETE_PURGE_NOT_DUE")
     after = may_purge({"current_stage": "COMPLETE"}, {"drive_readback_verified": True})
     check("purge-after-verified-delivery", after.get("purge") is True)
+
+
+def test_narration_queue(root: Path) -> None:
+    case_id = "pv-AN-S999-queue"
+    case = root / "outputs" / case_id
+    case.mkdir(parents=True, exist_ok=True)
+    script = {
+        "schema": "product_video_approved_script.v1",
+        "variant_id": 1,
+        "title": "queue",
+        "cuts": [
+            {"cut_id": "c1", "index": 1, "line": "車、サウナすぎん？", "situation": "車内"},
+            {"cut_id": "c2", "index": 2, "line": "これ一枚で全然違う。", "situation": "手元"},
+        ],
+    }
+    (case / "approved-script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+    first = start_queue(root, case_id)
+    check("queue-starts-setup", first.get("setup_session") is True and first.get("cut_id") == "c1")
+    check("queue-no-dispatch-before-done", first.get("return_to_dispatch") is False and first.get("skip_dispatch") is True)
+    check("queue-no-chat", first.get("skip_chat") is True and first.get("skip_llm_plan") is True)
+    check("queue-no-manifest-yet", first.get("write_manifest") is False)
+    recorded = record_queue_clip(
+        root,
+        case_id,
+        cut_id="c1",
+        line="車、サウナすぎん？",
+        audio_path="c1.mp3",
+        source_duration_seconds=2.4,
+    )
+    check("queue-next-cut-no-setup", recorded.get("cut_id") == "c2" and recorded.get("setup_session") is not True)
+    check("queue-skips-mcp-between-cuts", recorded.get("skip_mcp_rediscovery") is True)
+    check("queue-skips-voice-between-cuts", recorded.get("skip_voice_reselect") is True)
+    check("queue-skips-page-between-cuts", recorded.get("skip_page_research") is True)
+    check("queue-still-no-manifest", recorded.get("write_manifest") is False and recorded.get("return_to_dispatch") is False)
+    early_finish = finish_queue(root, case_id)
+    check("queue-finish-blocked-until-all", early_finish.get("queue_complete") is False)
+    check("queue-no-manifest-file-yet", not (case / "narration-manifest.json").is_file())
+    record_queue_clip(
+        root,
+        case_id,
+        cut_id="c2",
+        line="これ一枚で全然違う。",
+        audio_path="c2.mp3",
+        source_duration_seconds=3.0,
+    )
+    done = finish_queue(root, case_id)
+    check("queue-writes-manifest-once", done.get("write_manifest") is True and done.get("clip_count") == 2)
+    check("queue-returns-to-dispatch-after-all", done.get("return_to_dispatch") is True)
+    manifest = json.loads((case / "narration-manifest.json").read_text(encoding="utf-8"))
+    check("queue-manifest-has-both-cuts", [clip["cut_id"] for clip in manifest.get("clips") or []] == ["c1", "c2"])
+
+
+def test_material_index_and_edit_plan(root: Path) -> None:
+    product = "AN-S997"
+    materials = root / ".runtime" / "product-video-inputs" / f"{product}_コピー" / "手元"
+    materials.mkdir(parents=True)
+    video = materials / "clip.mov"
+    video.write_bytes(b"video-bytes")
+    (materials / "clip.md").write_text(
+        "duration: 12.0\nsituation: サンシェードを広げる手元\ntags: 手元, 展開\nframing: close\nsource_in: 1.0\nsource_out: 5.0\n",
+        encoding="utf-8",
+    )
+    probes: list[str] = []
+
+    def probe(path: Path) -> float:
+        probes.append(path.name)
+        return 12.0
+
+    first = refresh_index(root, product, materials.parent, probe_fn=probe)
+    check("index-refresh-once", first.get("status") == "OK" and int(first.get("file_count") or 0) == 1)
+    second = refresh_index(root, product, materials.parent, probe_fn=probe)
+    check("index-skips-unchanged", second.get("reused") == 1 and second.get("refreshed") == 0)
+    check("index-does-not-reprobe", probes == [])
+    case_id = "pv-AN-S997-plan"
+    case = root / "outputs" / case_id
+    case.mkdir(parents=True)
+    line = "これ一枚で全然違う。"
+    situation = "サンシェードを広げる手元"
+    script = {
+        "schema": "product_video_approved_script.v1",
+        "cuts": [{"cut_id": "c1", "index": 1, "line": line, "situation": situation}],
+    }
+    manifest = {
+        "clips": [
+            {
+                "cut_id": "c1",
+                "line": line,
+                "audio_path": "c1.mp3",
+                "source_duration_seconds": 3.6,
+                "editor_playback_rate": 1.2,
+                "planned_duration_seconds": 3.0,
+                "source_already_accelerated": False,
+            }
+        ]
+    }
+    assembly = assemble_plan(
+        script,
+        manifest,
+        {
+            "c1": [
+                {
+                    "semantic_valid": True,
+                    "supported_line": line,
+                    "situation": situation,
+                    "scenario_tags": [situation],
+                    "material_id": "clip",
+                    "source": ".runtime/product-video-inputs/AN-S997_コピー/手元/clip.mov",
+                    "source_in": 1.0,
+                    "source_out": 5.0,
+                    "source_duration_seconds": 12.0,
+                    "visual": visual("hands", "close", "dash"),
+                }
+            ]
+        },
+    )
+    planned = build_edit_plan(script, assembly, manifest)
+    check("edit-plan-ok", planned.get("status") == "OK", str(planned.get("hold")))
+    cut = (planned.get("cuts") or [{}])[0]
+    check("edit-plan-has-timeline", cut.get("timeline_start_frame") == 0 and cut.get("timeline_end_frame") == 90)
+    check("edit-plan-has-wrap", unwrap_visual(cut.get("caption_visual_wrap") or "") == line)
+    check("edit-plan-exact-caption", cut.get("caption_text") == line)
+    check("edit-plan-no-reselect", planned.get("reselect_in_editor") is False)
+    check("edit-plan-has-import-batches", bool(planned.get("chatcut_steps")))
+    executed = execute_from_edit_plan(planned, editor_project_identity="chatcut:proj-speed")
+    check("rough-executes-plan", executed.get("usable_rough_edit") is True and executed.get("reselect_in_editor") is False)
+
+
+def test_caption_wrap() -> None:
+    uv = wrap_caption("UVカット率はなんと約99パーセント！")
+    wrapped = uv.get("caption_visual_wrap") or ""
+    check("wrap-keeps-frozen", unwrap_visual(wrapped) == "UVカット率はなんと約99パーセント！")
+    check("wrap-does-not-split-uv", "UV\n" not in wrapped)
+    check("wrap-does-not-split-percent", "99\nパーセント" not in wrapped and "99\n％" not in wrapped)
+    titanium = wrap_caption("チタンシルバーの特殊コーティング採用！")
+    check("wrap-does-not-split-titanium", "チタン\nシルバー" not in (titanium.get("caption_visual_wrap") or ""))
+    particle = wrap_caption("夏場の車内、熱すぎて触れない人これ見て！")
+    lines = (particle.get("caption_visual_wrap") or "").split("\n")
+    check("wrap-no-one-char-line", all(len(line) != 1 for line in lines))
+    check("wrap-no-particle-only-line", all(line not in {"は", "が", "を", "に", "で", "と", "も", "の"} for line in lines))
+
+
+def test_timing_metrics(root: Path) -> None:
+    case_id = "pv-AN-S999-timing"
+    (root / "outputs" / case_id / "receipts").mkdir(parents=True)
+    (root / "outputs" / case_id / "receipts" / "picture_swap_c1.json").write_text("{}", encoding="utf-8")
+    mark_stage_start(root, case_id, "SCRIPT")
+    mark_stage_end(root, case_id, "SCRIPT")
+    mark_stage_start(root, case_id, "NARRATION")
+    mark_stage_end(root, case_id, "NARRATION", receipt={"clip_count": 2})
+    mark_stage_start(root, case_id, "ASSEMBLY")
+    mark_stage_end(root, case_id, "ASSEMBLY")
+    mark_stage_start(root, case_id, "ROUGH_EDIT")
+    mark_stage_end(root, case_id, "ROUGH_EDIT")
+    mark_stage_start(root, case_id, "DELIVERY")
+    mark_stage_end(root, case_id, "DELIVERY")
+    summary = summarize(load_timing(root, case_id))
+    check("timing-has-script", isinstance(summary.get("script_elapsed_seconds"), float))
+    check("timing-has-narration", isinstance(summary.get("narration_elapsed_seconds"), float))
+    check("timing-cut-count", summary.get("cut_count") == 2)
+    check("timing-avg-tts", isinstance(summary.get("avg_tts_seconds_per_cut"), float))
+    check("timing-assembly", isinstance(summary.get("assembly_plan_elapsed_seconds"), float))
+    check("timing-chatcut", isinstance(summary.get("chatcut_placement_elapsed_seconds"), float))
+    check("timing-picture-swaps", summary.get("human_picture_swap_count") == 1)
+    check("timing-export-drive", isinstance(summary.get("export_drive_elapsed_seconds"), float))
 
 
 def test_dispatch_initial_entry(root: Path) -> None:
@@ -1726,6 +2014,11 @@ def test_git_tracked_helpers() -> None:
         ("classify_capcut_credit", ".cursor/skills/product-video/scripts/classify_capcut_credit.py"),
         ("tts_session", ".cursor/skills/product-video/scripts/tts_session.py"),
         ("approved_shots", ".cursor/skills/product-video/scripts/approved_shots.py"),
+        ("narration_queue", ".cursor/skills/product-video/scripts/narration_queue.py"),
+        ("material_index", ".cursor/skills/product-video/scripts/material_index.py"),
+        ("caption_wrap", ".cursor/skills/product-video/scripts/caption_wrap.py"),
+        ("edit_plan", ".cursor/skills/product-video/scripts/edit_plan.py"),
+        ("timing", ".cursor/skills/product-video/scripts/timing.py"),
         ("preserve_shared_inputs", ".cursor/skills/product-video/scripts/preserve_shared_inputs.py"),
         ("run_preflight", ".cursor/skills/product-video/scripts/run_preflight.py"),
     ):
@@ -1959,6 +2252,8 @@ def test_purge_preserves_shared_inputs() -> None:
         check("purge-F-no-library-in-dry-run", planned_hits_persistent_shared_inputs(payload.get("planned") or []) == [])
         skipped_paths = {item.get("path") for item in payload.get("skipped") or []}
         check("purge-skip-approved-shots-root", ".runtime/product-video-approved-shots" in skipped_paths)
+        check("purge-skip-material-metadata-root", ".runtime/product-video-material-metadata" in skipped_paths)
+        check("purge-skip-material-index-root", ".runtime/product-video-material-index" in skipped_paths)
         check("purge-B-root-mp4-not-planned", not any(path.endswith("video.mp4") and is_persistent_shared_input_path(path) for path in planned_paths))
         check("purge-C-nested-mov-not-planned", not any(path.endswith("video.mov") and is_persistent_shared_input_path(path) for path in planned_paths))
         skipped_reasons = {item.get("reason") for item in payload.get("skipped") or []}
@@ -1980,7 +2275,9 @@ def main() -> int:
     test_prompt_template()
     test_script_grounding()
     test_assembly_and_variety()
+    test_assembly_duration_gate()
     test_telop_and_rough()
+    test_caption_wrap()
     test_delivery_gates()
     test_runtime_path()
     test_git_tracked_helpers()
@@ -2000,6 +2297,9 @@ def main() -> int:
         test_tts_input_recovery(root)
         test_tts_runtime_gaps(root)
         test_tts_session(root)
+        test_narration_queue(root)
+        test_material_index_and_edit_plan(root)
+        test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)
         test_product_facts_prepare(root)

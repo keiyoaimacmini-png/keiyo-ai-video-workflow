@@ -26,7 +26,7 @@ python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/sc
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --case-id <CASE_ID> --record-final [--timeline-json '<final cuts>']
 ```
 
-7. After COMPLETE and verified storage, dry-run then execute the existing purge helper. Never purge before verified delivery. Do not delete `.runtime/product-video-inputs` or `.runtime/product-video-approved-shots`; those trees are persistent reusable product data, including videos, images, and adopted-shot history.
+7. After COMPLETE and verified storage, dry-run then execute the existing purge helper. Never purge before verified delivery. Do not delete `.runtime/product-video-inputs`, `.runtime/product-video-approved-shots`, `.runtime/product-video-material-metadata`, or `.runtime/product-video-material-index`.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py" --project-root <PROJECT_ROOT> --task-root <task-root> --case-id <CASE_ID>

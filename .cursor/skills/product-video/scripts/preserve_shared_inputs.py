@@ -3,6 +3,8 @@
 
 `.runtime/product-video-inputs` is reusable source material, not case working media.
 `.runtime/product-video-approved-shots` is product-level adopted-shot history.
+`.runtime/product-video-material-metadata` is product-level source duration metadata.
+`.runtime/product-video-material-index` is the product-level material index.
 Routine DELIVERY purge must never delete those trees.
 """
 

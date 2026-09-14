@@ -193,6 +193,12 @@ def complete_stage(
     state["current_stage"] = next_stage or NEXT_STAGE[stage]
     state["hold"] = None
     save_state(project_root, state)
+    try:
+        from timing import mark_stage_end
+
+        mark_stage_end(project_root, state["case_id"], stage, receipt=receipt)
+    except Exception:
+        pass
     return {"status": "OK", "receipt_path": receipt_path.as_posix(), "current_stage": state["current_stage"]}
 
 

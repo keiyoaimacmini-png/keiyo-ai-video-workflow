@@ -8,15 +8,21 @@ disable-model-invocation: true
 
 Read this file only when dispatch says `product-video-narration`.
 
+Approved-script cuts are a **queue**. Stay in this Skill until every cut is recorded. Do not return to `/product-video` dispatch, do not make a new LLM plan, and do not chat after a successful cut.
+
 Use only the approved script. Do not run a speed-selection algorithm.
 CapCut generate is the **source audio**. ChatCut clip `playbackRate` 1.2 is applied later. Do not require CapCut generate speed to equal 1.2. Do not call unpublished CapCut speed setters. Do not record the source file as already 1.2x processed.
 SCRIPT LINE == NARRATION == TELOP. Do not trim, strip, ignore newlines or zero-width characters, or treat visible/OCR/document-HTML text as a match.
 
 Load this cut's `generation_count_for_cut` from `tts/generation-attempts.json`. Never reset it to 0 after a failed generate. If the previous outcome is `unknown`, do not submit again; observe the existing result.
 
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_queue.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --start
+```
+
 ## Session setup (once)
 
-Do this **once** at NARRATION start. Keep the same Chrome tab, CapCut Text to Speech page, Holiday Twist voice, and TTS input field for every cut.
+If the queue says `setup_session: true`, do this **once**. Keep the same Chrome tab, CapCut Text to Speech page, Holiday Twist voice, and TTS input field for every cut.
 
 1. Resolve the project Playwright MCP (`--cdp-endpoint=chrome`). Do not hard-code a namespace.
 2. Attach to the already-running Google Chrome.app.
@@ -27,6 +33,7 @@ Do this **once** at NARRATION start. Keep the same Chrome tab, CapCut Text to Sp
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/tts_session.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --prove-setup --observation-json '<observation>'
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_queue.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --mark-setup
 ```
 
 Follow `${PROJECT_ROOT}/.cursor/skills/product-video/references/capcut-chrome-mcp.md`. Do not fall back to cursor-ide-browser or an extension adapter.
@@ -46,13 +53,14 @@ Between successful cuts do **not**:
 - re-search the CapCut page
 - re-select Holiday Twist
 - re-resolve the voice ID
+- return to dispatch
 - report the same environment status
 
 Do not chat after a successful cut. Continue immediately to the next frozen line.
 
 ## Each cut (same session)
 
-For every frozen line from `approved-script.json`:
+Ask the queue for the current cut (`--next`). For that frozen line only:
 
 1. Completely empty the already-identified TTS field. Do not append.
 2. Write that frozen line only.
@@ -95,4 +103,14 @@ python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/sc
 ```
 10. Measure the **source file** duration. Record path + `source_duration_seconds` + planned ChatCut `editor_playback_rate` 1.2 + `planned_duration_seconds` (`source / 1.2`). Do not FFmpeg-accelerate the file. Do not judge voice quality. Stop only for wrong text, mixed leftover text, missing audio, or corrupt/truncated output.
 
-After every cut is recorded, write `narration-manifest.json` with `editor_playback_rate` `1.2` and complete `NARRATION`. Return to `/product-video`. Next stage is ASSEMBLY.
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_queue.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --record-cut <cut-id> --line '<frozen>' --audio-path <path> --source-duration-seconds <sec>
+```
+
+If the queue still has remaining cuts, immediately run the same cut steps on the next frozen line. Do not write `narration-manifest.json` yet.
+
+After every cut is recorded, write the manifest **once** and complete `NARRATION`. Then return to `/product-video`. Next stage is ASSEMBLY.
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_queue.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --finish
+```
