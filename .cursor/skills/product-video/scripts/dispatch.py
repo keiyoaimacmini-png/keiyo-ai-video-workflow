@@ -9,9 +9,9 @@ from typing import Any
 
 from constants import (
     DELIVERY_APPROVAL,
-    OPERATOR_ROUGH_MESSAGE,
     SKILL_FOR_STAGE,
     STOP_STAGES,
+    operator_rough_message,
 )
 from bind_script_selection import bind_script_selection
 from paths import emit, project_root_from, skill_root, state_path
@@ -51,6 +51,7 @@ def dispatch(
     utterance: str | None = None,
     product_model: str | None = None,
     preflight_ready: bool = False,
+    drive_fn: Any = None,
 ) -> dict[str, Any]:
     from prepare import create_new_case, resolve_case_id
 
@@ -131,16 +132,22 @@ def dispatch(
         return run_skill("product-video-narration", "NARRATION", project_root=root, case_id=case_id)
 
     if stage == "WAITING_FOR_OPERATOR":
+        from delivery import authorize_delivery, prove_drive_ready
+
+        drive_proved = prove_drive_ready(
+            root,
+            str(state.get("product_model") or ""),
+            drive_fn=drive_fn,
+        )
+        delivery_ready = drive_proved.get("status") == "OK"
         if text != DELIVERY_APPROVAL:
             return stop(
                 "waiting_for_operator",
                 case_id=case_id,
                 current_stage=stage,
-                message_ja=OPERATOR_ROUGH_MESSAGE,
+                message_ja=operator_rough_message(delivery_ready=delivery_ready),
             )
-        from delivery import authorize_delivery
-
-        authorized = authorize_delivery(root, state, text)
+        authorized = authorize_delivery(root, state, text, drive_result=drive_proved)
         if authorized.get("status") != "OK":
             return authorized
         state = load_state(root, case_id)
@@ -161,7 +168,16 @@ def dispatch(
         return hold("HOLD_STAGE_UNKNOWN", f"no skill for {stage}", case_id=case_id)
     extra = {"case_id": case_id}
     if stage == "ROUGH_EDIT":
-        extra["on_success_message_ja"] = OPERATOR_ROUGH_MESSAGE
+        from delivery import prove_drive_ready
+
+        drive_proved = prove_drive_ready(
+            root,
+            str(state.get("product_model") or ""),
+            drive_fn=drive_fn,
+        )
+        extra["on_success_message_ja"] = operator_rough_message(
+            delivery_ready=drive_proved.get("status") == "OK"
+        )
     return run_skill(skill, stage, project_root=root, **extra)
 
 

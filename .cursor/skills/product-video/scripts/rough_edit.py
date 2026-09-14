@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants import NARRATION_SPEED, OPERATOR_ROUGH_MESSAGE
+from constants import NARRATION_SPEED, operator_rough_message
 from caption_wrap import unwrap_visual
 from prove_tts_speed import clip_target_duration, prove_editorial_timing, prove_tts_speed
 from script_fidelity import assert_immutable
@@ -32,6 +32,7 @@ def build_rough_edit(
     *,
     editor_project_identity: str,
     placed_telops: list[dict[str, str]],
+    delivery_ready: bool = True,
 ) -> dict[str, Any]:
     if not editor_project_identity:
         return hold("HOLD_EDITOR_PROJECT_UNVERIFIED", "editor project identity is required")
@@ -74,7 +75,7 @@ def build_rough_edit(
         "editor_project_identity": editor_project_identity,
         "cuts": placed,
         "ai_visual_quality_review": False,
-        "operator_message_ja": OPERATOR_ROUGH_MESSAGE,
+        "operator_message_ja": operator_rough_message(delivery_ready=delivery_ready),
     }
 
 
@@ -83,6 +84,7 @@ def execute_from_edit_plan(
     *,
     editor_project_identity: str,
     placed_telops: list[dict[str, str]] | None = None,
+    delivery_ready: bool = True,
 ) -> dict[str, Any]:
     if not editor_project_identity:
         return hold("HOLD_EDITOR_PROJECT_UNVERIFIED", "editor project identity is required")
@@ -124,5 +126,5 @@ def execute_from_edit_plan(
         "chatcut_steps": list(edit_plan.get("chatcut_steps") or []),
         "reselect_in_editor": False,
         "ai_visual_quality_review": False,
-        "operator_message_ja": OPERATOR_ROUGH_MESSAGE,
+        "operator_message_ja": operator_rough_message(delivery_ready=delivery_ready),
     }

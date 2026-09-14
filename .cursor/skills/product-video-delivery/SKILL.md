@@ -10,6 +10,16 @@ Read this file only when dispatch says `product-video-delivery`.
 
 Required operator phrase: `完成・格納してください`. Do not accept `完成・書き出しOK` or `粗編集OK`.
 
+0. Before export, re-check Drive readiness. Dispatch already gates this; if you are in DELIVERY, prove again:
+
+```bash
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/delivery.py" --prove-drive --project-root <PROJECT_ROOT> --product-model <MODEL> --live
+```
+
+If Drive is not READY, do not export. Report only that Drive OAuth login is required (`upload_drive_local_file.py --login` at the repo root). Stay on WAITING_FOR_OPERATOR. After login, the same `完成・格納してください` resumes. Do not invent a new HOLD.
+
+If Drive is READY: export → upload → read-back → COMPLETE → purge.
+
 1. Confirm the current case and editor project identity.
 2. If export or upload status is `unknown` / `pending` / `in_progress`, observe that job. Do not blindly retry.
 3. Export once. Verify the export job, then the local file (name, MIME, bytes, SHA-256).

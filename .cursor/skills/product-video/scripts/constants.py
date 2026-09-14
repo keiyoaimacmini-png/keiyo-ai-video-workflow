@@ -91,11 +91,35 @@ SKILL_FOR_STAGE = {
 STOP_STAGES = frozenset({"SCRIPT_SELECTION", "WAITING_FOR_OPERATOR", "COMPLETE"})
 SCRIPT_APPROVAL_RE = r"^案([1-5])で台本OK$"
 DELIVERY_APPROVAL = "完成・格納してください"
+DRIVE_DELIVERY_WARNING = "Drive OAuth login required before delivery"
 OPERATOR_ROUGH_MESSAGE = (
     "粗編集まで完了しました。\n"
     "手動で確認・修正してください。\n"
     "修正完了後「完成・格納してください」と送ってください。"
 )
+DEFERRED_PREFLIGHT_NAMES = frozenset({"drive"})
+EXISTING_DRIVE_HOLDS = frozenset(
+    {
+        "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
+        "HOLD_DRIVE_LOOKUP_TRANSIENT",
+        "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED",
+        "HOLD_DRIVE_SCOPE_AMBIGUOUS",
+    }
+)
+
+
+def operator_rough_message(*, delivery_ready: bool = True) -> str:
+    if delivery_ready:
+        return OPERATOR_ROUGH_MESSAGE
+    return (
+        "粗編集まで完了しました。\n"
+        "手動で確認・修正してください。\n"
+        "Drive格納準備:\n"
+        "リポジトリルートで\n"
+        "upload_drive_local_file.py --login\n"
+        "を済ませてください。\n"
+        "修正完了後「完成・格納してください」と送ってください。"
+    )
 
 UNKNOWN_JOB_STATUSES = frozenset(
     {"unknown", "pending", "in_progress", "submitted", "running"}

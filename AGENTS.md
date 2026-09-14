@@ -20,7 +20,7 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`. A folder is not enough; PREPARE requires at least one regular non-zero video file under that root.
 - Stages chain automatically: PREPARE → SCRIPT → (wait for `案Nで台本OK`) → NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR → (wait for `完成・格納してください`) → DELIVERY → COMPLETE.
 - Usual operator input is only `/product-video`, exact `案Nで台本OK`, and exact `完成・格納してください`.
-- Before a new case, and when resuming a held case, run `product-video/scripts/run_preflight.py` (materials, Gemini text-only one-shot, Chrome CDP + Playwright MCP, ChatCut, Drive). Do not write media, generate TTS, or spend credits in preflight. Transient connection failures retry up to 3 times without asking the operator. If several independent checks fail, report them once as **開始前に直すこと**.
+- Before a new case, and when resuming a held case, run `product-video/scripts/run_preflight.py` (materials, Gemini text-only one-shot, Chrome CDP + Playwright MCP, ChatCut; Drive OAuth/folder is deferred). Blocking failures HOLD start. Drive-only failure keeps start-time preflight `READY` with `delivery_ready: false`; Drive is required only at DELIVERY, before export. Do not write media, generate TTS, or spend credits in preflight. Transient connection failures retry up to 3 times without asking the operator. If several blocking checks fail, report them once as **開始前に直すこと**.
 - Do not ask Continue / Proceed between automatic stages. Do not require `粗編集OK`. Do not run an AI final visual-quality review.
 
 ## Gemini 台本（Antigravity CLI。Cursor のモデルは切り替えない）

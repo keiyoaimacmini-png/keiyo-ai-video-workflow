@@ -27,6 +27,7 @@ from bind_script_selection import bind_script_selection  # noqa: E402
 from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
     DELIVERY_APPROVAL,
+    DRIVE_DELIVERY_WARNING,
     HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
     HOLD_CAPCUT_CREDIT_UNVERIFIED,
     HOLD_CAPCUT_NEW_PURCHASE_REQUIRED,
@@ -40,8 +41,9 @@ from constants import (  # noqa: E402
     OPERATOR_ROUGH_MESSAGE,
     PERSISTENT_SHARED_INPUT_RELATIVE,
     PERSISTENT_SHARED_INPUT_ROOTS,
+    operator_rough_message,
 )
-from delivery import may_complete, may_purge, may_start_job, record_final_approved_shots  # noqa: E402
+from delivery import may_complete, may_purge, may_start_job, prove_drive_ready, record_final_approved_shots  # noqa: E402
 from dispatch import dispatch  # noqa: E402
 from narration import gate_tts_generate, narration_speed, prepare_tts_input, record_clip, write_manifest  # noqa: E402
 from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
@@ -1102,6 +1104,19 @@ def test_telop_and_rough() -> None:
     check("telop-exact", ok.get("usable_rough_edit") is True)
     check("no-ai-quality-review", ok.get("ai_visual_quality_review") is False)
     check("operator-message", ok.get("operator_message_ja") == OPERATOR_ROUGH_MESSAGE)
+    warned = build_rough_edit(
+        script,
+        plan,
+        manifest,
+        editor_project_identity="chatcut:proj-1",
+        placed_telops=[{"cut_id": "c1", "text": "下からチェック！"}],
+        delivery_ready=False,
+    )
+    check(
+        "operator-message-drive-warning",
+        warned.get("operator_message_ja") == operator_rough_message(delivery_ready=False)
+        and "Drive格納準備:" in (warned.get("operator_message_ja") or ""),
+    )
     bad = build_rough_edit(
         script,
         plan,
@@ -1373,7 +1388,8 @@ def test_preflight_operator_batch(root: Path) -> None:
         ]
     )
     check("preflight-batch-hold", batched.get("hold") == HOLD_PREFLIGHT_REQUIRED)
-    check("preflight-batch-two", batched.get("operator_fixes") == ["Chrome remote debugging OFF", "Drive OAuth期限切れ"])
+    check("preflight-batch-two", batched.get("operator_fixes") == ["Chrome remote debugging OFF"])
+    check("preflight-batch-drive-deferred", batched.get("delivery_ready") is False)
 
     observation = {
         "chrome_mcp_attached": True,
@@ -1394,6 +1410,7 @@ def test_preflight_operator_batch(root: Path) -> None:
     )
     check("preflight-fake-project-ready", payload.get("status") == "READY", str(payload.get("hold")))
     check("preflight-no-writes", payload.get("writes") is False and payload.get("tts_generated") is False)
+    check("preflight-delivery-ready-when-drive-ok", payload.get("delivery_ready") is True)
 
     mcp_only = run_preflight(
         root,
@@ -1510,7 +1527,12 @@ def test_dispatch_resume(root: Path) -> None:
     check("waiting-message", OPERATOR_ROUGH_MESSAGE.splitlines()[0] in (stop.get("message_ja") or ""))
     denied = dispatch(root, case_id=case_id, utterance="完成・書き出しOK")
     check("old-final-ok-rejected", denied.get("reason") == "waiting_for_operator")
-    delivery = dispatch(root, case_id=case_id, utterance=DELIVERY_APPROVAL)
+    delivery = dispatch(
+        root,
+        case_id=case_id,
+        utterance=DELIVERY_APPROVAL,
+        drive_fn=lambda: {"status": "OK"},
+    )
     check("delivery-requires-phrase", delivery.get("skill") == "product-video-delivery")
 
 
@@ -2268,6 +2290,143 @@ def test_purge_preserves_shared_inputs() -> None:
         check("purge-D-zero-in-progress-still-keeps-library", library_mp4.exists() and library_mov.exists())
 
 
+def ready_start_observation(**overrides: Any) -> dict[str, Any]:
+    observation = {
+        "chrome_mcp_attached": True,
+        "capcut_tts_reachable": True,
+        "capcut_logged_in": True,
+        "holiday_twist_available": True,
+        "chatcut_connected": True,
+    }
+    observation.update(overrides)
+    return observation
+
+
+def test_drive_deferred_preflight(scratch: Path) -> None:
+    def drive_ok() -> dict[str, Any]:
+        return {"status": "OK"}
+
+    def drive_fail() -> dict[str, Any]:
+        return {
+            "status": "HOLD",
+            "hold": "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
+            "reason": "refresh failed",
+        }
+
+    def start_kwargs(**overrides: Any) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "product_model": "AN-S999",
+            "observation": ready_start_observation(),
+            "live": False,
+            "gemini_probe_fn": lambda: {"status": "OK", "model_required": "gemini-3.8-flash"},
+            "gemini_print_fn": lambda: {"status": "OK", "last_text": "PONG"},
+            "chrome_fn": lambda: {"status": "OK"},
+            "drive_fn": drive_ok,
+        }
+        kwargs.update(overrides)
+        return kwargs
+
+    root = fake_project(scratch / "start")
+    drive_only = run_preflight(root, **start_kwargs(drive_fn=drive_fail))
+    check("A-drive-only-ready", drive_only.get("status") == "READY", str(drive_only.get("hold")))
+    check("A-delivery-not-ready", drive_only.get("delivery_ready") is False)
+    check("A-delivery-warning", drive_only.get("delivery_warnings") == [DRIVE_DELIVERY_WARNING])
+    started = dispatch(root, product_model="AN-S999", preflight_ready=True)
+    check("A-starts-prepare", started.get("skill") == "product-video-prepare", str(started.get("hold")))
+    case_id = started.get("case_id")
+    if isinstance(case_id, str) and case_id:
+        prepared = finish_prepare(root, case_id)
+        check("A-advances-to-script", prepared.get("current_stage") == "SCRIPT", str(prepared.get("hold")))
+    else:
+        check("A-advances-to-script", False, "no case_id")
+
+    material_root = fake_project(scratch / "material-fail")
+    video = material_root / ".runtime" / "product-video-inputs" / "AN-S999_コピー" / "clip.mov"
+    video.unlink()
+    material = run_preflight(material_root, **start_kwargs())
+    check("B-material-hold", material.get("status") == "HOLD" and material.get("hold") == HOLD_PREFLIGHT_REQUIRED)
+    check("B-material-not-ready", material.get("status") != "READY")
+
+    gemini = run_preflight(
+        root,
+        **start_kwargs(gemini_probe_fn=lambda: {"status": "HOLD", "hold": "HOLD_GEMINI_CLI_NOT_VERIFIED"}),
+    )
+    check("C-gemini-hold", gemini.get("status") == "HOLD" and gemini.get("hold") == HOLD_PREFLIGHT_REQUIRED)
+
+    capcut = run_preflight(
+        root,
+        **start_kwargs(observation=ready_start_observation(capcut_tts_reachable=False)),
+    )
+    check("D-capcut-hold", capcut.get("status") == "HOLD" and capcut.get("hold") == HOLD_PREFLIGHT_REQUIRED)
+    chatcut = run_preflight(
+        root,
+        **start_kwargs(observation=ready_start_observation(chatcut_connected=False)),
+    )
+    check("D-chatcut-hold", chatcut.get("status") == "HOLD" and chatcut.get("hold") == HOLD_PREFLIGHT_REQUIRED)
+
+    waiting_root = fake_project(scratch / "waiting")
+    case_id = "pv-AN-S999-drive-wait"
+    seed_state(
+        waiting_root,
+        case_id,
+        "WAITING_FOR_OPERATOR",
+        ["PREPARE", "SCRIPT", "SCRIPT_SELECTION", "NARRATION", "ASSEMBLY", "ROUGH_EDIT"],
+    )
+    waiting = dispatch(waiting_root, case_id=case_id, utterance="粗編集OK", drive_fn=drive_fail)
+    check("E-reaches-waiting", waiting.get("reason") == "waiting_for_operator")
+    check(
+        "E-drive-warning-in-existing-message",
+        waiting.get("message_ja") == operator_rough_message(delivery_ready=False),
+    )
+    check("E-not-separate-message", waiting.get("action") == "stop" and waiting.get("status") == "OK")
+    ready_wait = dispatch(waiting_root, case_id=case_id, utterance="粗編集OK", drive_fn=drive_ok)
+    check("E-ready-keeps-default-message", ready_wait.get("message_ja") == OPERATOR_ROUGH_MESSAGE)
+
+    blocked = dispatch(waiting_root, case_id=case_id, utterance=DELIVERY_APPROVAL, drive_fn=drive_fail)
+    check("F-existing-drive-hold", blocked.get("hold") == "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE")
+    check("F-no-export", blocked.get("export") is False)
+    check("F-no-delivery-skill", blocked.get("skill") is None)
+    check("F-stays-waiting", blocked.get("current_stage") == "WAITING_FOR_OPERATOR")
+    state = load_state(waiting_root, case_id)
+    check("F-state-not-advanced", state.get("current_stage") == "WAITING_FOR_OPERATOR")
+    check("F-no-persisted-hold", state.get("hold") is None)
+
+    recovered = prove_drive_ready(waiting_root, "AN-S999", drive_fn=drive_ok)
+    check("G-drive-ready-after-login", recovered.get("status") == "OK" and recovered.get("export") is True)
+    delivered = dispatch(waiting_root, case_id=case_id, utterance=DELIVERY_APPROVAL, drive_fn=drive_ok)
+    check("G-delivery-after-login", delivered.get("skill") == "product-video-delivery")
+    after = load_state(waiting_root, case_id)
+    check("G-advances-to-delivery", after.get("current_stage") == "DELIVERY")
+    complete_ok = may_complete(
+        {
+            "export_verified": True,
+            "local_file_verified": True,
+            "drive_uploaded": True,
+            "drive_readback_verified": True,
+        }
+    )
+    check("G-complete-after-readback", complete_ok.get("status") == "OK")
+    src = (REPO / ".cursor" / "skills" / "product-video" / "scripts" / "delivery.py").read_text(encoding="utf-8")
+    holds = set(re.findall(r"HOLD_[A-Z0-9_]+", src))
+    check(
+        "G-no-new-drive-hold",
+        holds <= {
+            "HOLD_DELIVERY_APPROVAL_REQUIRED",
+            "HOLD_DELIVERY_NOT_DUE",
+            "HOLD_JOB_OUTCOME_UNKNOWN",
+            "HOLD_JOB_ALREADY_DONE",
+            "HOLD_EXPORT_NOT_VERIFIED",
+            "HOLD_DRIVE_READBACK_REQUIRED",
+            "HOLD_POST_COMPLETE_PURGE_NOT_DUE",
+            "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
+            "HOLD_DRIVE_LOOKUP_TRANSIENT",
+            "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED",
+            "HOLD_DRIVE_SCOPE_AMBIGUOUS",
+        },
+        str(holds),
+    )
+
+
 def main() -> int:
     print(f"REPO {REPO}")
     test_parser()
@@ -2308,6 +2467,7 @@ def main() -> int:
         test_dispatch_initial_entry(entry_root)
         held_root = fake_project(scratch / "held-resume")
         test_preflight_operator_batch(held_root)
+        test_drive_deferred_preflight(scratch / "drive-deferred")
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     if FAILURES:

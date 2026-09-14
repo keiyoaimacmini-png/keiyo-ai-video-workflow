@@ -3,23 +3,83 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from approved_shots import record_case_final_timeline
-from constants import DELIVERY_APPROVAL, UNKNOWN_JOB_STATUSES
-from paths import case_root, helper_path
+from constants import (
+    DELIVERY_APPROVAL,
+    DRIVE_DELIVERY_WARNING,
+    EXISTING_DRIVE_HOLDS,
+    UNKNOWN_JOB_STATUSES,
+)
+from paths import case_root, emit, helper_path, project_root_from
 from workflow_state import complete_stage, hold, save_state
+
+
+def prove_drive_ready(
+    project_root: Path,
+    product_model: str,
+    *,
+    live: bool = True,
+    drive_fn: Callable[[], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    from run_preflight import check_drive, retry_call
+
+    if drive_fn is not None:
+        payload = drive_fn()
+    else:
+        root = project_root_from(project_root)
+        payload = retry_call(lambda: check_drive(root, product_model, live=live))
+    if payload.get("status") == "OK":
+        return {"status": "OK", "delivery_ready": True, "export": True, "hold": None}
+    code = str(payload.get("hold") or "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE")
+    if code not in EXISTING_DRIVE_HOLDS:
+        code = "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE"
+    return hold(
+        code,
+        str(payload.get("reason") or DRIVE_DELIVERY_WARNING),
+        export=False,
+        delivery_ready=False,
+        message_ja=(
+            "Drive格納の前に、リポジトリルートで "
+            "upload_drive_local_file.py --login を済ませてください。"
+            "ログイン後、同じ「完成・格納してください」で再開します。"
+        ),
+    )
 
 ORDINAL_MARKERS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 
 
-def authorize_delivery(project_root: Path, state: dict[str, Any], utterance: str) -> dict[str, Any]:
+def authorize_delivery(
+    project_root: Path,
+    state: dict[str, Any],
+    utterance: str,
+    *,
+    drive_fn: Callable[[], dict[str, Any]] | None = None,
+    drive_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if (utterance or "").strip() != DELIVERY_APPROVAL:
         return hold("HOLD_DELIVERY_APPROVAL_REQUIRED", "need 完成・格納してください")
     if state.get("current_stage") != "WAITING_FOR_OPERATOR":
         return hold("HOLD_DELIVERY_NOT_DUE", "delivery is only after WAITING_FOR_OPERATOR")
+    proved = (
+        drive_result
+        if drive_result is not None
+        else prove_drive_ready(
+            project_root,
+            str(state.get("product_model") or ""),
+            drive_fn=drive_fn,
+        )
+    )
+    if proved.get("status") != "OK":
+        blocked = dict(proved)
+        blocked["export"] = False
+        blocked["current_stage"] = state.get("current_stage")
+        blocked["case_id"] = state.get("case_id")
+        return blocked
     state["delivery_authorized"] = True
     save_state(project_root, state)
     return complete_stage(
@@ -120,3 +180,21 @@ def render_completed_filename(jst_date: str, product_model: str, ordinal: int) -
     if ordinal < 1 or ordinal > 20:
         raise ValueError("ordinal must be 1-20")
     return f"{jst_date}_{product_model}_AI作成{ORDINAL_MARKERS[ordinal - 1]}.mp4"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--prove-drive", action="store_true")
+    parser.add_argument("--project-root", type=Path, required=True)
+    parser.add_argument("--product-model", required=True)
+    parser.add_argument("--live", action="store_true")
+    args = parser.parse_args()
+    if not args.prove_drive:
+        parser.error("--prove-drive is required")
+    payload = prove_drive_ready(args.project_root, args.product_model, live=args.live)
+    emit(payload)
+    return 0 if payload.get("status") == "OK" else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

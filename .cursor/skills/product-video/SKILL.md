@@ -47,7 +47,11 @@ A stage listed in `completed_stages` must not rerun. Resume from `current_stage`
 
 ## Preflight
 
-Before a **new** case, and when dispatch returns `run_preflight` for a held case, check A–E in the background. Do not write media, generate TTS, or spend CapCut credits.
+Before a **new** case, and when dispatch returns `run_preflight` for a held case, check blocking items in the background. Do not write media, generate TTS, or spend CapCut credits.
+
+**BLOCKING** (any failure HOLDs start): materials, Gemini, Chrome / MCP, CapCut TTS, Holiday Twist, ChatCut.
+
+**DEFERRED DELIVERY**: Drive OAuth and Drive parent folder read-back. Run them, but a Drive-only failure keeps overall `status` `READY` with `delivery_ready: false` and `delivery_warnings: ["Drive OAuth login required before delivery"]`. Do not HOLD the whole start-time preflight for Drive. Drive is required only at DELIVERY.
 
 ```bash
 python3 "${SKILL_ROOT}/scripts/run_preflight.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --live --observation-json <agent observations>
@@ -61,15 +65,15 @@ Python helper covers materials, Gemini CLI probe + text-only PONG, Chrome proces
 - confirm login and that Holiday Twist is selectable
 - confirm ChatCut can list/create/inspect/edit
 
-Pass those booleans as `--observation-json`. If several independent checks fail, keep going and report **開始前に直すこと** once. After the operator fixes them, one `/product-video` re-runs the full preflight and continues.
+Pass those booleans as `--observation-json`. If several **blocking** checks fail, keep going and report **開始前に直すこと** once. After the operator fixes them, one `/product-video` re-runs the full preflight and continues.
 
-When the helper returns `READY`:
+When the helper returns `READY` (including `delivery_ready: false`):
 
 ```bash
 python3 "${SKILL_ROOT}/scripts/dispatch.py" --project-root <PROJECT_ROOT> --product-model <MODEL> [--case-id <CASE_ID>] --preflight-ready
 ```
 
-After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in `product-video-narration` until the queue helper says `queue_complete`; do not re-dispatch between cuts. `完成・格納してください` continues DELIVERY → Drive read-back → COMPLETE → purge in this turn. Do not chat mid-stage timing.
+After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in `product-video-narration` until the queue helper says `queue_complete`; do not re-dispatch between cuts. `完成・格納してください` continues only after Drive is READY: then DELIVERY → Drive read-back → COMPLETE → purge in this turn. If Drive is still not READY, do not export; report login only and wait for the same phrase. Do not chat mid-stage timing.
 
 Helper path:
 

@@ -35,10 +35,22 @@ Visual wrap only; do not add, delete, or reorder characters. `unwrap(caption_vis
 
 Do not run AI craft scoring or a subjective final visual-quality review. Do not require `粗編集OK`. Do not chat progress between execution steps.
 
-When a usable rough edit exists, save the receipt, complete `ROUGH_EDIT` (this sets `WAITING_FOR_OPERATOR`), and tell the user:
+When a usable rough edit exists, save the receipt, complete `ROUGH_EDIT` (this sets `WAITING_FOR_OPERATOR`), and tell the user the `on_success_message_ja` from dispatch (or `operator_message_ja` from the helper). That is one message. If Drive is not READY, the same message already includes the Drive login hint. Do not send a second message. Do not ask for extra operator steps.
+
+Default:
 
 粗編集まで完了しました。
 手動で確認・修正してください。
+修正完了後「完成・格納してください」と送ってください。
+
+When Drive is not READY, that same message is:
+
+粗編集まで完了しました。
+手動で確認・修正してください。
+Drive格納準備:
+リポジトリルートで
+upload_drive_local_file.py --login
+を済ませてください。
 修正完了後「完成・格納してください」と送ってください。
 
 Then stop. Do not keep editing.

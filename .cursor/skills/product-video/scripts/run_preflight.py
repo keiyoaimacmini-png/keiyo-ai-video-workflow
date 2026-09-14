@@ -16,6 +16,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 from constants import (
+    DEFERRED_PREFLIGHT_NAMES,
+    DRIVE_DELIVERY_WARNING,
     HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
     HOLD_CHATCUT_UNAVAILABLE,
     HOLD_PREFLIGHT_REQUIRED,
@@ -235,27 +237,47 @@ def observation_check(obs: dict[str, Any], key: str, code: str, reason: str) -> 
     return hold(code, reason)
 
 
-def merge_preflight(items: list[dict[str, Any]]) -> dict[str, Any]:
-    fixes = []
-    seen = set()
-    failed = []
+def merge_preflight(
+    items: list[dict[str, Any]],
+    *,
+    deferred_names: frozenset[str] | None = None,
+) -> dict[str, Any]:
+    deferred = DEFERRED_PREFLIGHT_NAMES if deferred_names is None else frozenset(deferred_names)
+    fixes: list[str] = []
+    seen: set[str] = set()
+    blocking_failed: list[dict[str, Any]] = []
+    deferred_failed: list[dict[str, Any]] = []
     for row in items:
         if row.get("status") == "OK":
             continue
-        failed.append(row)
+        if row.get("name") in deferred:
+            deferred_failed.append(row)
+            continue
+        blocking_failed.append(row)
         fix = row.get("operator_fix")
         if fix and fix not in seen:
             seen.add(fix)
             fixes.append(fix)
-    if not failed:
-        return {"status": "READY", "hold": None, "operator_fixes": [], "items": items}
+    delivery_ready = not deferred_failed
+    delivery_warnings = [] if delivery_ready else [DRIVE_DELIVERY_WARNING]
+    if blocking_failed:
+        return {
+            "status": "HOLD",
+            "hold": HOLD_PREFLIGHT_REQUIRED,
+            "reason": "start-time preflight found operator fixes",
+            "operator_fixes": fixes,
+            "items": items,
+            "message_ja": "開始前に直すこと:\n" + "\n".join(f"- {line}" for line in fixes),
+            "delivery_ready": delivery_ready,
+            "delivery_warnings": delivery_warnings,
+        }
     return {
-        "status": "HOLD",
-        "hold": HOLD_PREFLIGHT_REQUIRED,
-        "reason": "start-time preflight found operator fixes",
-        "operator_fixes": fixes,
+        "status": "READY",
+        "hold": None,
+        "operator_fixes": [],
         "items": items,
-        "message_ja": "開始前に直すこと:\n" + "\n".join(f"- {line}" for line in fixes),
+        "delivery_ready": delivery_ready,
+        "delivery_warnings": delivery_warnings,
     }
 
 
@@ -442,16 +464,30 @@ def self_test() -> int:
     merged = merge_preflight(
         [
             item("chrome_local", hold(HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "x"), operator_fix="Chrome remote debugging OFF"),
+            item("chatcut", hold("HOLD_CHATCUT_UNAVAILABLE", "x"), operator_fix="ChatCut reconnect"),
             item("drive", hold("HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE", "x"), operator_fix="Drive OAuth期限切れ"),
             item("material", {"status": "OK"}),
         ]
     )
     check("batch-hold-code", merged.get("hold") == HOLD_PREFLIGHT_REQUIRED)
-    check("batch-two-fixes", merged.get("operator_fixes") == ["Chrome remote debugging OFF", "Drive OAuth期限切れ"])
+    check("batch-two-fixes", merged.get("operator_fixes") == ["Chrome remote debugging OFF", "ChatCut reconnect"])
     check("batch-does-not-stop-at-first", len(merged.get("operator_fixes") or []) == 2)
+    check("batch-drive-not-start-blocker", "Drive OAuth期限切れ" not in (merged.get("operator_fixes") or []))
     check("batch-message", "開始前に直すこと" in (merged.get("message_ja") or ""))
+    check("batch-delivery-deferred", merged.get("delivery_ready") is False)
+    drive_only = merge_preflight(
+        [
+            item("material", {"status": "OK"}),
+            item("gemini", {"status": "OK"}),
+            item("drive", hold("HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE", "x"), operator_fix="Drive OAuth期限切れ"),
+        ]
+    )
+    check("drive-only-ready", drive_only.get("status") == "READY" and drive_only.get("hold") is None)
+    check("drive-only-delivery-false", drive_only.get("delivery_ready") is False)
+    check("drive-only-warning", drive_only.get("delivery_warnings") == [DRIVE_DELIVERY_WARNING])
     ready = merge_preflight([item("material", {"status": "OK"}), item("gemini", {"status": "OK"})])
     check("ready-when-all-ok", ready.get("status") == "READY")
+    check("ready-delivery-true", ready.get("delivery_ready") is True and ready.get("delivery_warnings") == [])
     endpoint_ready = check_chrome_local(
         running_fn=lambda: True,
         port_file_fn=lambda: {"status": "OK", "port": 9222, "ws_path": "/devtools/browser/abc"},
