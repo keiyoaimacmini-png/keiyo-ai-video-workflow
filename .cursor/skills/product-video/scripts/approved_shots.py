@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from constants import PERSISTENT_APPROVED_SHOTS_RELATIVE, PERSISTENT_SHARED_INPUT_RELATIVE
+from constants import GENERIC_CLASSIFIER_TOKENS, PERSISTENT_APPROVED_SHOTS_RELATIVE, PERSISTENT_SHARED_INPUT_RELATIVE
 from paths import case_root, emit
 from workflow_state import atomic_write, now_iso
 
@@ -104,21 +104,58 @@ def shot_key(shot: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
+def _shot_line(shot: dict[str, Any]) -> str:
+    return str(shot.get("history_line") or shot.get("line") or "").strip()
+
+
+def _shot_situation(shot: dict[str, Any]) -> str:
+    return str(shot.get("history_situation") or shot.get("situation") or "").strip()
+
+
 def history_match_score(shot: dict[str, Any], line: str, situation: str) -> int:
     line_text = (line or "").strip()
     situation_text = (situation or "").strip()
     score = 0
-    if (shot.get("line") or "").strip() == line_text and line_text:
+    shot_line = _shot_line(shot)
+    shot_situation = _shot_situation(shot)
+    if shot_line == line_text and line_text:
         score += 4
-    if (shot.get("situation") or "").strip() == situation_text and situation_text:
+    if shot_situation == situation_text and situation_text:
         score += 3
     hay = f"{line_text}\n{situation_text}"
     for tag in shot.get("semantic_tags") or []:
         text = str(tag).strip()
-        if len(text) >= 4 and text in hay:
+        if len(text) < 4 or text in GENERIC_CLASSIFIER_TOKENS:
+            continue
+        if text in hay:
             score += 1
             break
     return score
+
+
+def history_close_enough(shot: dict[str, Any], line: str, situation: str) -> bool:
+    line_text = (line or "").strip()
+    situation_text = (situation or "").strip()
+    shot_line = _shot_line(shot)
+    shot_situation = _shot_situation(shot)
+    if shot_situation and situation_text and shot_situation == situation_text:
+        return True
+    hay = f"{line_text}\n{situation_text}"
+    needles: list[str] = []
+    for text in (shot_situation, *(str(tag) for tag in (shot.get("semantic_tags") or []))):
+        token = str(text or "").strip()
+        if len(token) < 2 or token in GENERIC_CLASSIFIER_TOKENS:
+            continue
+        if token == shot_line or token == line_text:
+            continue
+        needles.append(token)
+        needles.extend(part for part in TOKEN_SPLIT.split(token) if len(part) >= 2 and part not in GENERIC_CLASSIFIER_TOKENS)
+    overlap = [token for token in needles if token in hay]
+    if shot_line and line_text and shot_line == line_text:
+        if shot_situation and situation_text and shot_situation != situation_text:
+            return bool(overlap)
+        return True
+    return bool(overlap)
 
 
 def candidate_from_history(
@@ -131,14 +168,18 @@ def candidate_from_history(
     return {
         "semantic_valid": True,
         "supported_line": line,
-        "situation": shot.get("situation") or situation,
+        "situation": str(shot.get("situation") or ""),
         "scenario_tags": list(shot.get("semantic_tags") or []),
         "source": shot.get("source"),
         "in_sec": shot.get("in_sec"),
         "out_sec": shot.get("out_sec"),
+        "source_in": shot.get("in_sec"),
+        "source_out": shot.get("out_sec"),
         "visual": dict(shot.get("visual") or {}),
         "material_id": shot.get("source"),
         "from_approved_history": True,
+        "history_line": shot.get("line"),
+        "history_situation": shot.get("situation"),
         "target_duration_seconds": float(duration_seconds),
         "line": line,
         "intended_scenario": situation,
@@ -159,7 +200,7 @@ def matching_history_shots(
         if not isinstance(shot, dict) or not is_source_material(shot.get("source")):
             continue
         score = history_match_score(shot, line, situation)
-        if score <= 0:
+        if score <= 0 or not history_close_enough(shot, line, situation):
             continue
         ranked.append((score, shot))
     ranked.sort(key=lambda item: item[0], reverse=True)

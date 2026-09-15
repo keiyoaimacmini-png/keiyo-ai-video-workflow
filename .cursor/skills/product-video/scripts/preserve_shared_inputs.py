@@ -5,6 +5,7 @@
 `.runtime/product-video-approved-shots` is product-level adopted-shot history.
 `.runtime/product-video-material-metadata` is product-level source duration metadata.
 `.runtime/product-video-material-index` is the product-level material index.
+`.runtime/product-video-visual-catalog` is the product-level visual scene catalog.
 Routine DELIVERY purge must never delete those trees.
 """
 

@@ -10,11 +10,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from approved_shots import candidate_from_history, matching_history_shots
+from approved_shots import candidate_from_history, history_close_enough, matching_history_shots
 from constants import MAJOR_VISUAL_KEYS
 from paths import case_root
 from prove_tts_speed import clip_target_duration
 from script_fidelity import assert_immutable
+from visual_catalog import scene_match_score
 from workflow_state import hold
 
 DURATION_EPS = 1e-9
@@ -30,22 +31,38 @@ def visual_diff_score(left: dict[str, Any], right: dict[str, Any]) -> int:
 
 
 def scenario_score(candidate: dict[str, Any], intended_scenario: str) -> int:
-    if candidate.get("semantic_valid") is not True:
-        return 0
     intended = (intended_scenario or "").strip()
+    material_situation = str(candidate.get("situation") or "").strip()
     tags = candidate.get("scenario_tags") or []
-    if candidate.get("situation") == intended or intended in tags:
+    if candidate.get("visual_match") is True or int(candidate.get("visual_match_score") or 0) > 0:
+        return 3
+    if material_situation and intended and (material_situation == intended or intended in tags):
         return 2
-    return 1
+    if candidate.get("semantic_valid") is True:
+        return 1
+    return 0
 
 
 def supports_line(candidate: dict[str, Any], line: str) -> bool:
-    if candidate.get("semantic_valid") is not True:
-        return False
     supported = candidate.get("supported_line")
     if supported is None:
         return True
     return supported == line
+
+
+def annotate_visual_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> dict[str, Any]:
+    clone = dict(candidate)
+    scene = clone.get("catalog_scene") if isinstance(clone.get("catalog_scene"), dict) else clone
+    score = int(clone.get("visual_match_score") or 0)
+    if clone.get("from_visual_catalog") is True or clone.get("catalog_scene"):
+        score = max(score, scene_match_score(scene, line, intended_scenario))
+    elif clone.get("from_approved_history") is True:
+        score = max(score, scene_match_score(clone, line, intended_scenario))
+    clone["visual_match_score"] = score
+    clone["visual_match"] = score > 0
+    if score > 0:
+        clone["semantic_valid"] = True
+    return clone
 
 
 def source_id(item: dict[str, Any] | None) -> str:
@@ -237,33 +254,206 @@ def duration_eligible(
     return [item for item in candidates if duration_passes(item, target_seconds, file_durations)]
 
 
+def range_key(item: dict[str, Any] | None) -> tuple[str, float, float] | None:
+    sid = source_id(item)
+    rng = source_range(item) if isinstance(item, dict) else None
+    if not sid or rng is None:
+        return None
+    return (sid, round(rng[0], 3), round(rng[1], 3))
+
+
+class SelectionUsage:
+    def __init__(self) -> None:
+        self.source_counts: dict[str, int] = {}
+        self.used_ranges: set[tuple[str, float, float]] = set()
+        self.windows: dict[str, list[tuple[float, float]]] = {}
+
+    def note(self, item: dict[str, Any]) -> None:
+        sid = source_id(item)
+        rng = source_range(item)
+        if sid:
+            self.source_counts[sid] = self.source_counts.get(sid, 0) + 1
+        if sid and rng is not None:
+            self.used_ranges.add((sid, round(rng[0], 3), round(rng[1], 3)))
+            self.windows.setdefault(sid, []).append(rng)
+
+    def source_used(self, source: str) -> int:
+        return self.source_counts.get(source, 0)
+
+    def range_used(self, item: dict[str, Any]) -> bool:
+        key = range_key(item)
+        return key in self.used_ranges if key is not None else False
+
+
+def is_selectable(candidate: dict[str, Any], line: str) -> bool:
+    if not supports_line(candidate, line):
+        return False
+    return (
+        candidate.get("from_approved_history") is True
+        or candidate.get("visual_match") is True
+        or int(candidate.get("visual_match_score") or 0) > 0
+        or candidate.get("semantic_valid") is True
+        or candidate.get("search_aid") is True
+    )
+
+
+def history_rank(candidate: dict[str, Any], line: str, intended_scenario: str) -> int:
+    if candidate.get("from_approved_history") is not True:
+        return 0
+    return 1 if history_close_enough(candidate, line, intended_scenario) else 0
+
+
+def appropriate_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> bool:
+    return (
+        history_rank(candidate, line, intended_scenario) > 0
+        or candidate.get("visual_match") is True
+        or int(candidate.get("visual_match_score") or 0) > 0
+        or candidate.get("semantic_valid") is True
+    )
+
+
+def unused_alternate_range(
+    candidate: dict[str, Any],
+    usage: SelectionUsage | None,
+) -> tuple[float, float] | None:
+    sid = source_id(candidate)
+    if not sid or usage is None:
+        return None
+    current = source_range(candidate)
+    alternates = list(candidate.get("alternate_ranges") or [])
+    if current is not None:
+        alternates = [current, *alternates]
+    seen: set[tuple[float, float]] = set()
+    for item in alternates:
+        if not isinstance(item, (tuple, list)) or len(item) != 2:
+            continue
+        start = float(item[0])
+        end = float(item[1])
+        key = (sid, round(start, 3), round(end, 3))
+        if key in seen or key in usage.used_ranges:
+            continue
+        seen.add(key)
+        if end > start:
+            return (start, end)
+    return None
+
+
+def next_full_clip_window(
+    file_duration: float,
+    target_seconds: float,
+    used_windows: list[tuple[float, float]],
+) -> tuple[float, float] | None:
+    target = float(target_seconds)
+    if file_duration + DURATION_EPS < target:
+        return None
+    occupied = sorted(used_windows)
+    start = 0.0
+    for window in occupied:
+        if start + target <= window[0] + DURATION_EPS:
+            return (start, start + target)
+        start = max(start, window[1])
+    if start + target <= file_duration + DURATION_EPS:
+        return (start, start + target)
+    return None
+
+
+def rank_key(
+    candidate: dict[str, Any],
+    *,
+    line: str,
+    intended_scenario: str,
+    previous: dict[str, Any] | None,
+    usage: SelectionUsage | None,
+) -> tuple[int, ...]:
+    history = history_rank(candidate, line, intended_scenario)
+    visual = int(candidate.get("visual_match_score") or 0)
+    visual_hit = 1 if visual > 0 or candidate.get("visual_match") is True else 0
+    facts = 1 if candidate.get("semantic_valid") is True else 0
+    aid = 1 if candidate.get("search_aid") is True else 0
+    used_range = 1 if usage is not None and usage.range_used(candidate) else 0
+    used_source = usage.source_used(source_id(candidate)) if usage is not None else 0
+    variety = visual_diff_score(candidate.get("visual") or {}, (previous or {}).get("visual") or {})
+    same_prev = 1 if previous is not None and same_source_and_angle(candidate, previous) else 0
+    return (
+        history,
+        visual_hit,
+        visual,
+        facts,
+        aid,
+        -used_range,
+        -used_source,
+        -same_prev,
+        variety,
+    )
+
+
 def pick_from_pool(
     pool: list[dict[str, Any]],
     previous: dict[str, Any] | None,
+    *,
+    line: str = "",
+    intended_scenario: str = "",
+    usage: SelectionUsage | None = None,
 ) -> dict[str, Any]:
-    ranked = list(pool)
+    ranked = sorted(
+        pool,
+        key=lambda item: rank_key(
+            item,
+            line=line,
+            intended_scenario=intended_scenario,
+            previous=previous,
+            usage=usage,
+        ),
+        reverse=True,
+    )
     if previous is not None:
-        ranked = sorted(
-            ranked,
-            key=lambda item: visual_diff_score(item.get("visual") or {}, previous.get("visual") or {}),
-            reverse=True,
-        )
         varied = [item for item in ranked if not same_source_and_angle(item, previous)]
         if varied:
-            ranked = varied
+            best = rank_key(ranked[0], line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:5]
+            equal = [
+                item
+                for item in varied
+                if rank_key(item, line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:5]
+                >= best
+            ]
+            if equal:
+                ranked = equal + [item for item in ranked if item not in equal]
     return ranked[0]
 
 
-def stamp_selection(chosen: dict[str, Any], target_seconds: float, file_durations: dict[str, float] | None = None) -> dict[str, Any]:
+def stamp_selection(
+    chosen: dict[str, Any],
+    target_seconds: float,
+    file_durations: dict[str, float] | None = None,
+    usage: SelectionUsage | None = None,
+) -> dict[str, Any]:
     stamped = dict(chosen)
     rng = source_range(stamped)
     file_duration = lookup_file_duration(stamped, file_durations)
+    sid = source_id(stamped)
+    if usage is not None and rng is not None and usage.range_used(stamped):
+        unused = unused_alternate_range(stamped, usage)
+        if unused is not None:
+            rng = unused
+            stamped["full_clip"] = False
+    if rng is None and usage is not None:
+        unused = unused_alternate_range(stamped, usage)
+        if unused is not None:
+            rng = unused
     if rng is None and file_duration is not None:
-        window = fit_window(file_duration, target_seconds)
+        used_windows = usage.windows.get(sid, []) if usage is not None else []
+        if used_windows:
+            window = next_full_clip_window(file_duration, target_seconds, used_windows)
+        else:
+            window = fit_window(file_duration, target_seconds)
         if window is not None:
             rng = window
             stamped["full_clip"] = True
     if rng is not None:
+        if file_duration is not None:
+            fitted = fit_window(file_duration, target_seconds, rng[0], rng[1])
+            if fitted is not None:
+                rng = fitted
         stamped["in_sec"] = rng[0]
         stamped["out_sec"] = rng[1]
         stamped["source_in"] = rng[0]
@@ -277,6 +467,32 @@ def stamp_selection(chosen: dict[str, Any], target_seconds: float, file_duration
     return stamped
 
 
+def _filter_reuse(
+    pool: list[dict[str, Any]],
+    *,
+    line: str,
+    intended_scenario: str,
+    usage: SelectionUsage | None,
+) -> list[dict[str, Any]]:
+    if usage is None or not pool:
+        return pool
+    unused_range = [item for item in pool if not usage.range_used(item)]
+    if unused_range:
+        pool = unused_range
+    unused_source = [item for item in pool if usage.source_used(source_id(item)) == 0]
+    if unused_source:
+        appropriate_unused = [
+            item for item in unused_source if appropriate_match(item, line, intended_scenario)
+        ]
+        if appropriate_unused:
+            return appropriate_unused
+        if any(appropriate_match(item, line, intended_scenario) for item in pool):
+            appropriate = [item for item in pool if appropriate_match(item, line, intended_scenario)]
+            unused_appropriate_range = [item for item in appropriate if not usage.range_used(item)]
+            return unused_appropriate_range or appropriate
+    return pool
+
+
 def select_cut(
     candidates: list[dict[str, Any]],
     *,
@@ -286,6 +502,7 @@ def select_cut(
     previous: dict[str, Any] | None = None,
     history: dict[str, Any] | None = None,
     file_durations: dict[str, float] | None = None,
+    usage: SelectionUsage | None = None,
 ) -> dict[str, Any]:
     combined = prefer_history_candidates(
         candidates,
@@ -294,7 +511,8 @@ def select_cut(
         duration_seconds=duration_seconds,
         history=history,
     )
-    valid = [item for item in combined if supports_line(item, line)]
+    annotated = [annotate_visual_match(item, line, intended_scenario) for item in combined]
+    valid = [item for item in annotated if is_selectable(item, line)]
     if not valid:
         return hold("HOLD_MEDIA_NOT_MATCHED", "no semantically valid material for this line")
     eligible = duration_eligible(valid, duration_seconds, file_durations)
@@ -303,20 +521,21 @@ def select_cut(
             "HOLD_MEDIA_NOT_MATCHED",
             "no material with available_duration >= target_duration_seconds",
         )
-    best = max(scenario_score(item, intended_scenario) for item in eligible)
-    pool = [item for item in eligible if scenario_score(item, intended_scenario) == best]
-    history_in_pool = [item for item in pool if item.get("from_approved_history") is True]
-    if history_in_pool:
-        if previous is not None:
-            varied_history = [item for item in history_in_pool if not same_source_and_angle(item, previous)]
-            if varied_history:
-                pool = varied_history
-            else:
-                varied = [item for item in pool if not same_source_and_angle(item, previous)]
-                pool = varied or history_in_pool
-        else:
-            pool = history_in_pool
-    chosen = stamp_selection(dict(pick_from_pool(pool, previous)), duration_seconds, file_durations)
+    pool = _filter_reuse(eligible, line=line, intended_scenario=intended_scenario, usage=usage)
+    chosen = stamp_selection(
+        dict(
+            pick_from_pool(
+                pool,
+                previous,
+                line=line,
+                intended_scenario=intended_scenario,
+                usage=usage,
+            )
+        ),
+        duration_seconds,
+        file_durations,
+        usage,
+    )
     chosen["line"] = line
     chosen["intended_scenario"] = intended_scenario
     return {"status": "OK", "selection": chosen}
@@ -332,6 +551,7 @@ def assemble_plan(
     clips = {clip["cut_id"]: clip for clip in narration_manifest.get("clips") or []}
     cuts: list[dict[str, Any]] = []
     previous = None
+    usage = SelectionUsage()
     for cut in approved_script.get("cuts") or []:
         fidelity = assert_immutable(cut["line"], cut["line"], role="assembly_line")
         if fidelity.get("status") != "OK":
@@ -354,13 +574,16 @@ def assemble_plan(
             previous=previous,
             history=history,
             file_durations=file_durations,
+            usage=usage,
         )
         if selected.get("status") != "OK":
             return selected
         item = selected["selection"]
         item["cut_id"] = cut["cut_id"]
+        item["material_situation"] = item.get("situation")
         item["situation"] = cut["situation"]
         cuts.append(item)
+        usage.note(item)
         previous = item
     return {
         "status": "OK",

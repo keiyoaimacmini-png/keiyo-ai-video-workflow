@@ -48,6 +48,7 @@ PERSISTENT_SHARED_INPUT_ROOTS = (
     ".runtime/product-video-approved-shots",
     ".runtime/product-video-material-metadata",
     ".runtime/product-video-material-index",
+    ".runtime/product-video-visual-catalog",
 )
 DESTINATION_KINDS = {"drive", "durable_store_readback"}
 HOLD_NOT_DUE = "HOLD_POST_COMPLETE_PURGE_NOT_DUE"

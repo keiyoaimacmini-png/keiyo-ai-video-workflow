@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from approved_shots import load_history, simple_tags
-from constants import PERSISTENT_MATERIAL_INDEX_RELATIVE, VIDEO_EXTENSIONS
+from constants import GENERIC_CLASSIFIER_TOKENS, PERSISTENT_MATERIAL_INDEX_RELATIVE, VIDEO_EXTENSIONS
 from material_duration import (
     ensure_duration,
     load_metadata,
@@ -254,6 +254,39 @@ def contained_in_script(needle: str, line: str, situation: str) -> bool:
     return text in (line or "") or text in (situation or "")
 
 
+def is_generic_classifier(text: str) -> bool:
+    return (text or "").strip() in GENERIC_CLASSIFIER_TOKENS
+
+
+def alias_hits(
+    entry: dict[str, Any],
+    line: str,
+    situation: str,
+    *,
+    folder_aliases: dict[str, list[str]] | None = None,
+) -> list[str]:
+    folder = str(entry.get("classification_folder") or "").strip()
+    aliases = (folder_aliases or {}).get(folder) or []
+    return [str(alias) for alias in aliases if contained_in_script(str(alias), line, situation)]
+
+
+def alias_search_aid(
+    entry: dict[str, Any],
+    line: str,
+    situation: str,
+    *,
+    folder_aliases: dict[str, list[str]] | None = None,
+) -> bool:
+    hits = alias_hits(entry, line, situation, folder_aliases=folder_aliases)
+    distinctive = [item for item in hits if not is_generic_classifier(item)]
+    if distinctive:
+        return True
+    folder = str(entry.get("classification_folder") or "").strip()
+    if folder and not is_generic_classifier(folder) and contained_in_script(folder, line, situation):
+        return True
+    return False
+
+
 def meaning_match(
     entry: dict[str, Any],
     line: str,
@@ -261,18 +294,18 @@ def meaning_match(
     *,
     folder_aliases: dict[str, list[str]] | None = None,
 ) -> bool:
+    del folder_aliases
     intended = (situation or "").strip()
+    material_situation = str(entry.get("situation") or "").strip()
     tags = [str(tag).strip() for tag in (entry.get("semantic_tags") or []) if str(tag).strip()]
-    if intended and (entry.get("situation") == intended or intended in tags):
+    if intended and material_situation and (material_situation == intended or intended in tags):
         return True
     for tag in tags:
+        if is_generic_classifier(tag):
+            continue
         if contained_in_script(tag, line, situation):
             return True
-    folder = str(entry.get("classification_folder") or "").strip()
-    if folder and contained_in_script(folder, line, situation):
-        return True
-    aliases = (folder_aliases or {}).get(folder) or []
-    return any(contained_in_script(str(alias), line, situation) for alias in aliases)
+    return False
 
 
 def available_from_entry(entry: dict[str, Any]) -> float | None:
@@ -295,43 +328,79 @@ def expand_entry(
     line: str,
     situation: str,
     folder_aliases: dict[str, list[str]] | None = None,
+    catalog_file: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     if not isinstance(entry, dict):
         return []
+    material_situation = str(entry.get("situation") or "").strip()
     valid = meaning_match(entry, line, situation, folder_aliases=folder_aliases)
+    search_aid = alias_search_aid(entry, line, situation, folder_aliases=folder_aliases)
     visual = {
         "framing": entry.get("framing") or "",
         "camera_distance": entry.get("camera_distance") or entry.get("framing") or "",
-        "location": entry.get("classification_folder") or "",
-        "subject": entry.get("situation") or entry.get("classification_folder") or "",
-        "action": entry.get("situation") or "",
+        "location": "",
+        "subject": material_situation,
+        "action": material_situation,
         "interaction": "",
         "movement": "",
         "camera_angle": "",
     }
     tags = list(entry.get("semantic_tags") or [])
-    if entry.get("situation"):
-        tags = simple_tags(str(entry.get("situation")), tags)
-    if entry.get("classification_folder"):
-        tags = simple_tags(str(entry.get("classification_folder")), tags)
+    if material_situation:
+        tags = simple_tags(material_situation, tags)
+    catalog_scenes = []
+    if isinstance(catalog_file, dict):
+        catalog_scenes = [item for item in (catalog_file.get("scenes") or []) if isinstance(item, dict)]
     ranges = [item for item in (entry.get("scene_ranges") or []) if isinstance(item, dict)]
-    if not ranges:
+    if catalog_scenes:
+        ranges = [
+            {"source_in": scene.get("source_in"), "source_out": scene.get("source_out"), "catalog_scene": scene}
+            for scene in catalog_scenes
+        ]
+    elif not ranges:
         ranges = [{}]
     candidates = []
     for item in ranges:
         start = item.get("source_in")
         end = item.get("source_out")
+        scene = item.get("catalog_scene") if isinstance(item.get("catalog_scene"), dict) else None
         candidate = {
             "semantic_valid": valid,
+            "visual_match": False,
+            "visual_match_score": 0,
+            "search_aid": search_aid,
             "supported_line": None,
-            "situation": entry.get("situation") or situation,
+            "situation": material_situation,
+            "intended_scenario": situation,
             "scenario_tags": tags,
             "source": entry.get("source"),
             "material_id": entry.get("source"),
             "source_duration_seconds": entry.get("full_duration"),
             "classification_folder": entry.get("classification_folder") or "",
             "visual": dict(visual),
+            "alternate_ranges": [
+                (float(scene_item["source_in"]), float(scene_item["source_out"]))
+                for scene_item in catalog_scenes
+                if isinstance(scene_item.get("source_in"), (int, float))
+                and isinstance(scene_item.get("source_out"), (int, float))
+            ],
         }
+        if scene is not None:
+            candidate["catalog_scene"] = scene
+            candidate["from_visual_catalog"] = True
+            if scene.get("factual_description") and not material_situation:
+                candidate["situation"] = str(scene.get("factual_description") or "")
+            if scene.get("framing"):
+                candidate["visual"]["framing"] = scene.get("framing")
+                candidate["visual"]["camera_distance"] = scene.get("framing")
+            if scene.get("location"):
+                candidate["visual"]["location"] = scene.get("location")
+            objects = [str(obj) for obj in (scene.get("objects") or []) if str(obj).strip()]
+            actions = [str(act) for act in (scene.get("actions") or []) if str(act).strip()]
+            if objects:
+                candidate["visual"]["subject"] = " ".join(objects)
+            if actions:
+                candidate["visual"]["action"] = " ".join(actions)
         if isinstance(start, (int, float)) and isinstance(end, (int, float)):
             candidate["source_in"] = float(start)
             candidate["source_out"] = float(end)
@@ -352,6 +421,7 @@ def candidates_from_index(
     line: str,
     situation: str,
     folder_aliases: dict[str, list[str]] | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     files = index.get("files") if isinstance(index, dict) else None
@@ -359,8 +429,28 @@ def candidates_from_index(
         return found
     aliases = folder_aliases if folder_aliases is not None else index.get("folder_aliases")
     mapping = aliases if isinstance(aliases, dict) else {}
-    for entry in files.values():
-        found.extend(expand_entry(entry, line=line, situation=situation, folder_aliases=mapping))
+    catalog_files = catalog.get("files") if isinstance(catalog, dict) else {}
+    if not isinstance(catalog_files, dict):
+        catalog_files = {}
+    for key, entry in files.items():
+        catalog_file = catalog_files.get(key) if isinstance(catalog_files.get(key), dict) else None
+        if catalog_file is None and isinstance(entry, dict):
+            source = str(entry.get("source") or "")
+            for stored, item in catalog_files.items():
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("source") or "") == source or str(stored) == str(entry.get("relative_path") or ""):
+                    catalog_file = item
+                    break
+        found.extend(
+            expand_entry(
+                entry,
+                line=line,
+                situation=situation,
+                folder_aliases=mapping,
+                catalog_file=catalog_file,
+            )
+        )
     return found
 
 
@@ -379,11 +469,18 @@ def attach_history(index: dict[str, Any], history: dict[str, Any] | None) -> Non
         entry = files.get(key)
         if not isinstance(entry, dict):
             continue
-        tags = simple_tags(str(shot.get("situation") or ""), list(shot.get("semantic_tags") or []))
-        merged = simple_tags(str(entry.get("situation") or ""), list(entry.get("semantic_tags") or []) + tags)
-        entry["semantic_tags"] = merged
-        if not entry.get("situation") and shot.get("situation"):
-            entry["situation"] = shot.get("situation")
+        ranges = [item for item in (entry.get("history_ranges") or []) if isinstance(item, dict)]
+        start = shot.get("in_sec")
+        end = shot.get("out_sec")
+        if isinstance(start, (int, float)) and isinstance(end, (int, float)) and float(end) > float(start):
+            key_range = (round(float(start), 3), round(float(end), 3))
+            existing = {
+                (round(float(item.get("source_in") or 0), 3), round(float(item.get("source_out") or 0), 3))
+                for item in ranges
+            }
+            if key_range not in existing:
+                ranges.append({"source_in": float(start), "source_out": float(end)})
+                entry["history_ranges"] = ranges
         visual = shot.get("visual") if isinstance(shot.get("visual"), dict) else {}
         if visual.get("framing") and not entry.get("framing"):
             entry["framing"] = visual.get("framing")
@@ -445,7 +542,7 @@ def refresh_index(
             "relative_path": key,
             "full_duration": float(duration) if isinstance(duration, (int, float)) and not isinstance(duration, bool) else None,
             "scene_ranges": ranges,
-            "semantic_tags": sidecar.get("semantic_tags") or simple_tags(folder),
+            "semantic_tags": sidecar.get("semantic_tags") or [],
             "situation": sidecar.get("situation") or "",
             "framing": sidecar.get("framing") or "",
             "camera_distance": sidecar.get("camera_distance") or sidecar.get("framing") or "",

@@ -21,11 +21,19 @@ from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
 from edit_plan import build_edit_plan, chatcut_execution_steps  # noqa: E402
 from material_index import (  # noqa: E402
+    alias_search_aid,
     candidates_from_index,
+    expand_entry,
     load_aliases,
     meaning_match,
     refresh_index,
     save_aliases,
+)
+from visual_catalog import (  # noqa: E402
+    apply_observed_scenes,
+    load_catalog,
+    refresh_catalog,
+    sidecar_describes_scene,
 )
 from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
 from timing import (  # noqa: E402
@@ -1232,6 +1240,18 @@ def test_material_index_and_edit_plan(root: Path) -> None:
     second = refresh_index(root, product, materials.parent, probe_fn=probe)
     check("index-skips-unchanged", second.get("reused") == 1 and second.get("refreshed") == 0)
     check("index-does-not-reprobe", probes == [])
+    mixed = expand_entry(
+        {
+            "source": "empty.mov",
+            "situation": "",
+            "semantic_tags": [],
+            "full_duration": 10.0,
+        },
+        line="骨組みは頼れる10本骨構造！",
+        situation="裏面の10本骨が見える寄り",
+    )
+    check("index-does-not-copy-requested-situation", mixed[0]["situation"] == "")
+    check("index-keeps-intended-scenario", mixed[0]["intended_scenario"] == "裏面の10本骨が見える寄り")
     case_id = "pv-AN-S997-plan"
     case = root / "outputs" / case_id
     case.mkdir(parents=True)
@@ -1385,37 +1405,67 @@ def test_semantic_folder_aliases(root: Path) -> None:
         ]
         return set(matched)
 
+    def search_aid_folders(line: str, situation: str) -> set[str]:
+        index = {"files": {"a": competitor, "b": install, "c": cool, "d": packed, "e": exact}}
+        matched = [
+            item["classification_folder"]
+            for item in candidates_from_index(index, line=line, situation=situation, folder_aliases=loaded)
+            if item.get("search_aid") is True
+        ]
+        return set(matched)
+
     check(
-        "alias-sucker-to-competitor",
-        folders_for("吸盤がすぐ落ちるサンシェード、もう限界…", "蛇腹式の吸盤サンシェードがペラッと落ちてきてイラッとする人物")
+        "alias-sucker-search-aid-competitor",
+        search_aid_folders("吸盤がすぐ落ちるサンシェード、もう限界…", "蛇腹式の吸盤サンシェードがペラッと落ちてきてイラッとする人物")
         == {"他社製品比較"},
     )
     check(
-        "alias-vcut-to-install",
-        folders_for("こだわりのV字カット加工で…", "V字カットがルームミラーの支柱をきれいに逃がしている様子")
+        "alias-sucker-not-semantic-valid",
+        folders_for("吸盤がすぐ落ちるサンシェード、もう限界…", "蛇腹式の吸盤サンシェードがペラッと落ちてきてイラッとする人物")
+        == set(),
+    )
+    check(
+        "alias-vcut-search-aid-install",
+        search_aid_folders("こだわりのV字カット加工で…", "V字カットがルームミラーの支柱をきれいに逃がしている様子")
         == {"設置風景"},
     )
     check(
-        "alias-uv-to-cool",
-        folders_for("UV約99パーセントカット＆UPF40以上！", "車内が陰になって快適に過ごせている様子")
+        "alias-vcut-not-semantic-valid",
+        folders_for("こだわりのV字カット加工で…", "V字カットがルームミラーの支柱をきれいに逃がしている様子")
+        == set(),
+    )
+    check(
+        "alias-uv-search-aid-cool",
+        search_aid_folders("UV約99パーセントカット＆UPF40以上！", "車内が陰になって快適に過ごせている様子")
         == {"車内涼しい"},
     )
     check(
-        "alias-close-to-storage",
-        folders_for("使い終わったらシュッと閉じて…", "傘をシュッと閉じてコンパクトにまとめる一連の動作")
+        "generic-sunshine-not-search-aid",
+        alias_search_aid(cool, "日差しが強い日", "", folder_aliases=loaded) is False,
+    )
+    check(
+        "generic-install-word-not-search-aid",
+        alias_search_aid(install, "毎日の設置が簡単", "", folder_aliases=loaded) is False,
+    )
+    check(
+        "alias-close-to-storage-search-aid",
+        search_aid_folders("使い終わったらシュッと閉じて…", "傘をシュッと閉じてコンパクトにまとめる一連の動作")
         >= {"コンパクト収納"},
     )
     check(
-        "alias-close-word",
-        meaning_match(packed, "使い終わったら閉じる", "", folder_aliases=loaded) is True,
+        "alias-close-word-is-search-aid",
+        alias_search_aid(packed, "使い終わったら閉じる", "", folder_aliases=loaded) is True
+        and meaning_match(packed, "使い終わったら閉じる", "", folder_aliases=loaded) is False,
     )
     check(
-        "alias-storage-word",
-        meaning_match(packed, "付属ポーチへ収納", "", folder_aliases=loaded) is True,
+        "alias-storage-word-is-search-aid",
+        alias_search_aid(packed, "付属ポーチへ収納", "", folder_aliases=loaded) is True
+        and meaning_match(packed, "付属ポーチへ収納", "", folder_aliases=loaded) is False,
     )
     check(
         "alias-unrelated-does-not-match",
-        folders_for("りんごを切る", "台所のテーブル") == set(),
+        folders_for("りんごを切る", "台所のテーブル") == set()
+        and search_aid_folders("りんごを切る", "台所のテーブル") == set(),
     )
     check(
         "alias-sidecar-exact-still-used",
@@ -1456,6 +1506,283 @@ def test_semantic_folder_aliases(root: Path) -> None:
         duration_seconds=3.0,
     )
     check("alias-duration-keeps-long", chosen.get("selection", {}).get("material_id") == "long")
+
+
+def test_visual_catalog_onboarding(root: Path) -> None:
+    product = "AN-S995"
+    material_root = root / ".runtime" / "product-video-inputs" / f"{product}_コピー"
+    sidecar_dir = material_root / "手元"
+    folder_only = material_root / "設置風景"
+    sidecar_dir.mkdir(parents=True)
+    folder_only.mkdir(parents=True)
+    rich = sidecar_dir / "clip.mov"
+    poor = folder_only / "IMG_0369.MOV"
+    rich.write_bytes(b"video-bytes")
+    poor.write_bytes(b"folder-only")
+    (sidecar_dir / "clip.md").write_text(
+        "duration: 12.0\nsituation: サンシェードを広げる手元\ntags: 手元, 展開\nframing: close\nsource_in: 1.0\nsource_out: 5.0\n",
+        encoding="utf-8",
+    )
+    check(
+        "catalog-sidecar-is-sufficient",
+        sidecar_describes_scene(
+            {
+                "situation": "サンシェードを広げる手元",
+                "source_in": 1.0,
+                "source_out": 5.0,
+                "semantic_tags": ["手元"],
+            }
+        )
+        is True,
+    )
+    check(
+        "catalog-folder-only-is-insufficient",
+        sidecar_describes_scene({"situation": "", "semantic_tags": ["設置風景"]}) is False,
+    )
+    first = refresh_catalog(root, product, material_root)
+    check("catalog-refresh-ok", first.get("status") == "OK" and int(first.get("file_count") or 0) == 2)
+    catalog = load_catalog(root, product)
+    rich_entry = next(item for item in catalog["files"].values() if str(item.get("source") or "").endswith("clip.mov"))
+    poor_entry = next(item for item in catalog["files"].values() if "IMG_0369" in str(item.get("source") or ""))
+    check("catalog-ingests-sidecar-without-watch", rich_entry.get("needs_observation") is False and rich_entry.get("scenes"))
+    check("catalog-does-not-confirm-folder-name", poor_entry.get("needs_observation") is True and not poor_entry.get("scenes"))
+    check(
+        "catalog-folder-not-used-as-description",
+        all("設置風景" != str(scene.get("factual_description") or "") for scene in (poor_entry.get("scenes") or [])),
+    )
+    second = refresh_catalog(root, product, material_root)
+    check("catalog-skips-unchanged", second.get("reused") == 2 and second.get("refreshed") == 0)
+    apply_observed_scenes(
+        catalog,
+        [
+            {
+                "source": poor_entry["source"],
+                "source_in": 2.8,
+                "source_out": 6.4,
+                "objects": ["サンシェード", "ルームミラー", "フロントガラス"],
+                "actions": ["設置済み"],
+                "visible_features": ["V字カット"],
+                "factual_description": "設置済みのサンシェードのV字部分がルームミラー支柱を避けている",
+            }
+        ],
+    )
+    from visual_catalog import save_catalog
+
+    save_catalog(root, catalog)
+    third = refresh_catalog(root, product, material_root)
+    check("catalog-keeps-observation-on-unchanged", third.get("reused") == 2)
+    stored = load_catalog(root, product)
+    observed = next(item for item in stored["files"].values() if "IMG_0369" in str(item.get("source") or ""))
+    check("catalog-observation-has-vcut", any("V字カット" in (scene.get("visible_features") or []) for scene in observed.get("scenes") or []))
+
+
+def _catalog_candidate(
+    source: str,
+    *,
+    source_in: float,
+    source_out: float,
+    objects: list[str],
+    actions: list[str] | None = None,
+    features: list[str] | None = None,
+    description: str,
+    duration: float = 12.0,
+    search_aid: bool = False,
+) -> dict[str, Any]:
+    scene = {
+        "source": source,
+        "source_in": source_in,
+        "source_out": source_out,
+        "duration": source_out - source_in,
+        "objects": objects,
+        "actions": actions or [],
+        "product_state": "",
+        "location": "",
+        "visible_features": features or [],
+        "framing": "",
+        "factual_description": description,
+    }
+    return {
+        "semantic_valid": False,
+        "search_aid": search_aid,
+        "supported_line": None,
+        "situation": description,
+        "intended_scenario": "",
+        "source": source,
+        "material_id": source,
+        "source_in": source_in,
+        "source_out": source_out,
+        "source_duration_seconds": duration,
+        "available_duration": source_out - source_in,
+        "catalog_scene": scene,
+        "from_visual_catalog": True,
+        "alternate_ranges": [(source_in, source_out)],
+        "visual": visual("product", "close", "cabin"),
+    }
+
+
+def test_selection_quality_case_cuts() -> None:
+    hot = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "supported_line": None,
+        "situation": "",
+        "source": ".runtime/product-video-inputs/AN-S182_コピー/車内暑い/IMG_3898.MOV",
+        "material_id": "hot-cabin",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "車内暑い",
+        "visual": visual("person", "wide", "car"),
+    }
+    ribs = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3963.mov",
+        source_in=0.6,
+        source_out=3.16,
+        objects=["骨組み", "10本骨"],
+        features=["10本骨"],
+        description="裏面の頑丈な10本の骨組みが見える",
+    )
+    ribs["material_id"] = "ribs"
+    vcut = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3893.MOV",
+        source_in=0.05,
+        source_out=2.17,
+        objects=["サンシェード", "ルームミラー"],
+        features=["V字カット"],
+        description="設置済みのサンシェードのV字部分がルームミラー支柱を避けている",
+    )
+    vcut["material_id"] = "vcut"
+    pouch = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/コンパクト収納/IMG_3869.MOV",
+        source_in=1.5,
+        source_out=4.52,
+        objects=["ポーチ"],
+        actions=["閉じる", "畳む"],
+        features=["収納"],
+        description="本体を収納ポーチへ滑り込ませる",
+    )
+    pouch["material_id"] = "pouch"
+    uv = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/車内涼しい/shade.mov",
+        source_in=1.0,
+        source_out=5.0,
+        objects=["サンシェード"],
+        features=["UVカット", "日陰"],
+        description="サンシェードで車内が陰になっている",
+    )
+    uv["material_id"] = "uv-shade"
+    install_a = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_0369.MOV",
+        source_in=2.8,
+        source_out=6.4,
+        objects=["サンシェード", "ルームミラー", "フロントガラス"],
+        actions=["設置済み"],
+        features=["V字カット"],
+        description="設置済みのサンシェードのV字部分がルームミラー支柱を避けている",
+        search_aid=True,
+    )
+    install_a["material_id"] = "img0369-vcut"
+    install_b = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_0369.MOV",
+        source_in=8.0,
+        source_out=12.0,
+        objects=["サンシェード"],
+        actions=["広げる"],
+        description="サンシェードをフロントガラスへ広げている",
+        search_aid=True,
+    )
+    install_b["material_id"] = "img0369-spread"
+    zero_reuse = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "supported_line": None,
+        "situation": "",
+        "source": ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_0369.MOV",
+        "material_id": "img0369-zero",
+        "source_duration_seconds": 14.0,
+        "classification_folder": "設置風景",
+        "visual": visual("product", "wide", "car"),
+        "alternate_ranges": [(2.8, 6.4), (8.0, 12.0)],
+    }
+    rib_line = "骨組みは頼れる10本骨構造！"
+    rib_sit = "裏面の頑丈な10本の骨組みをしっかり見せる商品単体カット"
+    old_rib = select_cut([hot], line=rib_line, intended_scenario=rib_sit, duration_seconds=2.0)
+    new_rib = select_cut([hot, ribs], line=rib_line, intended_scenario=rib_sit, duration_seconds=2.0)
+    check("old-ribs-alias-picks-hot-cabin", old_rib.get("selection", {}).get("material_id") == "hot-cabin")
+    check("new-ribs-picks-visible-frame", new_rib.get("selection", {}).get("material_id") == "ribs")
+    v_line = "上部V字カットでミラー周りも綺麗！"
+    v_sit = "ルームミラーの支柱をきれいに逃がしている上部V字カットの寄り"
+    new_v = select_cut([hot, zero_reuse, vcut], line=v_line, intended_scenario=v_sit, duration_seconds=2.0)
+    check("new-vcut-picks-visible-v-and-mirror", new_v.get("selection", {}).get("material_id") == "vcut")
+    pack_line = "収納ポーチにサッとしまえるよ！"
+    pack_sit = "コンパクトになった本体を付属の収納ポーチへ滑り込ませる手元"
+    new_pack = select_cut([hot, pouch], line=pack_line, intended_scenario=pack_sit, duration_seconds=2.5)
+    check("new-storage-picks-pouch-or-fold", new_pack.get("selection", {}).get("material_id") == "pouch")
+    uv_line = "UVカット率約99％！"
+    uv_sit = "サンシェードで直射と紫外線を遮っている様子"
+    new_uv = select_cut([hot, uv], line=uv_line, intended_scenario=uv_sit, duration_seconds=2.5)
+    check("new-uv-does-not-treat-hot-cabin-as-match", new_uv.get("selection", {}).get("material_id") == "uv-shade")
+    script = {
+        "cuts": [
+            {"cut_id": "c8", "line": "毎日の設置がめちゃくちゃ簡単！", "situation": "サンシェードをフロントガラスへ広げている"},
+            {"cut_id": "c9", "line": v_line, "situation": v_sit},
+        ]
+    }
+    manifest = {
+        "clips": [
+            {
+                "cut_id": "c8",
+                "line": "毎日の設置がめちゃくちゃ簡単！",
+                "audio_path": "a.mp3",
+                "source_duration_seconds": 3.0,
+                "editor_playback_rate": 1.2,
+                "planned_duration_seconds": 2.5,
+                "source_already_accelerated": False,
+            },
+            {
+                "cut_id": "c9",
+                "line": v_line,
+                "audio_path": "b.mp3",
+                "source_duration_seconds": 3.0,
+                "editor_playback_rate": 1.2,
+                "planned_duration_seconds": 2.5,
+                "source_already_accelerated": False,
+            },
+        ]
+    }
+    install_a["alternate_ranges"] = [(2.8, 6.4), (8.0, 12.0)]
+    install_b["alternate_ranges"] = [(2.8, 6.4), (8.0, 12.0)]
+    plan = assemble_plan(
+        script,
+        manifest,
+        {"c8": [zero_reuse, install_b, hot], "c9": [zero_reuse, install_a, hot]},
+    )
+    check("same-source-plan-ok", plan.get("status") == "OK", str(plan.get("hold")))
+    ranges = [(cut.get("source_in"), cut.get("source_out"), cut.get("material_id")) for cut in plan.get("cuts") or []]
+    check("same-img0369-does-not-repeat-zero-range", all(item[0] not in (0.0, None) or "zero" not in str(item[2]) for item in ranges))
+    used = {(cut.get("source_in"), cut.get("source_out")) for cut in plan.get("cuts") or []}
+    check("same-img0369-uses-different-ranges", len(used) == 2, str(ranges))
+    history = {
+        "schema": "product_video_approved_shot_history.v1",
+        "shots": [
+            {
+                "source": ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3893.MOV",
+                "in_sec": 0.05,
+                "out_sec": 2.17,
+                "line": "上部がV字カットになってるから",
+                "situation": "ルームミラーの支柱をきれいに逃がしている上部V字カットの寄り",
+                "semantic_tags": ["V字カット", "ルームミラー"],
+                "visual": visual("product", "wide", "parking"),
+            }
+        ],
+    }
+    operator = select_cut(
+        [hot, zero_reuse],
+        line=v_line,
+        intended_scenario=v_sit,
+        duration_seconds=2.0,
+        history=history,
+    )
+    check("operator-history-beats-generic-alias", operator.get("selection", {}).get("from_approved_history") is True)
+    check("operator-history-keeps-range", operator.get("selection", {}).get("source_in") == 0.05)
 
 
 def test_caption_wrap() -> None:
@@ -2267,6 +2594,7 @@ def test_git_tracked_helpers() -> None:
         ("approved_shots", ".cursor/skills/product-video/scripts/approved_shots.py"),
         ("narration_queue", ".cursor/skills/product-video/scripts/narration_queue.py"),
         ("material_index", ".cursor/skills/product-video/scripts/material_index.py"),
+        ("visual_catalog", ".cursor/skills/product-video/scripts/visual_catalog.py"),
         ("caption_wrap", ".cursor/skills/product-video/scripts/caption_wrap.py"),
         ("edit_plan", ".cursor/skills/product-video/scripts/edit_plan.py"),
         ("timing", ".cursor/skills/product-video/scripts/timing.py"),
@@ -2324,6 +2652,8 @@ def test_git_tracked_helpers() -> None:
     )
     assembly_skill = (skills_root / "product-video-assembly" / "SKILL.md").read_text(encoding="utf-8")
     check("assembly-skill-uses-history", "product-video/scripts/approved_shots.py" in assembly_skill)
+    check("assembly-skill-uses-visual-catalog", "product-video/scripts/visual_catalog.py" in assembly_skill)
+    check("assembly-skill-history-first", "approved-shot history" in assembly_skill)
     delivery_skill = (skills_root / "product-video-delivery" / "SKILL.md").read_text(encoding="utf-8")
     check("delivery-skill-records-history", "approved_shots.py" in delivery_skill and "--record-final" in delivery_skill)
     check("delivery-skill-keeps-history", "product-video-approved-shots" in delivery_skill)
@@ -2507,6 +2837,7 @@ def test_purge_preserves_shared_inputs() -> None:
         check("purge-skip-approved-shots-root", ".runtime/product-video-approved-shots" in skipped_paths)
         check("purge-skip-material-metadata-root", ".runtime/product-video-material-metadata" in skipped_paths)
         check("purge-skip-material-index-root", ".runtime/product-video-material-index" in skipped_paths)
+        check("purge-skip-visual-catalog-root", ".runtime/product-video-visual-catalog" in skipped_paths)
         check("purge-B-root-mp4-not-planned", not any(path.endswith("video.mp4") and is_persistent_shared_input_path(path) for path in planned_paths))
         check("purge-C-nested-mov-not-planned", not any(path.endswith("video.mov") and is_persistent_shared_input_path(path) for path in planned_paths))
         skipped_reasons = {item.get("reason") for item in payload.get("skipped") or []}
@@ -2690,6 +3021,8 @@ def main() -> int:
         test_narration_queue(root)
         test_material_index_and_edit_plan(root)
         test_semantic_folder_aliases(root)
+        test_visual_catalog_onboarding(root)
+        test_selection_quality_case_cuts()
         test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)

@@ -10,14 +10,15 @@ Read this file only when dispatch says `product-video-assembly`.
 
 Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip. Do not analyze the whole library and do not run AI picture scoring. Do not place anything on ChatCut in this stage.
 
-Load history and refresh the persistent material index. Unchanged files are reused from `.runtime/product-video-material-index/<MODEL>.v1.json`; only mtime/size/sidecar changes are updated.
+Load history, refresh the persistent material index, and refresh the visual scene catalog. Unchanged files are reused; only mtime/size/sidecar changes are updated. Do not re-watch the whole library.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL>
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/material_index.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --material-root <MATERIAL_ROOT> --refresh
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/visual_catalog.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --material-root <MATERIAL_ROOT> --refresh
 ```
 
-Do not place a clip on ChatCut to learn its duration. Do not re-watch or re-probe a file whose stamp still matches the index.
+Do not place a clip on ChatCut to learn its duration. Do not re-watch or re-probe a file whose stamp still matches the index or catalog. Sidecar files that already have scene / situation / in-out / description are ingested without watching video. Folder name alone is not scene content.
 
 Finish the **edit-plan locally** for every cut before ROUGH_EDIT:
 
@@ -25,15 +26,15 @@ Finish the **edit-plan locally** for every cut before ROUGH_EDIT:
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/edit_plan.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --product-model <MODEL>
 ```
 
-That helper ranks duration-passing index + history candidates, then writes `assembly-plan.json` and `edit-plan.json`. Rank order:
+That helper ranks duration-passing catalog + history + index candidates, then writes `assembly-plan.json` and `edit-plan.json`. Rank order:
 
-1. the frozen line's meaning (sidecar situation exact, sidecar tags, classification folder, then product-level folder aliases)
-2. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
-3. Gemini situation
-4. approved-shot history
-5. avoid the same source and framing as the previous cut
+1. human-adopted approved-shot history when line / situation / scene meaning is close
+2. visual scene catalog ranges whose on-screen facts match the Gemini situation
+3. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
+4. aliases / classification folder as candidate-search helpers only
+5. spread sources across the whole video; if the same source is reused, use a different catalog scene range and do not repeat a 0s full-clip window
 
-Folder meaning is product-level, not per-script. Load `config/product_video_material_aliases_<MODEL>.v1.json` into `.runtime/product-video-material-index/<MODEL>.semantic-aliases.v1.json`. Do not rewrite material sidecars to match this case's frozen lines. Do not add per-script aliases. Do not add a new quality HOLD.
+Do not treat a single generic alias (`車内`, `ハンドル`, `設置`, `ミラー`, `日差し`) as proof that the picture matches the line. Do not copy the requested Gemini situation onto a material entry that has no situation. Keep requested situation as `intended_scenario`. Folder meaning is product-level, not per-script. Load `config/product_video_material_aliases_<MODEL>.v1.json` into `.runtime/product-video-material-index/<MODEL>.semantic-aliases.v1.json`. Do not rewrite material sidecars or aliases to match this case's frozen lines. Do not add a new quality HOLD.
 
 If a candidate has `source_in` / `source_out` (or a scene range in md), `available_duration = source_out - source_in`. A full clip uses the md source duration. A history shot with a short range is not adopted.
 

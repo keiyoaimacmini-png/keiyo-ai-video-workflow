@@ -46,12 +46,15 @@ PERSISTENT_SHARED_INPUT_RELATIVE = ".runtime/product-video-inputs"
 PERSISTENT_APPROVED_SHOTS_RELATIVE = ".runtime/product-video-approved-shots"
 PERSISTENT_MATERIAL_METADATA_RELATIVE = ".runtime/product-video-material-metadata"
 PERSISTENT_MATERIAL_INDEX_RELATIVE = ".runtime/product-video-material-index"
+PERSISTENT_VISUAL_CATALOG_RELATIVE = ".runtime/product-video-visual-catalog"
 PERSISTENT_SHARED_INPUT_ROOTS = (
     PERSISTENT_SHARED_INPUT_RELATIVE,
     PERSISTENT_APPROVED_SHOTS_RELATIVE,
     PERSISTENT_MATERIAL_METADATA_RELATIVE,
     PERSISTENT_MATERIAL_INDEX_RELATIVE,
+    PERSISTENT_VISUAL_CATALOG_RELATIVE,
 )
+GENERIC_CLASSIFIER_TOKENS = frozenset({"車内", "ハンドル", "設置", "ミラー", "日差し"})
 STATE_FILENAME = "workflow-state.json"
 STATE_MAX_BYTES = 16384
 RECEIPT_MAX_BYTES = 65536
@@ -173,6 +176,7 @@ OWNED_HELPERS = {
     "approved_shots": "approved_shots.py",
     "narration_queue": "narration_queue.py",
     "material_index": "material_index.py",
+    "visual_catalog": "visual_catalog.py",
     "caption_wrap": "caption_wrap.py",
     "edit_plan": "edit_plan.py",
     "timing": "timing.py",
@@ -202,6 +206,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/narration_queue.py", "NARRATION"),
     (".cursor/skills/product-video/scripts/approved_shots.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/material_index.py", "ASSEMBLY"),
+    (".cursor/skills/product-video/scripts/visual_catalog.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/caption_wrap.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/edit_plan.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/timing.py", "PREPARE"),
