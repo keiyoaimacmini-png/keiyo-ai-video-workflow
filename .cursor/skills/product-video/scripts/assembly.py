@@ -598,7 +598,10 @@ def assemble_plan(
         )
         annotated = [annotate_visual_match(item, cut["line"], cut["situation"]) for item in combined]
         prepared[cut["cut_id"]] = annotated
-        if not any(is_selectable(item, cut["line"]) for item in annotated):
+        if not any(
+            is_selectable(item, cut["line"]) and duration_passes(item, duration, file_durations)
+            for item in annotated
+        ):
             unresolved.append(
                 {
                     "cut_id": cut["cut_id"],

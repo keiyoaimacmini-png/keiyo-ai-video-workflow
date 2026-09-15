@@ -2073,6 +2073,41 @@ def test_semantic_fallback_matcher(root: Path) -> None:
     )
     check("semantic-g-resolves-basename", parsed_g.get("c1", {}).get("scene_id") == hot_id)
 
+    long_ribs = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3963.mov",
+        source_in=0.0,
+        source_out=5.0,
+        objects=["フレーム"],
+        features=["均等に張った骨"],
+        description="裏面の骨が均等に張ってへたらない",
+    )
+    long_id = make_scene_id(long_ribs["source"], 0.0, 5.0)
+    calls_h: list[str] = []
+
+    def send_h(prompt: str) -> str:
+        calls_h.append(prompt)
+        return json.dumps(
+            {
+                "c8": {
+                    "scene_id": long_id,
+                    "source": long_ribs["source"],
+                    "source_in": 0.0,
+                    "source_out": 5.0,
+                    "reason": "骨が張っている",
+                }
+            },
+            ensure_ascii=False,
+        )
+
+    plan_h = assemble_plan(
+        script_for("c8", bones_line, bones_sit),
+        manifest_for("c8", bones_line),
+        {"c8": [ribs, long_ribs]},
+        semantic_match_fn=send_h,
+    )
+    check("semantic-h-short-token-still-fallback", len(calls_h) == 1, str(plan_h.get("hold")))
+    check("semantic-h-picks-long-ribs", plan_h.get("status") == "OK" and (plan_h.get("cuts") or [{}])[0].get("from_semantic_fallback") is True)
+
 
 def test_caption_wrap() -> None:
     uv = wrap_caption("UVカット率はなんと約99パーセント！")

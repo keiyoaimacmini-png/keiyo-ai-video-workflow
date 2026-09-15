@@ -30,7 +30,7 @@ That helper ranks duration-passing catalog + history + index candidates, then wr
 
 1. human-adopted approved-shot history when line / situation / scene meaning is close
 2. deterministic visual catalog match on saved on-screen facts
-3. semantic fallback for unresolved cuts only: one Gemini 3.8 Flash text-only batch on saved catalog / history TEXT (`factual_description`, `actions`, `objects`, `visible_features`, `product_state`, approved-shot situation). Do not watch video, score picture quality, or add per-script aliases. Save `semantic-material-match.json`. Skip Gemini when the deterministic matcher already has a candidate
+3. semantic fallback for unresolved cuts only: one Gemini 3.8 Flash text-only batch on saved catalog / history TEXT (`factual_description`, `actions`, `objects`, `visible_features`, `product_state`, approved-shot situation). Unresolved means history / deterministic catalog matching produced no duration-passing candidate. Do not watch video, score picture quality, or add per-script aliases. Save `semantic-material-match.json`. Skip Gemini when the deterministic matcher already has a duration-passing candidate
 4. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
 5. spread sources across the whole video; if the same source is reused, use a different catalog scene range and do not repeat a 0s full-clip window
 6. aliases / classification folder as candidate-search helpers only
