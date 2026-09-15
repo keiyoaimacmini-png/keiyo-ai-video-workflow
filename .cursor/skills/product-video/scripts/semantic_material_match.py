@@ -22,7 +22,17 @@ SendFn = Callable[[str], Any]
 
 
 def _number(value: object, *, allow_zero: bool = False) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            value = float(text)
+        except ValueError:
+            return None
+    if not isinstance(value, (int, float)):
         return None
     try:
         number = float(value)
@@ -86,6 +96,31 @@ def _has_scene_text(payload: dict[str, Any]) -> bool:
     )
 
 
+def _is_persistent_text_scene(candidate: dict[str, Any], payload: dict[str, Any] | None) -> bool:
+    if payload is None:
+        return False
+    if payload.get("source_in") is None or payload.get("source_out") is None:
+        return False
+    from_catalog = candidate.get("from_visual_catalog") is True or isinstance(candidate.get("catalog_scene"), dict)
+    from_history = candidate.get("from_approved_history") is True
+    if not from_catalog and not from_history:
+        return False
+    return _has_scene_text(payload)
+
+
+def _source_name(source: object) -> str:
+    return Path(str(source or "")).name.lower()
+
+
+def _range_key(source: object, start: object, end: object) -> tuple[str, float, float] | None:
+    name = _source_name(source)
+    start_n = _number(start, allow_zero=True)
+    end_n = _number(end)
+    if not name or start_n is None or end_n is None or end_n <= start_n:
+        return None
+    return (name, round(start_n, 3), round(end_n, 3))
+
+
 def compact_scene_from_candidate(candidate: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(candidate, dict):
         return None
@@ -130,13 +165,32 @@ def compact_scene_from_candidate(candidate: dict[str, Any]) -> dict[str, Any] | 
     return payload
 
 
+def merge_scene_payloads(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for group in groups:
+        for payload in group:
+            if not isinstance(payload, dict):
+                continue
+            scene_id = str(payload.get("scene_id") or "")
+            if not scene_id or scene_id in seen:
+                continue
+            if payload.get("source_in") is None or payload.get("source_out") is None:
+                continue
+            if not _has_scene_text(payload):
+                continue
+            seen.add(scene_id)
+            found.append(payload)
+    return found
+
+
 def collect_scene_payloads(candidates_by_cut: dict[str, list[dict[str, Any]]], cut_ids: list[str]) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     seen: set[str] = set()
     for cut_id in cut_ids:
         for candidate in candidates_by_cut.get(cut_id) or []:
             payload = compact_scene_from_candidate(candidate)
-            if payload is None:
+            if not _is_persistent_text_scene(candidate, payload) or payload is None:
                 continue
             scene_id = payload["scene_id"]
             if scene_id in seen:
@@ -144,6 +198,50 @@ def collect_scene_payloads(candidates_by_cut: dict[str, list[dict[str, Any]]], c
             seen.add(scene_id)
             found.append(payload)
     return found
+
+
+def catalog_history_payloads(catalog: dict[str, Any] | None, history: dict[str, Any] | None) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    files = catalog.get("files") if isinstance(catalog, dict) else None
+    if isinstance(files, dict):
+        for entry in files.values():
+            if not isinstance(entry, dict):
+                continue
+            for scene in entry.get("scenes") or []:
+                if not isinstance(scene, dict):
+                    continue
+                payload = compact_scene_from_candidate(
+                    {
+                        "from_visual_catalog": True,
+                        "catalog_scene": scene,
+                        "source": scene.get("source") or entry.get("source"),
+                        "source_in": scene.get("source_in"),
+                        "source_out": scene.get("source_out"),
+                    }
+                )
+                if payload is not None:
+                    found.append(payload)
+    shots = history.get("shots") if isinstance(history, dict) else None
+    if isinstance(shots, list):
+        for shot in shots:
+            if not isinstance(shot, dict):
+                continue
+            payload = compact_scene_from_candidate(
+                {
+                    "from_approved_history": True,
+                    "source": shot.get("source"),
+                    "source_in": shot.get("in_sec", shot.get("source_in")),
+                    "source_out": shot.get("out_sec", shot.get("source_out")),
+                    "history_situation": shot.get("situation") or shot.get("history_situation"),
+                    "situation": shot.get("situation") or shot.get("history_situation"),
+                    "objects": shot.get("semantic_tags") or shot.get("objects"),
+                    "visible_features": shot.get("semantic_tags") or shot.get("visible_features"),
+                    "actions": shot.get("actions"),
+                }
+            )
+            if payload is not None:
+                found.append(payload)
+    return merge_scene_payloads(found)
 
 
 def build_semantic_prompt(cuts: list[dict[str, Any]], scenes: list[dict[str, Any]]) -> str:
@@ -194,13 +292,14 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
     stripped = (text or "").strip()
     if not stripped:
         return None
+    found: list[dict[str, Any]] = []
     try:
         data = json.loads(stripped)
-        return data if isinstance(data, dict) else None
+        if isinstance(data, dict):
+            found.append(data)
     except json.JSONDecodeError:
         pass
     decoder = json.JSONDecoder()
-    last: dict[str, Any] | None = None
     for index, char in enumerate(stripped):
         if char != "{":
             continue
@@ -208,12 +307,103 @@ def _extract_json_object(text: str) -> dict[str, Any] | None:
             data, _end = decoder.raw_decode(stripped[index:])
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict):
-            last = data
-    return last
+        if isinstance(data, dict) and data not in found:
+            found.append(data)
+    if not found:
+        return None
+
+    def score(data: dict[str, Any]) -> int:
+        nested = data.get("matches")
+        if isinstance(nested, dict):
+            return 100 + len(nested)
+        cuts = [
+            key
+            for key in data
+            if str(key).startswith("c") and str(key)[1:].isdigit() and isinstance(data.get(key), dict)
+        ]
+        if cuts:
+            return 50 + len(cuts)
+        return len(data)
+
+    return max(found, key=score)
 
 
-def parse_semantic_matches(text: str, *, allowed_scene_ids: set[str] | None = None) -> dict[str, dict[str, Any]]:
+def _scene_indexes(scenes: list[dict[str, Any]] | None) -> tuple[dict[str, dict[str, Any]], dict[tuple[str, float, float], dict[str, Any]]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    by_range: dict[tuple[str, float, float], dict[str, Any]] = {}
+    for scene in scenes or []:
+        if not isinstance(scene, dict):
+            continue
+        scene_id = str(scene.get("scene_id") or "").strip()
+        if scene_id:
+            by_id[scene_id] = scene
+        key = _range_key(scene.get("source"), scene.get("source_in"), scene.get("source_out"))
+        if key is not None:
+            by_range[key] = scene
+    return by_id, by_range
+
+
+def resolve_semantic_match(
+    value: dict[str, Any],
+    *,
+    allowed_scene_ids: set[str] | None = None,
+    scenes: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    by_id, by_range = _scene_indexes(scenes)
+    scene_id = str(value.get("scene_id") or "").strip()
+    source = str(value.get("source") or "").strip()
+    start = _number(value.get("source_in"), allow_zero=True)
+    end = _number(value.get("source_out"))
+    scene = by_id.get(scene_id) if scene_id else None
+    if scene is None:
+        key = _range_key(source, start, end)
+        if key is not None:
+            scene = by_range.get(key)
+    if scene is None and scene_id:
+        for stored_id, stored in by_id.items():
+            if stored_id.endswith(scene_id) or Path(scene_id).name == Path(stored_id).name:
+                scene = stored
+                break
+        if scene is None:
+            name = _source_name(scene_id.split("|", 1)[0] or source)
+            for stored in by_id.values():
+                if _source_name(stored.get("source")) != name:
+                    continue
+                key = _range_key(stored.get("source"), stored.get("source_in"), stored.get("source_out"))
+                got = _range_key(stored.get("source"), start, end)
+                if key is not None and key == got:
+                    scene = stored
+                    break
+    if scene is not None:
+        scene_id = str(scene.get("scene_id") or scene_id)
+        source = str(scene.get("source") or source)
+        start = _number(scene.get("source_in"), allow_zero=True)
+        end = _number(scene.get("source_out"))
+    elif not scene_id:
+        scene_id = make_scene_id(source, start, end)
+    allowed = allowed_scene_ids
+    if allowed is None and scenes:
+        allowed = {str(item.get("scene_id") or "") for item in scenes if item.get("scene_id")}
+    if allowed is not None and scene_id not in allowed:
+        return None
+    if start is None or end is None or end <= start:
+        return None
+    return {
+        "scene_id": scene_id,
+        "source": source,
+        "source_in": start,
+        "source_out": end,
+        "reason": str(value.get("reason") or "").strip(),
+        "duration": (end - start),
+    }
+
+
+def parse_semantic_matches(
+    text: str,
+    *,
+    allowed_scene_ids: set[str] | None = None,
+    scenes: list[dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
     parsed = _extract_json_object(text)
     if not isinstance(parsed, dict):
         return {}
@@ -225,23 +415,10 @@ def parse_semantic_matches(text: str, *, allowed_scene_ids: set[str] | None = No
             continue
         if not isinstance(value, dict):
             continue
-        scene_id = str(value.get("scene_id") or "").strip()
-        source = str(value.get("source") or "").strip()
-        start = _number(value.get("source_in"), allow_zero=True)
-        end = _number(value.get("source_out"))
-        if not scene_id:
-            scene_id = make_scene_id(source, start, end)
-        if allowed_scene_ids is not None and scene_id not in allowed_scene_ids:
+        resolved = resolve_semantic_match(value, allowed_scene_ids=allowed_scene_ids, scenes=scenes)
+        if resolved is None:
             continue
-        if start is None or end is None or end <= start:
-            continue
-        matches[cut_id] = {
-            "scene_id": scene_id,
-            "source": source,
-            "source_in": start,
-            "source_out": end,
-            "reason": str(value.get("reason") or "").strip(),
-        }
+        matches[cut_id] = resolved
     return matches
 
 
@@ -249,7 +426,14 @@ def persist_matches(project_root: Path, case_id: str, matches: dict[str, dict[st
     dest = case_root(project_root, case_id) / MATCH_FILENAME
     dest.parent.mkdir(parents=True, exist_ok=True)
     payload: dict[str, Any] = {"schema": SCHEMA, "gemini_calls": int(gemini_calls)}
-    payload.update(matches)
+    for cut_id, match in matches.items():
+        payload[cut_id] = {
+            "scene_id": match.get("scene_id"),
+            "source": match.get("source"),
+            "source_in": match.get("source_in"),
+            "source_out": match.get("source_out"),
+            "reason": match.get("reason") or "",
+        }
     atomic_write(dest, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
     return dest
 
@@ -267,28 +451,112 @@ def load_matches(project_root: Path, case_id: str) -> dict[str, dict[str, Any]]:
     return parse_semantic_matches(json.dumps(data, ensure_ascii=False))
 
 
+def candidate_from_match(match: dict[str, Any], scene: dict[str, Any] | None = None) -> dict[str, Any]:
+    source = str((scene or {}).get("source") or match.get("source") or "")
+    start = _number((scene or {}).get("source_in"), allow_zero=True)
+    if start is None:
+        start = _number(match.get("source_in"), allow_zero=True)
+    end = _number((scene or {}).get("source_out"))
+    if end is None:
+        end = _number(match.get("source_out"))
+    duration = None
+    if start is not None and end is not None and end > start:
+        duration = end - start
+    catalog_scene = None
+    if scene:
+        catalog_scene = {
+            "source": source,
+            "source_in": start,
+            "source_out": end,
+            "duration": duration,
+            "factual_description": scene.get("factual_description") or "",
+            "actions": list(scene.get("actions") or []),
+            "objects": list(scene.get("objects") or []),
+            "visible_features": list(scene.get("visible_features") or []),
+            "product_state": scene.get("product_state") or "",
+        }
+    candidate = {
+        "from_semantic_fallback": True,
+        "from_visual_catalog": catalog_scene is not None,
+        "visual_match": True,
+        "semantic_valid": True,
+        "visual_match_score": 1,
+        "search_aid": False,
+        "supported_line": None,
+        "source": source,
+        "material_id": source,
+        "source_in": start,
+        "source_out": end,
+        "in_sec": start,
+        "out_sec": end,
+        "available_duration": duration,
+        "scene_id": str(match.get("scene_id") or make_scene_id(source, start, end)),
+        "semantic_fallback_reason": str(match.get("reason") or ""),
+        "situation": str((scene or {}).get("factual_description") or (scene or {}).get("history_situation") or ""),
+        "history_situation": str((scene or {}).get("history_situation") or ""),
+        "catalog_scene": catalog_scene,
+        "visual": {
+            "framing": "",
+            "camera_distance": "",
+            "location": "",
+            "subject": " ".join(_strings((scene or {}).get("objects"))),
+            "action": " ".join(_strings((scene or {}).get("actions"))),
+            "interaction": "",
+            "movement": "",
+            "camera_angle": "",
+        },
+    }
+    if (scene or {}).get("from_approved_history") is True or (scene or {}).get("history_situation"):
+        candidate["from_approved_history"] = True
+    return candidate
+
+
+def _same_scene(candidate: dict[str, Any], match: dict[str, Any]) -> bool:
+    scene_id = str(match.get("scene_id") or "")
+    if scene_id and scene_id_of(candidate) == scene_id:
+        return True
+    key = _range_key(match.get("source"), match.get("source_in"), match.get("source_out"))
+    cand_key = _range_key(
+        candidate.get("source") or candidate.get("material_id"),
+        candidate.get("source_in", candidate.get("in_sec")),
+        candidate.get("source_out", candidate.get("out_sec")),
+    )
+    return key is not None and key == cand_key
+
+
 def apply_semantic_matches(
     candidates_by_cut: dict[str, list[dict[str, Any]]],
     matches: dict[str, dict[str, Any]],
+    *,
+    scenes: list[dict[str, Any]] | None = None,
+    targets: dict[str, float] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
+    by_id, _by_range = _scene_indexes(scenes)
     for cut_id, match in matches.items():
-        scene_id = str(match.get("scene_id") or "")
-        source = str(match.get("source") or "")
-        start = _number(match.get("source_in"), allow_zero=True)
-        end = _number(match.get("source_out"))
-        for candidate in candidates_by_cut.get(cut_id) or []:
-            if scene_id_of(candidate) != scene_id:
-                cand_source = str(candidate.get("source") or candidate.get("material_id") or "")
-                cand_start = _number(candidate.get("source_in", candidate.get("in_sec")), allow_zero=True)
-                cand_end = _number(candidate.get("source_out", candidate.get("out_sec")))
-                if not (source and cand_source.endswith(Path(source).name) and cand_start == start and cand_end == end):
-                    continue
+        duration = _number(match.get("duration"))
+        if duration is None:
+            start = _number(match.get("source_in"), allow_zero=True)
+            end = _number(match.get("source_out"))
+            if start is not None and end is not None and end > start:
+                duration = end - start
+        target = (targets or {}).get(cut_id)
+        if target is not None and (duration is None or duration + 1e-9 < float(target)):
+            continue
+        marked = False
+        pool = candidates_by_cut.setdefault(cut_id, [])
+        for candidate in pool:
+            if not _same_scene(candidate, match):
+                continue
             candidate["from_semantic_fallback"] = True
             candidate["visual_match"] = True
             candidate["semantic_valid"] = True
             candidate["visual_match_score"] = max(int(candidate.get("visual_match_score") or 0), 1)
             candidate["semantic_fallback_reason"] = str(match.get("reason") or "")
-            candidate["scene_id"] = scene_id or scene_id_of(candidate)
+            candidate["scene_id"] = str(match.get("scene_id") or scene_id_of(candidate))
+            marked = True
+        if not marked:
+            scene = by_id.get(str(match.get("scene_id") or ""))
+            pool.append(candidate_from_match(match, scene))
     return candidates_by_cut
 
 
@@ -323,6 +591,16 @@ def run_semantic_fallback(
 ) -> dict[str, Any]:
     if not cuts or not scenes:
         return {"status": "OK", "matches": {}, "gemini_calls": 0, "skipped": True}
+    targets = [_number(cut.get("target_duration_seconds")) for cut in cuts]
+    min_target = min((item for item in targets if item is not None), default=None)
+    if min_target is not None:
+        scenes = [
+            scene
+            for scene in scenes
+            if (_number(scene.get("duration")) or 0) + 1e-9 >= min_target
+        ]
+    if not scenes:
+        return {"status": "OK", "matches": {}, "gemini_calls": 0, "skipped": True}
     prompt = build_semantic_prompt(cuts, scenes)
     if send_fn is None:
         if project_root is None:
@@ -333,7 +611,7 @@ def run_semantic_fallback(
     if isinstance(result, dict) and result.get("status") == "HOLD":
         return result
     allowed = {str(scene.get("scene_id") or "") for scene in scenes if scene.get("scene_id")}
-    matches = parse_semantic_matches(_response_text(result), allowed_scene_ids=allowed)
+    matches = parse_semantic_matches(_response_text(result), allowed_scene_ids=allowed, scenes=scenes)
     return {"status": "OK", "matches": matches, "gemini_calls": 1, "prompt": prompt}
 
 

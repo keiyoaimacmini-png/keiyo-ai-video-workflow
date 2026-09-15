@@ -71,7 +71,7 @@ from narration import gate_tts_generate, narration_speed, prepare_tts_input, rec
 from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
 from rough_edit import build_rough_edit, execute_from_edit_plan, prove_placed_narration_clip  # noqa: E402
 from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
-from semantic_material_match import make_scene_id  # noqa: E402
+from semantic_material_match import collect_scene_payloads, make_scene_id, parse_semantic_matches  # noqa: E402
 from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
 from tts_session import may_reuse_session, prove_session_setup, record_session_setup  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
@@ -2022,6 +2022,56 @@ def test_semantic_fallback_matcher(root: Path) -> None:
     check("semantic-f-one-batch-call", len(calls_f) == 1)
     if calls_f:
         check("semantic-f-prompt-has-three-cuts", all(token in calls_f[0] for token in ("c1", "c7", "c9")))
+
+    folder_only = {
+        "semantic_valid": False,
+        "search_aid": False,
+        "source": ".runtime/product-video-inputs/AN-S182_コピー/車内暑い/IMG_0001.MOV",
+        "objects": ["車内暑い"],
+        "scenario_tags": ["車内暑い"],
+        "source_duration_seconds": 12.0,
+        "available_duration": 12.0,
+    }
+    payloads = collect_scene_payloads({"c1": [folder_only, hot]}, ["c1"])
+    check("semantic-skips-folder-only", payloads and all("IMG_3948.mov" in str(item.get("source")) for item in payloads))
+    check("semantic-keeps-catalog-text", any("熱っ" in str(item.get("factual_description")) for item in payloads))
+    if calls_a:
+        check("semantic-prompt-skips-folder-clip", "IMG_0001.MOV" not in calls_a[0])
+
+    calls_g: list[str] = []
+
+    def send_g(prompt: str) -> str:
+        calls_g.append(prompt)
+        return (
+            "```json\n"
+            + json.dumps(
+                {
+                    "c1": {
+                        "scene_id": "IMG_3948.mov|3.500|7.000",
+                        "source": "IMG_3948.mov",
+                        "source_in": "3.5",
+                        "source_out": "7.0",
+                        "reason": "高温の車内を熱いハンドルへの反応で表現",
+                    }
+                },
+                ensure_ascii=False,
+            )
+            + "\n```"
+        )
+
+    plan_g = assemble_plan(
+        script_for("c1", sauna_line, sauna_sit),
+        manifest_for("c1", sauna_line),
+        {"c1": [hot]},
+        semantic_match_fn=send_g,
+    )
+    check("semantic-g-string-numbers", plan_g.get("status") == "OK", str(plan_g.get("hold")))
+    check("semantic-g-picks-hot-handle", "IMG_3948.mov" in str((plan_g.get("cuts") or [{}])[0].get("source")))
+    parsed_g = parse_semantic_matches(
+        send_g("unused"),
+        scenes=collect_scene_payloads({"c1": [hot]}, ["c1"]),
+    )
+    check("semantic-g-resolves-basename", parsed_g.get("c1", {}).get("scene_id") == hot_id)
 
 
 def test_caption_wrap() -> None:

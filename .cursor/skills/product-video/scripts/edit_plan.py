@@ -214,6 +214,7 @@ def assemble_and_plan(
         narration_manifest,
         candidates,
         history=history,
+        catalog=catalog,
         project_root=root,
         case_id=case_id,
     )

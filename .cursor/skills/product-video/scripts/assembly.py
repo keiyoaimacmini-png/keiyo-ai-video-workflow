@@ -15,7 +15,14 @@ from constants import MAJOR_VISUAL_KEYS
 from paths import case_root
 from prove_tts_speed import clip_target_duration
 from script_fidelity import assert_immutable
-from semantic_material_match import apply_semantic_matches, collect_scene_payloads, persist_matches, run_semantic_fallback
+from semantic_material_match import (
+    apply_semantic_matches,
+    catalog_history_payloads,
+    collect_scene_payloads,
+    merge_scene_payloads,
+    persist_matches,
+    run_semantic_fallback,
+)
 from visual_catalog import scene_match_score
 from workflow_state import hold
 
@@ -561,6 +568,7 @@ def assemble_plan(
     semantic_match_fn: Any = None,
     project_root: Path | None = None,
     case_id: str | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     clips = {clip["cut_id"]: clip for clip in narration_manifest.get("clips") or []}
     prepared: dict[str, list[dict[str, Any]]] = {}
@@ -601,7 +609,10 @@ def assemble_plan(
             )
 
     if unresolved and (semantic_match_fn is not None or project_root is not None):
-        scenes = collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved])
+        scenes = merge_scene_payloads(
+            collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved]),
+            catalog_history_payloads(catalog, history),
+        )
         fallback = run_semantic_fallback(
             unresolved,
             scenes,
@@ -611,7 +622,7 @@ def assemble_plan(
         if fallback.get("status") == "HOLD":
             return fallback
         matches = fallback.get("matches") if isinstance(fallback.get("matches"), dict) else {}
-        apply_semantic_matches(prepared, matches)
+        apply_semantic_matches(prepared, matches, scenes=scenes, targets=durations)
         if project_root is not None and case_id and int(fallback.get("gemini_calls") or 0) > 0:
             persist_matches(project_root, case_id, matches, gemini_calls=int(fallback.get("gemini_calls") or 0))
 
