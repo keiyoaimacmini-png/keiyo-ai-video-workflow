@@ -16,7 +16,15 @@ SCRIPTS = Path(__file__).resolve().parent
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(SCRIPTS))
 
-from assembly import apply_minimal_range_padding, as_full_clip, assemble_plan, duration_passes, select_cut  # noqa: E402
+from assembly import (  # noqa: E402
+    adjacent_visual_diff,
+    apply_minimal_range_padding,
+    as_full_clip,
+    assemble_plan,
+    duration_passes,
+    looks_similar,
+    select_cut,
+)
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
 from edit_plan import build_edit_plan, chatcut_execution_steps  # noqa: E402
@@ -830,6 +838,411 @@ def test_assembly_and_variety() -> None:
         {"c1": [c1]},
     )
     check("assembly-rejects-source-as-cut-duration", source_as_cut.get("status") == "HOLD")
+
+
+def test_adjacent_visual_variety() -> None:
+    line = "設置したサンシェードで車内が涼しくなる"
+    sit = "設置済みサンシェードの車内"
+    cabin_installed = {
+        "framing": "正面",
+        "camera_distance": "正面",
+        "location": "車内",
+        "subject": "設置済みサンシェード",
+        "action": "設置済み",
+        "product_state": "設置済み",
+        "objects": ["サンシェード", "ミラー"],
+    }
+    prev = {
+        "source": "A.mov",
+        "classification_folder": "車内涼しい",
+        "visual": {key: cabin_installed[key] for key in ("framing", "camera_distance", "location", "subject", "action", "product_state")},
+        "catalog_scene": {
+            "objects": cabin_installed["objects"],
+            "actions": ["設置済み"],
+            "location": "車内",
+            "product_state": "設置済み",
+            "framing": "正面",
+        },
+    }
+    same_look = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 4,
+        "supported_line": line,
+        "source": "B.mov",
+        "material_id": "same-look-b",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "車内涼しい",
+        "visual": dict(prev["visual"]),
+        "catalog_scene": dict(prev["catalog_scene"]),
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    different_look = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 2,
+        "supported_line": line,
+        "source": "C.mov",
+        "material_id": "different-look",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "車内涼しい",
+        "visual": {
+            "framing": "寄り",
+            "camera_distance": "close",
+            "location": "車内",
+            "subject": "ハンドル",
+            "action": "日陰",
+            "product_state": "設置済み",
+        },
+        "catalog_scene": {
+            "objects": ["ハンドル"],
+            "actions": ["日陰"],
+            "location": "車内",
+            "product_state": "設置済み",
+            "framing": "close",
+        },
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    wrong_meaning = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "supported_line": line,
+        "source": "D.mov",
+        "material_id": "wrong-pack",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "コンパクト収納",
+        "visual": visual("hands", "close", "dash"),
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    check("variety-b-other-source-still-similar", looks_similar(prev, same_look) is True)
+    check("variety-b-close-handle-not-similar", looks_similar(prev, different_look) is False)
+    check("variety-b-diff-score-higher", adjacent_visual_diff(different_look, prev) > adjacent_visual_diff(same_look, prev))
+    chosen = select_cut(
+        [same_look, different_look],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=2.5,
+        previous=prev,
+    )
+    check("variety-a-prefers-visual-diff-over-catalog-score", chosen.get("selection", {}).get("material_id") == "different-look")
+    unsafe = select_cut(
+        [same_look, wrong_meaning],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=2.5,
+        previous=prev,
+    )
+    check("variety-c-never-wrong-meaning", unsafe.get("selection", {}).get("material_id") == "same-look-b")
+    only = select_cut(
+        [same_look],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=2.5,
+        previous=prev,
+    )
+    check("variety-d-one-candidate-ok", only.get("status") == "OK" and only.get("selection", {}).get("material_id") == "same-look-b")
+    empty_prev = {
+        "source": "IMG_3996.MOV",
+        "classification_folder": "車内涼しい",
+        "visual": {},
+        "search_aid": True,
+    }
+    empty_other = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "supported_line": line,
+        "source": "IMG_3997.MOV",
+        "material_id": "empty-other",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "車内涼しい",
+        "visual": {},
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    check("variety-b-empty-same-folder-similar", looks_similar(empty_prev, empty_other) is True)
+    tagged_same_folder = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "from_visual_catalog": True,
+        "visual_match": False,
+        "supported_line": line,
+        "source": "IMG_3954.MOV",
+        "material_id": "tagged-cool",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "車内涼しい",
+        "visual": {
+            "framing": "",
+            "camera_distance": "",
+            "location": "",
+            "subject": "車内涼しい 車内が陰になって快適に過ごせている様子",
+            "action": "車内が陰になって快適に過ごせている様子",
+        },
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    check("variety-b-tag-soup-same-folder-similar", looks_similar(empty_prev, tagged_same_folder) is True)
+    tagged_plan = assemble_plan(
+        {
+            "cuts": [
+                {"cut_id": "c1", "line": line, "situation": sit},
+                {"cut_id": "c2", "line": line, "situation": sit},
+            ]
+        },
+        {
+            "clips": [
+                {
+                    "cut_id": "c1",
+                    "line": line,
+                    "audio_path": "a.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+                {
+                    "cut_id": "c2",
+                    "line": line,
+                    "audio_path": "b.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+            ]
+        },
+        {"c1": [tagged_same_folder], "c2": [tagged_same_folder, empty_other]},
+    )
+    check(
+        "variety-b-empty-folder-uses-unused-source",
+        tagged_plan.get("status") == "OK" and (tagged_plan.get("cuts") or [{}, {}])[1].get("material_id") == "empty-other",
+        str([(cut.get("material_id"), cut.get("source")) for cut in tagged_plan.get("cuts") or []]),
+    )
+    wide_prev2 = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 3,
+        "source": "wide-a.mov",
+        "material_id": "wide-install-a",
+        "visual": {
+            "framing": "wide",
+            "camera_distance": "wide",
+            "location": "parking_exterior",
+            "subject": "サンシェード",
+            "action": "設置",
+            "product_state": "展開",
+        },
+        "catalog_scene": {
+            "objects": ["サンシェード"],
+            "actions": ["設置"],
+            "location": "parking_exterior",
+            "product_state": "展開",
+            "framing": "wide",
+        },
+    }
+    wide_prev = {
+        "source": "wide-mid.mov",
+        "visual": {
+            "framing": "wide",
+            "camera_distance": "wide",
+            "location": "windshield_interior",
+            "subject": "サンシェード",
+            "action": "フィット",
+            "product_state": "設置済み",
+        },
+        "catalog_scene": {
+            "objects": ["サンシェード"],
+            "actions": ["フィット"],
+            "location": "windshield_interior",
+            "product_state": "設置済み",
+            "framing": "wide",
+        },
+    }
+    wide_again = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 3,
+        "supported_line": "傘のように開いて置くだけ",
+        "source": "wide-b.mov",
+        "material_id": "wide-install-b",
+        "source_duration_seconds": 10.0,
+        "visual": dict(wide_prev2["visual"]),
+        "catalog_scene": dict(wide_prev2["catalog_scene"]),
+        "source_in": 0.0,
+        "source_out": 4.0,
+    }
+    close_vcut = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 3,
+        "supported_line": "傘のように開いて置くだけ",
+        "source": "close-v.mov",
+        "material_id": "close-vcut",
+        "source_duration_seconds": 10.0,
+        "visual": {
+            "framing": "close",
+            "camera_distance": "close",
+            "location": "windshield_interior",
+            "subject": "ルームミラー",
+            "action": "フィット",
+            "product_state": "設置済み",
+        },
+        "catalog_scene": {
+            "objects": ["ルームミラー"],
+            "actions": ["フィット"],
+            "location": "windshield_interior",
+            "product_state": "設置済み",
+            "framing": "close",
+        },
+        "source_in": 0.0,
+        "source_out": 4.0,
+    }
+    third = select_cut(
+        [wide_again, close_vcut],
+        line="傘のように開いて置くだけ",
+        intended_scenario="運転席から傘のように開く",
+        duration_seconds=2.5,
+        previous=wide_prev,
+        previous_2=wide_prev2,
+    )
+    check("variety-e-avoids-prev2-same-axes", third.get("selection", {}).get("material_id") == "close-vcut")
+    used_cabin = dict(same_look)
+    used_cabin["source"] = "A.mov"
+    used_cabin["material_id"] = "cabin-a"
+    unused_similar = dict(same_look)
+    unused_similar["source"] = "B.mov"
+    unused_similar["material_id"] = "cabin-b"
+    used_different = dict(different_look)
+    used_different["source"] = "A.mov"
+    used_different["material_id"] = "cabin-a-close"
+    used_different["source_in"] = 6.0
+    used_different["source_out"] = 10.0
+    usage_plan = assemble_plan(
+        {
+            "cuts": [
+                {"cut_id": "c1", "line": line, "situation": sit},
+                {"cut_id": "c2", "line": line, "situation": sit},
+            ]
+        },
+        {
+            "clips": [
+                {
+                    "cut_id": "c1",
+                    "line": line,
+                    "audio_path": "a.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+                {
+                    "cut_id": "c2",
+                    "line": line,
+                    "audio_path": "b.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+            ]
+        },
+        {
+            "c1": [used_cabin],
+            "c2": [unused_similar, used_different],
+        },
+    )
+    check("variety-source-spread-does-not-beat-look", usage_plan.get("status") == "OK", str(usage_plan.get("hold")))
+    check(
+        "variety-c2-keeps-different-look",
+        (usage_plan.get("cuts") or [{}, {}])[1].get("material_id") == "cabin-a-close",
+        str([(cut.get("cut_id"), cut.get("material_id"), cut.get("source")) for cut in usage_plan.get("cuts") or []]),
+    )
+    equal_a = dict(different_look)
+    equal_a["source"] = "E.mov"
+    equal_a["material_id"] = "equal-a"
+    equal_b = dict(different_look)
+    equal_b["source"] = "F.mov"
+    equal_b["material_id"] = "equal-b"
+    spread = assemble_plan(
+        {
+            "cuts": [
+                {"cut_id": "c1", "line": line, "situation": sit},
+                {"cut_id": "c2", "line": line, "situation": sit},
+            ]
+        },
+        {
+            "clips": [
+                {
+                    "cut_id": "c1",
+                    "line": line,
+                    "audio_path": "a.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+                {
+                    "cut_id": "c2",
+                    "line": line,
+                    "audio_path": "b.mp3",
+                    "source_duration_seconds": 3.0,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 2.5,
+                    "source_already_accelerated": False,
+                },
+            ]
+        },
+        {"c1": [equal_a], "c2": [equal_a, equal_b]},
+    )
+    check("variety-f-spread-when-look-equal", spread.get("status") == "OK" and (spread.get("cuts") or [{}, {}])[1].get("material_id") == "equal-b")
+    unmatched_catalog = {
+        "semantic_valid": False,
+        "from_visual_catalog": True,
+        "visual_match": False,
+        "visual_match_score": 0,
+        "search_aid": True,
+        "supported_line": "下からチェック！",
+        "source": "pouch-unmatched.mov",
+        "material_id": "unmatched-pouch",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "コンパクト収納",
+        "visual": visual("hands", "close", "dash"),
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    matched_cta = {
+        "semantic_valid": True,
+        "from_visual_catalog": True,
+        "visual_match": True,
+        "visual_match_score": 1,
+        "supported_line": "下からチェック！",
+        "source": "cta.mov",
+        "material_id": "matched-cta",
+        "source_duration_seconds": 10.0,
+        "classification_folder": "ラストカット",
+        "visual": visual("person", "wide", "park"),
+        "source_in": 0.0,
+        "source_out": 5.0,
+    }
+    meaning_first = select_cut(
+        [unmatched_catalog, matched_cta],
+        line="下からチェック！",
+        intended_scenario="収納ポーチを下から指差す",
+        duration_seconds=1.2,
+        previous={
+            "source": "pouch.mov",
+            "classification_folder": "コンパクト収納",
+            "visual": visual("hands", "close", "dash"),
+        },
+    )
+    check("variety-c-catalog-unmatched-not-same-tier", meaning_first.get("selection", {}).get("material_id") == "matched-cta")
 
 
 def test_assembly_duration_gate() -> None:
@@ -3396,6 +3809,7 @@ def main() -> int:
     test_prompt_template()
     test_script_grounding()
     test_assembly_and_variety()
+    test_adjacent_visual_variety()
     test_assembly_duration_gate()
     test_telop_and_rough()
     test_caption_wrap()

@@ -34,10 +34,155 @@ FILE_DURATION_KEYS = (
     "duration_sec",
     "file_duration_seconds",
 )
+ADJACENT_COMPARE_AXES = (
+    "framing",
+    "location",
+    "subject",
+    "action",
+    "product_state",
+)
+CONTINUITY_AXES = ("framing", "subject", "action", "location")
+
+
+def _join_norm(value: object) -> str:
+    if value is None or isinstance(value, bool):
+        return ""
+    if isinstance(value, (list, tuple, set)):
+        parts = [_join_norm(item) for item in value]
+        return " ".join(part for part in parts if part)
+    if isinstance(value, dict):
+        return ""
+    text = str(value).strip().lower()
+    return " ".join(text.split())
+
+
+def visual_profile(item: dict[str, Any] | None) -> dict[str, str]:
+    item = item if isinstance(item, dict) else {}
+    visual = item.get("visual") if isinstance(item.get("visual"), dict) else {}
+    scene = item.get("catalog_scene") if isinstance(item.get("catalog_scene"), dict) else {}
+    framing = _join_norm(
+        visual.get("framing") or visual.get("camera_distance") or scene.get("framing")
+    )
+    camera = _join_norm(
+        visual.get("camera_distance") or visual.get("framing") or scene.get("framing")
+    )
+    location = _join_norm(
+        visual.get("location") or scene.get("location") or item.get("classification_folder")
+    )
+    objects = _join_norm(scene.get("objects") or visual.get("objects"))
+    subject = _join_norm(visual.get("subject") or objects)
+    action = _join_norm(visual.get("action") or scene.get("actions"))
+    product_state = _join_norm(visual.get("product_state") or scene.get("product_state"))
+    return {
+        "framing": framing or camera,
+        "camera_distance": camera or framing,
+        "location": location,
+        "subject": subject,
+        "objects": objects or subject,
+        "action": action,
+        "product_state": product_state,
+    }
+
+
+def _compare_axes(item: dict[str, Any] | None) -> dict[str, str]:
+    profile = visual_profile(item)
+    return {
+        "framing": profile.get("framing") or profile.get("camera_distance") or "",
+        "location": profile.get("location") or "",
+        "subject": profile.get("subject") or profile.get("objects") or "",
+        "action": profile.get("action") or "",
+        "product_state": profile.get("product_state") or "",
+    }
+
+
+def _has_shot_geometry(profile: dict[str, str]) -> bool:
+    return bool(profile.get("framing") or profile.get("camera_distance"))
+
+
+def _folder_location(item: dict[str, Any] | None, profile: dict[str, str]) -> str:
+    return profile.get("location") or _join_norm((item or {}).get("classification_folder"))
 
 
 def visual_diff_score(left: dict[str, Any], right: dict[str, Any]) -> int:
     return sum(1 for key in MAJOR_VISUAL_KEYS if left.get(key) != right.get(key))
+
+
+def adjacent_visual_diff(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> int:
+    lp = visual_profile(left)
+    rp = visual_profile(right)
+    if not _has_shot_geometry(lp) and not _has_shot_geometry(rp):
+        left_loc = _folder_location(left, lp)
+        right_loc = _folder_location(right, rp)
+        if left_loc and left_loc == right_loc:
+            return 0
+        return 1 if left_loc or right_loc else 0
+    axes_l = _compare_axes(left)
+    axes_r = _compare_axes(right)
+    return sum(1 for key in ADJACENT_COMPARE_AXES if axes_l.get(key) != axes_r.get(key))
+
+
+def looks_similar(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    lp = visual_profile(left)
+    rp = visual_profile(right)
+    if not _has_shot_geometry(lp) and not _has_shot_geometry(rp):
+        left_loc = _folder_location(left, lp)
+        return bool(left_loc) and left_loc == _folder_location(right, rp)
+    axes_l = _compare_axes(left)
+    axes_r = _compare_axes(right)
+    filled_both = [key for key in ADJACENT_COMPARE_AXES if axes_l.get(key) and axes_r.get(key)]
+    if not filled_both:
+        folder = _join_norm(left.get("classification_folder"))
+        return bool(folder) and folder == _join_norm(right.get("classification_folder"))
+    matched = sum(1 for key in filled_both if axes_l.get(key) == axes_r.get(key))
+    diffs = sum(1 for key in ADJACENT_COMPARE_AXES if (axes_l.get(key) or "") != (axes_r.get(key) or ""))
+    if matched == len(filled_both) and diffs <= 1:
+        return True
+    return diffs == 0
+
+
+def repeats_shot_axes(
+    candidate: dict[str, Any] | None,
+    previous: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(candidate, dict) or not isinstance(previous, dict):
+        return False
+    lp = visual_profile(candidate)
+    rp = visual_profile(previous)
+    if not _has_shot_geometry(lp) and not _has_shot_geometry(rp):
+        return looks_similar(candidate, previous)
+    axes_l = _compare_axes(candidate)
+    axes_r = _compare_axes(previous)
+    compared = [key for key in CONTINUITY_AXES if axes_l.get(key) and axes_r.get(key)]
+    if not compared:
+        return looks_similar(candidate, previous)
+    return all(axes_l.get(key) == axes_r.get(key) for key in compared)
+
+
+def continuity_overlap(
+    candidate: dict[str, Any] | None,
+    previous: dict[str, Any] | None,
+) -> int:
+    if not isinstance(candidate, dict) or not isinstance(previous, dict):
+        return 0
+    lp = visual_profile(candidate)
+    rp = visual_profile(previous)
+    if not _has_shot_geometry(lp) and not _has_shot_geometry(rp):
+        return 1 if looks_similar(candidate, previous) else 0
+    axes_l = _compare_axes(candidate)
+    axes_r = _compare_axes(previous)
+    return sum(
+        1
+        for key in CONTINUITY_AXES
+        if axes_l.get(key) and axes_r.get(key) and axes_l.get(key) == axes_r.get(key)
+    )
 
 
 def scenario_score(candidate: dict[str, Any], intended_scenario: str) -> int:
@@ -85,23 +230,6 @@ def source_id(item: dict[str, Any] | None) -> str:
         return ""
     value = item.get("source") or item.get("material_id") or item.get("path")
     return str(value) if value else ""
-
-
-def framing_id(item: dict[str, Any] | None) -> str:
-    visual = (item or {}).get("visual") if isinstance(item, dict) else {}
-    if not isinstance(visual, dict):
-        return ""
-    return str(visual.get("framing") or visual.get("camera_distance") or "")
-
-
-def same_source_and_angle(left: dict[str, Any] | None, right: dict[str, Any] | None) -> bool:
-    if not source_id(left) or source_id(left) != source_id(right):
-        return False
-    left_frame = framing_id(left)
-    right_frame = framing_id(right)
-    if left_frame and right_frame:
-        return left_frame == right_frame
-    return True
 
 
 def _number(value: object, *, allow_zero: bool = False) -> float | None:
@@ -382,6 +510,25 @@ def history_rank(candidate: dict[str, Any], line: str, intended_scenario: str) -
     return 1 if history_close_enough(candidate, line, intended_scenario) else 0
 
 
+def semantic_tier(candidate: dict[str, Any], line: str, intended_scenario: str) -> int:
+    if history_rank(candidate, line, intended_scenario) > 0:
+        return 4
+    if candidate.get("from_semantic_fallback") is True:
+        return 2
+    meaning = (
+        candidate.get("visual_match") is True
+        or int(candidate.get("visual_match_score") or 0) > 0
+        or candidate.get("semantic_valid") is True
+    )
+    if not meaning:
+        if candidate.get("search_aid") is True:
+            return 0
+        return -1
+    if candidate.get("from_visual_catalog") is True:
+        return 3
+    return 1
+
+
 def appropriate_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> bool:
     return (
         history_rank(candidate, line, intended_scenario) > 0
@@ -443,28 +590,33 @@ def rank_key(
     intended_scenario: str,
     previous: dict[str, Any] | None,
     usage: SelectionUsage | None,
+    previous_2: dict[str, Any] | None = None,
 ) -> tuple[int, ...]:
+    tier = semantic_tier(candidate, line, intended_scenario)
     history = history_rank(candidate, line, intended_scenario)
-    fallback = 1 if candidate.get("from_semantic_fallback") is True else 0
     visual = int(candidate.get("visual_match_score") or 0)
-    deterministic_visual = 0
-    if fallback == 0 and (visual > 0 or candidate.get("visual_match") is True):
-        deterministic_visual = 1
     facts = 1 if candidate.get("semantic_valid") is True else 0
     aid = 1 if candidate.get("search_aid") is True else 0
     used_range = 1 if usage is not None and usage.range_used(candidate) else 0
     used_source = usage.source_used(source_id(candidate)) if usage is not None else 0
-    variety = visual_diff_score(candidate.get("visual") or {}, (previous or {}).get("visual") or {})
-    same_prev = 1 if previous is not None and same_source_and_angle(candidate, previous) else 0
+    overlap1 = continuity_overlap(candidate, previous) if previous is not None else 0
+    similar1 = 1 if previous is not None and looks_similar(candidate, previous) else 0
+    diff1 = adjacent_visual_diff(candidate, previous) if previous is not None else 0
+    overlap2 = continuity_overlap(candidate, previous_2) if previous_2 is not None else 0
+    similar2 = 1 if previous_2 is not None and looks_similar(candidate, previous_2) else 0
+    diff2 = adjacent_visual_diff(candidate, previous_2) if previous_2 is not None else 0
     return (
+        tier,
+        -overlap1,
+        -similar1,
+        -overlap2,
+        -similar2,
+        diff1,
+        diff2,
         history,
-        deterministic_visual,
-        fallback,
         visual,
         -used_range,
         -used_source,
-        -same_prev,
-        variety,
         facts,
         aid,
     )
@@ -477,6 +629,7 @@ def pick_from_pool(
     line: str = "",
     intended_scenario: str = "",
     usage: SelectionUsage | None = None,
+    previous_2: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     ranked = sorted(
         pool,
@@ -485,22 +638,11 @@ def pick_from_pool(
             line=line,
             intended_scenario=intended_scenario,
             previous=previous,
+            previous_2=previous_2,
             usage=usage,
         ),
         reverse=True,
     )
-    if previous is not None:
-        varied = [item for item in ranked if not same_source_and_angle(item, previous)]
-        if varied:
-            best = rank_key(ranked[0], line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:4]
-            equal = [
-                item
-                for item in varied
-                if rank_key(item, line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:4]
-                >= best
-            ]
-            if equal:
-                ranked = equal + [item for item in ranked if item not in equal]
     return ranked[0]
 
 
@@ -562,17 +704,6 @@ def _filter_reuse(
     unused_range = [item for item in pool if not usage.range_used(item)]
     if unused_range:
         pool = unused_range
-    unused_source = [item for item in pool if usage.source_used(source_id(item)) == 0]
-    if unused_source:
-        appropriate_unused = [
-            item for item in unused_source if appropriate_match(item, line, intended_scenario)
-        ]
-        if appropriate_unused:
-            return appropriate_unused
-        if any(appropriate_match(item, line, intended_scenario) for item in pool):
-            appropriate = [item for item in pool if appropriate_match(item, line, intended_scenario)]
-            unused_appropriate_range = [item for item in appropriate if not usage.range_used(item)]
-            return unused_appropriate_range or appropriate
     return pool
 
 
@@ -583,6 +714,7 @@ def select_cut(
     intended_scenario: str,
     duration_seconds: float,
     previous: dict[str, Any] | None = None,
+    previous_2: dict[str, Any] | None = None,
     history: dict[str, Any] | None = None,
     file_durations: dict[str, float] | None = None,
     usage: SelectionUsage | None = None,
@@ -613,6 +745,7 @@ def select_cut(
                 line=line,
                 intended_scenario=intended_scenario,
                 usage=usage,
+                previous_2=previous_2,
             )
         ),
         duration_seconds,
@@ -722,6 +855,7 @@ def assemble_plan(
 
     cuts: list[dict[str, Any]] = []
     previous = None
+    previous_2 = None
     usage = SelectionUsage()
     for cut in approved_script.get("cuts") or []:
         duration = durations[cut["cut_id"]]
@@ -731,6 +865,7 @@ def assemble_plan(
             intended_scenario=cut["situation"],
             duration_seconds=duration,
             previous=previous,
+            previous_2=previous_2,
             history=history,
             file_durations=file_durations,
             usage=usage,
@@ -743,6 +878,7 @@ def assemble_plan(
         item["situation"] = cut["situation"]
         cuts.append(item)
         usage.note(item)
+        previous_2 = previous
         previous = item
     return {
         "status": "OK",
