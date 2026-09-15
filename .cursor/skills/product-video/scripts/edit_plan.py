@@ -33,13 +33,37 @@ def _seconds_to_frame(seconds: float, fps: int) -> int:
     return int(round(float(seconds) * fps))
 
 
+def cut_video_segments(cut: dict[str, Any]) -> list[dict[str, Any]]:
+    planned = cut.get("video_segments")
+    if isinstance(planned, list) and planned:
+        found = [item for item in planned if isinstance(item, dict) and item.get("source")]
+        if found:
+            return found
+    source = cut.get("video_source")
+    if not source:
+        return []
+    start = cut.get("source_in")
+    end = cut.get("source_out")
+    duration = cut.get("target_duration_seconds")
+    return [
+        {
+            "source": source,
+            "source_in": start,
+            "source_out": end,
+            "duration": duration,
+        }
+    ]
+
+
 def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
     cuts = [item for item in plan.get("cuts") or [] if isinstance(item, dict)]
+    fps = int(plan.get("fps") or FPS)
     files: list[str] = []
     seen: set[str] = set()
     for cut in cuts:
-        for key in ("narration_audio_path", "video_source"):
-            path = cut.get(key)
+        paths = [cut.get("narration_audio_path")]
+        paths.extend(seg.get("source") for seg in cut_video_segments(cut))
+        for path in paths:
             if isinstance(path, str) and path and path not in seen:
                 seen.add(path)
                 files.append(path)
@@ -64,16 +88,38 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                 "playbackRate": NARRATION_SPEED,
             }
         )
-        video_adds.append(
-            {
-                "cut_id": cut["cut_id"],
-                "type": "video",
-                "path": cut.get("video_source"),
-                "fromFrame": cut.get("timeline_start_frame"),
-                "durationInFrames": cut.get("duration_frames"),
-                "sourceStartFromInSeconds": cut.get("source_in"),
-            }
-        )
+        cursor = float(cut.get("timeline_start_seconds") or 0.0)
+        remaining = float(cut.get("target_duration_seconds") or 0.0)
+        if remaining <= 0 and cut.get("duration_frames"):
+            remaining = float(cut["duration_frames"]) / float(fps)
+        if cursor <= 0 and cut.get("timeline_start_frame"):
+            cursor = float(cut["timeline_start_frame"]) / float(fps)
+        for index, seg in enumerate(cut_video_segments(cut)):
+            span = float(seg.get("duration") or 0.0)
+            if span <= 0 and seg.get("source_in") is not None and seg.get("source_out") is not None:
+                span = float(seg["source_out"]) - float(seg["source_in"])
+            if span <= 0:
+                span = remaining
+            use = min(span, remaining) if remaining > 0 else span
+            if use <= 0:
+                continue
+            start_frame = _seconds_to_frame(cursor, fps)
+            end_frame = _seconds_to_frame(cursor + use, fps)
+            video_adds.append(
+                {
+                    "cut_id": cut["cut_id"],
+                    "segment_index": index,
+                    "type": "video",
+                    "path": seg.get("source"),
+                    "fromFrame": start_frame,
+                    "durationInFrames": max(1, end_frame - start_frame),
+                    "sourceStartFromInSeconds": seg.get("source_in"),
+                    "timeline_start_seconds": cursor,
+                    "duration": use,
+                }
+            )
+            cursor += use
+            remaining -= use
         captions.append(
             {
                 "cut_id": cut["cut_id"],
@@ -134,6 +180,46 @@ def build_edit_plan(
         duration = float(target["target_duration_seconds"])
         start = cursor
         end = start + duration
+        segments = []
+        cursor_seg = start
+        remaining = duration
+        raw_segments = picture.get("video_segments") if isinstance(picture.get("video_segments"), list) else []
+        if raw_segments:
+            for seg in raw_segments:
+                if not isinstance(seg, dict) or not seg.get("source"):
+                    continue
+                span = float(seg.get("duration") or 0.0)
+                if span <= 0 and seg.get("source_in") is not None and seg.get("source_out") is not None:
+                    span = float(seg["source_out"]) - float(seg["source_in"])
+                use = min(span, remaining)
+                if use <= 0:
+                    continue
+                segments.append(
+                    {
+                        "source": seg.get("source"),
+                        "source_in": seg.get("source_in"),
+                        "source_out": float(seg.get("source_in") or 0.0) + use
+                        if seg.get("source_in") is not None
+                        else seg.get("source_out"),
+                        "timeline_start": cursor_seg,
+                        "duration": use,
+                    }
+                )
+                cursor_seg += use
+                remaining -= use
+        if not segments:
+            segments = [
+                {
+                    "source": picture.get("source") or picture.get("material_id") or picture.get("path"),
+                    "source_in": picture.get("source_in") if picture.get("source_in") is not None else picture.get("in_sec"),
+                    "source_out": picture.get("source_out") if picture.get("source_out") is not None else picture.get("out_sec"),
+                    "timeline_start": start,
+                    "duration": duration,
+                }
+            ]
+        available = sum(float(seg.get("duration") or 0.0) for seg in segments)
+        if picture.get("available_duration") is not None and not raw_segments:
+            available = float(picture.get("available_duration"))
         item = {
             "cut_id": cut_id,
             "line": line,
@@ -142,10 +228,11 @@ def build_edit_plan(
             "source_duration_seconds": target["source_duration_seconds"],
             "editor_playback_rate": NARRATION_SPEED,
             "target_duration_seconds": duration,
-            "video_source": picture.get("source") or picture.get("material_id") or picture.get("path"),
-            "source_in": picture.get("source_in") if picture.get("source_in") is not None else picture.get("in_sec"),
-            "source_out": picture.get("source_out") if picture.get("source_out") is not None else picture.get("out_sec"),
-            "available_duration": picture.get("available_duration"),
+            "video_source": segments[0].get("source"),
+            "source_in": segments[0].get("source_in"),
+            "source_out": segments[0].get("source_out"),
+            "available_duration": available,
+            "video_segments": segments,
             "timeline_start_seconds": start,
             "timeline_end_seconds": end,
             "timeline_start_frame": _seconds_to_frame(start, fps),

@@ -18,12 +18,15 @@ sys.path.insert(0, str(SCRIPTS))
 
 from assembly import (  # noqa: E402
     adjacent_visual_diff,
+    annotate_visual_match,
     apply_minimal_range_padding,
     as_full_clip,
     assemble_plan,
     duration_passes,
     looks_similar,
     select_cut,
+    SelectionUsage,
+    stitch_meaning_match,
 )
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
@@ -2682,6 +2685,188 @@ def test_minimal_range_padding() -> None:
     check("pad-f-contains-original", window[0] <= original[0] + 1e-9 and window[1] + 1e-9 >= original[1])
 
 
+def test_meaning_pair_segments() -> None:
+    line = "UVカット率約99％の圧倒的ガード力！"
+    sit = "サンシェード越しの強い太陽光が完全に遮られている車内の様子"
+    aid = {
+        "semantic_valid": False,
+        "search_aid": True,
+        "supported_line": None,
+        "situation": "",
+        "source": ".runtime/product-video-inputs/AN-S182_コピー/車内暑い/IMG_3898.MOV",
+        "material_id": "hot-cabin",
+        "source_duration_seconds": 20.0,
+        "classification_folder": "車内暑い",
+        "visual": visual("person", "wide", "car"),
+    }
+    block = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3956.MOV",
+        source_in=0.8,
+        source_out=4.14,
+        objects=["UV", "遮断"],
+        features=["紫外線"],
+        description="車内に入ってくる紫外線を遮断しているイメージのカット",
+        duration=8.34,
+    )
+    block["material_id"] = "uv-block"
+    block["visual"] = visual("glass", "wide", "windshield")
+    shade = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3892.MOV",
+        source_in=3.5,
+        source_out=6.86,
+        objects=["日差し"],
+        features=["遮る"],
+        description="外から差し込む激しい直射日光を遮るフロントガラス全体の引き",
+        duration=6.86,
+    )
+    shade["material_id"] = "sun-block"
+    shade["visual"] = visual("car", "wide", "parking")
+    shadow = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3891.MOV",
+        source_in=2.5,
+        source_out=6.12,
+        objects=["UPF", "生地"],
+        features=["影"],
+        description="シェードの生地アップと影になった運転席のコントラスト",
+        duration=8.0,
+    )
+    shadow["material_id"] = "upf-shadow"
+    shadow["visual"] = visual("fabric", "medium", "parking")
+    chosen = select_cut(
+        [aid, block, shade],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=4.58,
+    )
+    segs = (chosen.get("selection") or {}).get("video_segments") or []
+    check("pair-ok", chosen.get("status") == "OK", str(chosen.get("hold")))
+    check("pair-two-segments", len(segs) == 2, str(segs))
+    check("pair-beats-search-aid", (chosen.get("selection") or {}).get("material_id") != "hot-cabin")
+    suv = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3943.MOV",
+        source_in=0.0,
+        source_out=7.8,
+        objects=["白SUV"],
+        description="青空の駐車場に停車した白SUVの前方外観",
+        duration=14.3,
+    )
+    suv["material_id"] = "suv-park"
+    suv_ann = annotate_visual_match(suv, line, sit)
+    check("suv-not-coverage-false-positive", not stitch_meaning_match(suv_ann, line, sit))
+    check("pair-uses-original-ranges", all(float(seg["source_out"]) > float(seg["source_in"]) for seg in segs))
+    check(
+        "pair-covers-target",
+        abs(sum(float(seg["duration"]) for seg in segs) - 4.58) < 1e-6,
+    )
+    long_enough = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3970.MOV",
+        source_in=1.0,
+        source_out=5.8,
+        objects=["UV", "遮断"],
+        features=["紫外線"],
+        description="サンシェードで直射と紫外線を遮っている様子",
+        duration=12.0,
+    )
+    long_enough["material_id"] = "uv-long"
+    single = select_cut(
+        [aid, long_enough, block, shade],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=2.5,
+    )
+    check("single-scene-skips-stitch", not ((single.get("selection") or {}).get("video_segments")), str(single.get("selection")))
+    check("single-scene-uses-long", (single.get("selection") or {}).get("material_id") == "uv-long")
+    almost = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3971.MOV",
+        source_in=0.0,
+        source_out=4.2,
+        objects=["UV", "遮断"],
+        description="紫外線を遮断している車内",
+        duration=10.0,
+    )
+    almost["material_id"] = "uv-pad"
+    padded = select_cut(
+        [aid, almost, block, shade],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=4.58,
+    )
+    check("pad-still-beats-stitch", not ((padded.get("selection") or {}).get("video_segments")), str(padded.get("selection")))
+    check("pad-uses-almost-long", (padded.get("selection") or {}).get("material_id") == "uv-pad")
+    overlap = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3956.MOV",
+        source_in=0.8,
+        source_out=4.26,
+        objects=["UV"],
+        description="フロントガラス越しに日差しを遮っている様子を外側から撮影",
+        duration=8.34,
+    )
+    overlap["material_id"] = "uv-overlap"
+    overlapped = select_cut(
+        [aid, block, overlap],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=4.58,
+    )
+    check(
+        "pair-rejects-overlap-then-search-aid",
+        (overlapped.get("selection") or {}).get("material_id") == "hot-cabin"
+        or overlapped.get("status") == "HOLD",
+    )
+    usage = SelectionUsage()
+    first = select_cut(
+        [block, shade, shadow],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=4.58,
+        usage=usage,
+    )
+    usage.note(first["selection"])
+    second = select_cut(
+        [block, shade, shadow],
+        line=line,
+        intended_scenario=sit,
+        duration_seconds=4.52,
+        usage=usage,
+        previous=first.get("selection"),
+    )
+    first_keys = [
+        (seg.get("source"), round(float(seg.get("source_in") or 0), 3), round(float(seg.get("source_out") or 0), 3))
+        for seg in (first.get("selection") or {}).get("video_segments") or []
+    ]
+    second_keys = [
+        (seg.get("source"), round(float(seg.get("source_in") or 0), 3), round(float(seg.get("source_out") or 0), 3))
+        for seg in (second.get("selection") or {}).get("video_segments") or []
+    ]
+    check("pair-second-ok", second.get("status") == "OK", str(second.get("hold")))
+    check("pair-does-not-repeat-same-order", first_keys != second_keys, str((first_keys, second_keys)))
+    planned = build_edit_plan(
+        {
+            "cuts": [
+                {"cut_id": "c4", "line": "UVカット率約99％の圧倒的ガード力！", "situation": sit},
+            ]
+        },
+        {"cuts": [dict(chosen["selection"], cut_id="c4")]},
+        {
+            "clips": [
+                {
+                    "cut_id": "c4",
+                    "line": "UVカット率約99％の圧倒的ガード力！",
+                    "audio_path": "c4.mp3",
+                    "source_duration_seconds": 5.496,
+                    "editor_playback_rate": 1.2,
+                    "planned_duration_seconds": 5.496 / 1.2,
+                    "source_already_accelerated": False,
+                }
+            ]
+        },
+    )
+    check("pair-edit-plan-ok", planned.get("status") == "OK", str(planned.get("hold")))
+    video_adds = next(step["adds"] for step in planned.get("chatcut_steps") or [] if step.get("op") == "place_video")
+    check("pair-edit-plan-two-video-adds", len(video_adds) == 2, str(video_adds))
+    check("pair-edit-plan-keeps-audio-one", len(next(step["adds"] for step in planned.get("chatcut_steps") or [] if step.get("op") == "place_audio")) == 1)
+
+
 def test_caption_wrap() -> None:
     uv = wrap_caption("UVカット率はなんと約99パーセント！")
     wrapped = uv.get("caption_visual_wrap") or ""
@@ -3924,6 +4109,7 @@ def main() -> int:
         test_selection_quality_case_cuts()
         test_semantic_fallback_matcher(root)
         test_minimal_range_padding()
+        test_meaning_pair_segments()
         test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)

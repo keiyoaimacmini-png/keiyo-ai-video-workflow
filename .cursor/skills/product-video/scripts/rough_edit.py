@@ -114,6 +114,7 @@ def execute_from_edit_plan(
                 "material": cut.get("video_source"),
                 "source_in": cut.get("source_in"),
                 "source_out": cut.get("source_out"),
+                "video_segments": cut.get("video_segments") or [],
                 "timeline_start_frame": cut.get("timeline_start_frame"),
                 "timeline_end_frame": cut.get("timeline_end_frame"),
             }

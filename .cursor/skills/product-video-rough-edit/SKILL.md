@@ -19,7 +19,7 @@ ChatCut is execution only. Run `chatcut_steps` in this order, one direction:
 1. `import_batch` — unique audio + video paths, max 4 files per `import_media` session; repeat until the plan's batches are done
 2. `place_audio` — one batched `edit_item` `adds` for every cut
 3. `set_playback_rate` — one batched `edit_item` `updates` with `playbackRate=1.2` on those audio items
-4. `place_video` — one batched `edit_item` `adds` using plan `source` / `source_in` / `source_out` trimmed to the sped narration span
+4. `place_video` — one batched `edit_item` `adds` from `chatcut_steps`. Most cuts are one video item. If a cut has `video_segments`, place those items back-to-back on the same video track for that narration span only. Do not reselect, loop, freeze, or change playback speed
 5. `caption_preset` — apply saved preset `product-video-center` once
 6. `place_captions` — exact frozen line; use `caption_visual_wrap` for display newlines only. Prefer one tool call for all cards. If the public tool accepts only one card, write every card without inspect or replan between writes
 7. `final_verify` — the only verification pass

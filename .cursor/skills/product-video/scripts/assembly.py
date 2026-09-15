@@ -7,6 +7,7 @@ Duration is a pre-ranking gate. ChatCut placement is not a duration probe.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -24,11 +25,22 @@ from semantic_material_match import (
     persist_matches,
     run_semantic_fallback,
 )
-from visual_catalog import scene_match_score
+from visual_catalog import scene_match_score, scene_text
 from workflow_state import hold
 
 DURATION_EPS = 1e-9
 MAX_RANGE_PAD_SECONDS = 0.5
+MAX_SEGMENTS_PER_CUT = 2
+COVERAGE_PATTERNS = (
+    ("UV", re.compile(r"(?<![A-Za-z])UV(?![A-Za-z])")),
+    ("UPF", re.compile(r"(?<![A-Za-z])UPF(?![A-Za-z0-9])")),
+    ("紫外線", re.compile(r"紫外線")),
+    ("遮断", re.compile(r"遮断")),
+    ("遮る", re.compile(r"遮る")),
+    ("ブロック", re.compile(r"ブロック")),
+    ("陰", re.compile(r"陰")),
+    ("影", re.compile(r"(?<![撮投])影")),
+)
 FILE_DURATION_KEYS = (
     "source_duration_seconds",
     "duration_sec",
@@ -474,8 +486,33 @@ class SelectionUsage:
         self.source_counts: dict[str, int] = {}
         self.used_ranges: set[tuple[str, float, float]] = set()
         self.windows: dict[str, list[tuple[float, float]]] = {}
+        self.pair_orders: list[tuple[tuple[str, float, float], ...]] = []
 
     def note(self, item: dict[str, Any]) -> None:
+        segments = item.get("video_segments") if isinstance(item.get("video_segments"), list) else []
+        usable = [seg for seg in segments if isinstance(seg, dict)]
+        if len(usable) >= MAX_SEGMENTS_PER_CUT:
+            keys: list[tuple[str, float, float]] = []
+            for seg in usable:
+                self.note(
+                    {
+                        "source": seg.get("source") or source_id(item),
+                        "source_in": seg.get("scene_in", seg.get("source_in")),
+                        "source_out": seg.get("scene_out", seg.get("source_out")),
+                    }
+                )
+                key = range_key(
+                    {
+                        "source": seg.get("source") or source_id(item),
+                        "source_in": seg.get("scene_in", seg.get("source_in")),
+                        "source_out": seg.get("scene_out", seg.get("source_out")),
+                    }
+                )
+                if key is not None:
+                    keys.append(key)
+            if keys:
+                self.pair_orders.append(tuple(keys))
+            return
         sid = source_id(item)
         rng = source_range(item)
         if sid:
@@ -490,6 +527,9 @@ class SelectionUsage:
     def range_used(self, item: dict[str, Any]) -> bool:
         key = range_key(item)
         return key in self.used_ranges if key is not None else False
+
+    def pair_order_used(self, keys: tuple[tuple[str, float, float], ...]) -> bool:
+        return keys in self.pair_orders
 
 
 def is_selectable(candidate: dict[str, Any], line: str) -> bool:
@@ -536,6 +576,212 @@ def appropriate_match(candidate: dict[str, Any], line: str, intended_scenario: s
         or int(candidate.get("visual_match_score") or 0) > 0
         or candidate.get("semantic_valid") is True
     )
+
+
+def _coverage_hits(text: str) -> list[str]:
+    hay = str(text or "")
+    return [name for name, pattern in COVERAGE_PATTERNS if pattern.search(hay)]
+
+
+def folder_only_catalog_scene(item: dict[str, Any] | None) -> bool:
+    if not isinstance(item, dict):
+        return False
+    folder = _join_norm(item.get("classification_folder"))
+    if not folder:
+        return False
+    scene = item.get("catalog_scene") if isinstance(item.get("catalog_scene"), dict) else {}
+    visual = item.get("visual") if isinstance(item.get("visual"), dict) else {}
+    framing = _join_norm(visual.get("framing") or scene.get("framing") or visual.get("camera_distance"))
+    if framing:
+        return False
+    location = _join_norm(visual.get("location") or scene.get("location"))
+    return bool(location) and location == folder
+
+
+def stitch_meaning_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> bool:
+    if history_rank(candidate, line, intended_scenario) > 0:
+        return True
+    if candidate.get("from_semantic_fallback") is True:
+        return True
+    if candidate.get("visual_match") is True or int(candidate.get("visual_match_score") or 0) > 0:
+        return True
+    if folder_only_catalog_scene(candidate):
+        return False
+    scene = candidate.get("catalog_scene") if isinstance(candidate.get("catalog_scene"), dict) else candidate
+    request_hits = _coverage_hits(f"{line or ''}\n{intended_scenario or ''}")
+    scene_hits = _coverage_hits(scene_text(scene) if isinstance(scene, dict) else "")
+    return bool(request_hits) and bool(scene_hits)
+
+
+def original_span(candidate: dict[str, Any] | None) -> float | None:
+    rng = source_range(candidate) if isinstance(candidate, dict) else None
+    if rng is None:
+        return None
+    span = rng[1] - rng[0]
+    return span if span > DURATION_EPS else None
+
+
+def ranges_overlap(left: dict[str, Any] | None, right: dict[str, Any] | None) -> bool:
+    if source_id(left) != source_id(right) or not source_id(left):
+        return False
+    first = source_range(left) if isinstance(left, dict) else None
+    second = source_range(right) if isinstance(right, dict) else None
+    if first is None or second is None:
+        return False
+    return first[0] < second[1] - DURATION_EPS and second[0] < first[1] - DURATION_EPS
+
+
+def can_pair_scenes(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    target_seconds: float,
+) -> bool:
+    if range_key(left) is None or range_key(left) == range_key(right):
+        return False
+    if ranges_overlap(left, right):
+        return False
+    first = original_span(left)
+    second = original_span(right)
+    if first is None or second is None:
+        return False
+    return first + second + DURATION_EPS >= float(target_seconds)
+
+
+def dedupe_scene_ranges(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    best: dict[tuple[str, float, float], dict[str, Any]] = {}
+    for item in items:
+        key = range_key(item)
+        if key is None:
+            continue
+        current = best.get(key)
+        if current is None or int(item.get("visual_match_score") or 0) > int(current.get("visual_match_score") or 0):
+            best[key] = item
+    return list(best.values())
+
+
+def stitch_two_scenes(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    target_seconds: float,
+) -> dict[str, Any] | None:
+    start_end = source_range(first)
+    other = source_range(second)
+    if start_end is None or other is None:
+        return None
+    first_span = start_end[1] - start_end[0]
+    remain = float(target_seconds) - first_span
+    if remain <= DURATION_EPS or other[1] - other[0] + DURATION_EPS < remain:
+        return None
+    second_out = other[0] + remain
+    chosen = dict(second)
+    chosen.update(
+        {
+            "source": source_id(first) or first.get("source"),
+            "material_id": first.get("material_id") or source_id(first),
+            "source_in": start_end[0],
+            "source_out": start_end[1],
+            "in_sec": start_end[0],
+            "out_sec": start_end[1],
+            "available_duration": float(target_seconds),
+            "target_duration_seconds": float(target_seconds),
+            "multi_segment": True,
+            "video_segments": [
+                {
+                    "source": source_id(first),
+                    "source_in": start_end[0],
+                    "source_out": start_end[1],
+                    "duration": first_span,
+                    "scene_in": start_end[0],
+                    "scene_out": start_end[1],
+                },
+                {
+                    "source": source_id(second),
+                    "source_in": other[0],
+                    "source_out": second_out,
+                    "duration": remain,
+                    "scene_in": other[0],
+                    "scene_out": other[1],
+                },
+            ],
+        }
+    )
+    return chosen
+
+
+def select_meaning_pair(
+    candidates: list[dict[str, Any]],
+    *,
+    line: str,
+    intended_scenario: str,
+    duration_seconds: float,
+    previous: dict[str, Any] | None = None,
+    previous_2: dict[str, Any] | None = None,
+    usage: SelectionUsage | None = None,
+) -> dict[str, Any] | None:
+    scenes = dedupe_scene_ranges(
+        [
+            item
+            for item in candidates
+            if stitch_meaning_match(item, line, intended_scenario) and original_span(item) is not None
+        ]
+    )
+    if usage is not None:
+        unused = [item for item in scenes if not usage.range_used(item)]
+        if len(unused) >= MAX_SEGMENTS_PER_CUT:
+            scenes = unused
+    if len(scenes) < 2:
+        return None
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for left in scenes:
+        for right in scenes:
+            if not can_pair_scenes(left, right, duration_seconds):
+                continue
+            keys = (range_key(left), range_key(right))
+            if None in keys:
+                continue
+            if usage is not None and usage.pair_order_used(keys):
+                continue
+            pairs.append((left, right))
+    if not pairs:
+        return None
+    first_options = []
+    seen: set[tuple[str, float, float]] = set()
+    for left, _right in pairs:
+        key = range_key(left)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        first_options.append(left)
+    first = pick_from_pool(
+        first_options,
+        previous,
+        line=line,
+        intended_scenario=intended_scenario,
+        usage=usage,
+        previous_2=previous_2,
+    )
+    seconds = [right for left, right in pairs if range_key(left) == range_key(first)]
+    if not seconds:
+        return None
+    prev_sources: set[str] = set()
+    if isinstance(previous, dict):
+        for seg in previous.get("video_segments") or []:
+            if isinstance(seg, dict) and source_id(seg):
+                prev_sources.add(source_id(seg))
+        if not prev_sources and source_id(previous):
+            prev_sources.add(source_id(previous))
+    unused_prev = [item for item in seconds if source_id(item) not in prev_sources]
+    if unused_prev:
+        seconds = unused_prev
+    second = pick_from_pool(
+        seconds,
+        first,
+        line=line,
+        intended_scenario=intended_scenario,
+        usage=usage,
+        previous_2=previous,
+    )
+    return stitch_two_scenes(first, second, duration_seconds)
 
 
 def unused_alternate_range(
@@ -730,28 +976,60 @@ def select_cut(
     valid = [item for item in annotated if is_selectable(item, line)]
     if not valid:
         return hold("HOLD_MEDIA_NOT_MATCHED", "no semantically valid material for this line")
-    eligible = duration_eligible(valid, duration_seconds, file_durations)
-    if not eligible:
-        return hold(
-            "HOLD_MEDIA_NOT_MATCHED",
-            "no material with available_duration >= target_duration_seconds",
+    meaning = [item for item in annotated if stitch_meaning_match(item, line, intended_scenario)]
+    eligible_meaning = duration_eligible(meaning, duration_seconds, file_durations)
+    if eligible_meaning:
+        pool = _filter_reuse(eligible_meaning, line=line, intended_scenario=intended_scenario, usage=usage)
+        chosen = stamp_selection(
+            dict(
+                pick_from_pool(
+                    pool,
+                    previous,
+                    line=line,
+                    intended_scenario=intended_scenario,
+                    usage=usage,
+                    previous_2=previous_2,
+                )
+            ),
+            duration_seconds,
+            file_durations,
+            usage,
         )
-    pool = _filter_reuse(eligible, line=line, intended_scenario=intended_scenario, usage=usage)
-    chosen = stamp_selection(
-        dict(
-            pick_from_pool(
-                pool,
-                previous,
-                line=line,
-                intended_scenario=intended_scenario,
-                usage=usage,
-                previous_2=previous_2,
+    else:
+        paired = select_meaning_pair(
+            meaning,
+            line=line,
+            intended_scenario=intended_scenario,
+            duration_seconds=duration_seconds,
+            previous=previous,
+            previous_2=previous_2,
+            usage=usage,
+        )
+        if paired is not None:
+            chosen = paired
+        else:
+            eligible = duration_eligible(valid, duration_seconds, file_durations)
+            if not eligible:
+                return hold(
+                    "HOLD_MEDIA_NOT_MATCHED",
+                    "no material with available_duration >= target_duration_seconds",
+                )
+            pool = _filter_reuse(eligible, line=line, intended_scenario=intended_scenario, usage=usage)
+            chosen = stamp_selection(
+                dict(
+                    pick_from_pool(
+                        pool,
+                        previous,
+                        line=line,
+                        intended_scenario=intended_scenario,
+                        usage=usage,
+                        previous_2=previous_2,
+                    )
+                ),
+                duration_seconds,
+                file_durations,
+                usage,
             )
-        ),
-        duration_seconds,
-        file_durations,
-        usage,
-    )
     chosen["line"] = line
     chosen["intended_scenario"] = intended_scenario
     return {"status": "OK", "selection": chosen}
