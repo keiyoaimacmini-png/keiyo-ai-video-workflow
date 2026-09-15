@@ -16,7 +16,7 @@ SCRIPTS = Path(__file__).resolve().parent
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(SCRIPTS))
 
-from assembly import as_full_clip, assemble_plan, duration_passes, select_cut  # noqa: E402
+from assembly import apply_minimal_range_padding, as_full_clip, assemble_plan, duration_passes, select_cut  # noqa: E402
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
 from edit_plan import build_edit_plan, chatcut_execution_steps  # noqa: E402
@@ -2101,12 +2101,87 @@ def test_semantic_fallback_matcher(root: Path) -> None:
 
     plan_h = assemble_plan(
         script_for("c8", bones_line, bones_sit),
-        manifest_for("c8", bones_line),
+        {"clips": [_manifest_clip("c8", bones_line, source_duration=4.8)]},
         {"c8": [ribs, long_ribs]},
         semantic_match_fn=send_h,
     )
     check("semantic-h-short-token-still-fallback", len(calls_h) == 1, str(plan_h.get("hold")))
     check("semantic-h-picks-long-ribs", plan_h.get("status") == "OK" and (plan_h.get("cuts") or [{}])[0].get("from_semantic_fallback") is True)
+
+
+def test_minimal_range_padding() -> None:
+    line_a = "チタンシルバーコーティングで日差しを跳ね返す！"
+    sit_a = "ギラギラ光るチタンシルバーの表面を斜め下から見上げるアングル"
+    titanium = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3894.MOV",
+        source_in=4.0,
+        source_out=7.2,
+        objects=["チタンシルバー"],
+        features=["生地表面"],
+        description="ギラギラした日光を跳ね返すチタンシルバーの生地表面のアップ",
+        duration=10.433,
+    )
+    padded_a = apply_minimal_range_padding(titanium, 3.36)
+    check("pad-a-pass", duration_passes(padded_a, 3.36) is True)
+    check("pad-a-extends-out", abs(float(padded_a.get("source_out") or 0) - 7.36) < 1e-9)
+    check("pad-a-keeps-in", abs(float(padded_a.get("source_in") or 0) - 4.0) < 1e-9)
+    selected_a = select_cut([titanium], line=line_a, intended_scenario=sit_a, duration_seconds=3.36)
+    check("pad-a-select-ok", selected_a.get("status") == "OK", str(selected_a.get("hold")))
+    check("pad-a-select-out", abs(float((selected_a.get("selection") or {}).get("source_out") or 0) - 7.36) < 1e-9)
+
+    line_b = "10本骨構造だからしっかり張れて崩れない"
+    sit_b = "傘の骨組み部分を軽く触って頑丈さを見せる手元"
+    ribs = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3963.mov",
+        source_in=0.6,
+        source_out=3.72,
+        objects=["10本骨"],
+        features=["骨組み"],
+        description="裏側の10本の金属フレームを指で軽く弾いて丈夫さを見せる手元",
+        duration=3.885,
+    )
+    padded_b = apply_minimal_range_padding(ribs, 3.24)
+    check("pad-b-pass", duration_passes(padded_b, 3.24) is True)
+    check("pad-b-extends-out", abs(float(padded_b.get("source_out") or 0) - 3.84) < 1e-9)
+    check("pad-b-keeps-in", abs(float(padded_b.get("source_in") or 0) - 0.6) < 1e-9)
+    selected_b = select_cut([ribs], line=line_b, intended_scenario=sit_b, duration_seconds=3.24)
+    check("pad-b-select-ok", selected_b.get("status") == "OK", str(selected_b.get("hold")))
+
+    tiny = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/short.mov",
+        source_in=1.0,
+        source_out=2.0,
+        objects=["チタンシルバー"],
+        description="チタンシルバーの表面",
+        duration=12.0,
+    )
+    padded_c = apply_minimal_range_padding(tiny, 3.0)
+    check("pad-c-no-large-gap", padded_c.get("range_padded") is not True)
+    check("pad-c-still-short", duration_passes(padded_c, 3.0) is False)
+
+    short_file = dict(titanium)
+    short_file["source_duration_seconds"] = 3.0
+    padded_d = apply_minimal_range_padding(short_file, 3.36)
+    check("pad-d-no-short-file", padded_d.get("range_padded") is not True)
+    check("pad-d-still-short", duration_passes(padded_d, 3.36) is False)
+
+    unmatched = {
+        "search_aid": True,
+        "semantic_valid": False,
+        "source": titanium["source"],
+        "source_in": 4.0,
+        "source_out": 7.2,
+        "source_duration_seconds": 10.433,
+        "visual": visual("product", "close", "cabin"),
+    }
+    padded_e = apply_minimal_range_padding(unmatched, 3.36)
+    check("pad-e-no-unmatched", padded_e.get("range_padded") is not True)
+    held = select_cut([unmatched], line=line_a, intended_scenario=sit_a, duration_seconds=3.36)
+    check("pad-e-does-not-rescue", held.get("status") == "HOLD")
+
+    original = (4.0, 7.2)
+    window = (float(padded_a["source_in"]), float(padded_a["source_out"]))
+    check("pad-f-contains-original", window[0] <= original[0] + 1e-9 and window[1] + 1e-9 >= original[1])
 
 
 def test_caption_wrap() -> None:
@@ -3349,6 +3424,7 @@ def main() -> int:
         test_visual_catalog_onboarding(root)
         test_selection_quality_case_cuts()
         test_semantic_fallback_matcher(root)
+        test_minimal_range_padding()
         test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)

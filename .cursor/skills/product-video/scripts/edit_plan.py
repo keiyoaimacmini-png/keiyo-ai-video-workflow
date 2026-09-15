@@ -209,12 +209,22 @@ def assemble_and_plan(
             folder_aliases=aliases,
             catalog=catalog,
         )
+    file_durations: dict[str, float] = {}
+    for entry in (index.get("files") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        source = str(entry.get("source") or "")
+        duration = entry.get("full_duration")
+        if not source or not isinstance(duration, (int, float)) or isinstance(duration, bool) or duration <= 0:
+            continue
+        file_durations[source] = float(duration)
     assembled = assemble_plan(
         script,
         narration_manifest,
         candidates,
         history=history,
         catalog=catalog,
+        file_durations=file_durations,
         project_root=root,
         case_id=case_id,
     )

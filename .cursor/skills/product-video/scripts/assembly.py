@@ -19,6 +19,7 @@ from semantic_material_match import (
     apply_semantic_matches,
     catalog_history_payloads,
     collect_scene_payloads,
+    load_matches,
     merge_scene_payloads,
     persist_matches,
     run_semantic_fallback,
@@ -27,6 +28,7 @@ from visual_catalog import scene_match_score
 from workflow_state import hold
 
 DURATION_EPS = 1e-9
+MAX_RANGE_PAD_SECONDS = 0.5
 FILE_DURATION_KEYS = (
     "source_duration_seconds",
     "duration_sec",
@@ -173,6 +175,65 @@ def duration_passes(
     return available + DURATION_EPS >= float(target_seconds)
 
 
+def is_meaning_matched_scene(candidate: dict[str, Any]) -> bool:
+    return (
+        candidate.get("from_approved_history") is True
+        or candidate.get("from_visual_catalog") is True
+        or candidate.get("from_semantic_fallback") is True
+        or candidate.get("visual_match") is True
+        or int(candidate.get("visual_match_score") or 0) > 0
+    )
+
+
+def contains_source_range(window: tuple[float, float], original: tuple[float, float]) -> bool:
+    return window[0] <= original[0] + DURATION_EPS and window[1] + DURATION_EPS >= original[1]
+
+
+def apply_minimal_range_padding(
+    candidate: dict[str, Any],
+    target_seconds: float,
+    file_durations: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    clone = dict(candidate)
+    rng = source_range(clone)
+    if rng is None:
+        return clone
+    span = rng[1] - rng[0]
+    target = float(target_seconds)
+    if span + DURATION_EPS >= target:
+        return clone
+    if not is_meaning_matched_scene(clone):
+        return clone
+    if target - span > MAX_RANGE_PAD_SECONDS + DURATION_EPS:
+        return clone
+    file_duration = lookup_file_duration(clone, file_durations)
+    if file_duration is None or file_duration + DURATION_EPS < target:
+        return clone
+    window = fit_window(file_duration, target, rng[0], rng[1])
+    if window is None or not contains_source_range(window, rng):
+        return clone
+    if window[1] - window[0] + DURATION_EPS < target:
+        return clone
+    clone["original_source_in"] = rng[0]
+    clone["original_source_out"] = rng[1]
+    clone["source_in"] = window[0]
+    clone["source_out"] = window[1]
+    clone["in_sec"] = window[0]
+    clone["out_sec"] = window[1]
+    clone["available_duration"] = window[1] - window[0]
+    clone["range_padded"] = True
+    return clone
+
+
+def has_duration_for_target(
+    candidate: dict[str, Any],
+    target_seconds: float,
+    file_durations: dict[str, float] | None = None,
+) -> bool:
+    padded = apply_minimal_range_padding(candidate, target_seconds, file_durations)
+    return duration_passes(padded, target_seconds, file_durations)
+
+
 def fit_window(
     file_duration: float,
     target_seconds: float,
@@ -264,7 +325,12 @@ def duration_eligible(
     target_seconds: float,
     file_durations: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    return [item for item in candidates if duration_passes(item, target_seconds, file_durations)]
+    found: list[dict[str, Any]] = []
+    for item in candidates:
+        padded = apply_minimal_range_padding(item, target_seconds, file_durations)
+        if duration_passes(padded, target_seconds, file_durations):
+            found.append(padded)
+    return found
 
 
 def range_key(item: dict[str, Any] | None) -> tuple[str, float, float] | None:
@@ -599,7 +665,7 @@ def assemble_plan(
         annotated = [annotate_visual_match(item, cut["line"], cut["situation"]) for item in combined]
         prepared[cut["cut_id"]] = annotated
         if not any(
-            is_selectable(item, cut["line"]) and duration_passes(item, duration, file_durations)
+            is_selectable(item, cut["line"]) and has_duration_for_target(item, duration, file_durations)
             for item in annotated
         ):
             unresolved.append(
@@ -610,6 +676,29 @@ def assemble_plan(
                     "target_duration_seconds": duration,
                 }
             )
+
+    stored_matches: dict[str, dict[str, Any]] = {}
+    if project_root is not None and case_id:
+        stored_matches = load_matches(project_root, case_id)
+    if unresolved and stored_matches:
+        apply_semantic_matches(
+            prepared,
+            stored_matches,
+            scenes=merge_scene_payloads(
+                collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved]),
+                catalog_history_payloads(catalog, history),
+            ),
+            targets=durations,
+        )
+        unresolved = [
+            item
+            for item in unresolved
+            if not any(
+                is_selectable(candidate, item["line"])
+                and has_duration_for_target(candidate, durations[item["cut_id"]], file_durations)
+                for candidate in prepared.get(item["cut_id"]) or []
+            )
+        ]
 
     if unresolved and (semantic_match_fn is not None or project_root is not None):
         scenes = merge_scene_payloads(
@@ -627,7 +716,9 @@ def assemble_plan(
         matches = fallback.get("matches") if isinstance(fallback.get("matches"), dict) else {}
         apply_semantic_matches(prepared, matches, scenes=scenes, targets=durations)
         if project_root is not None and case_id and int(fallback.get("gemini_calls") or 0) > 0:
-            persist_matches(project_root, case_id, matches, gemini_calls=int(fallback.get("gemini_calls") or 0))
+            saved = dict(stored_matches)
+            saved.update(matches)
+            persist_matches(project_root, case_id, saved, gemini_calls=int(fallback.get("gemini_calls") or 0))
 
     cuts: list[dict[str, Any]] = []
     previous = None
