@@ -209,7 +209,14 @@ def assemble_and_plan(
             folder_aliases=aliases,
             catalog=catalog,
         )
-    assembled = assemble_plan(script, narration_manifest, candidates, history=history)
+    assembled = assemble_plan(
+        script,
+        narration_manifest,
+        candidates,
+        history=history,
+        project_root=root,
+        case_id=case_id,
+    )
     if assembled.get("status") != "OK":
         return assembled
     write_plan(root, case_id, assembled)

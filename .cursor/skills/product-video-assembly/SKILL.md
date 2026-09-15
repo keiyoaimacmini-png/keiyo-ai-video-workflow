@@ -29,10 +29,11 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/edit_plan.py" --pr
 That helper ranks duration-passing catalog + history + index candidates, then writes `assembly-plan.json` and `edit-plan.json`. Rank order:
 
 1. human-adopted approved-shot history when line / situation / scene meaning is close
-2. visual scene catalog ranges whose on-screen facts match the Gemini situation
-3. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
-4. aliases / classification folder as candidate-search helpers only
+2. deterministic visual catalog match on saved on-screen facts
+3. semantic fallback for unresolved cuts only: one Gemini 3.8 Flash text-only batch on saved catalog / history TEXT (`factual_description`, `actions`, `objects`, `visible_features`, `product_state`, approved-shot situation). Do not watch video, score picture quality, or add per-script aliases. Save `semantic-material-match.json`. Skip Gemini when the deterministic matcher already has a candidate
+4. `available_duration >= target_duration_seconds` (playbackRate 1.2); exclude before ranking
 5. spread sources across the whole video; if the same source is reused, use a different catalog scene range and do not repeat a 0s full-clip window
+6. aliases / classification folder as candidate-search helpers only
 
 Do not treat a single generic alias (`車内`, `ハンドル`, `設置`, `ミラー`, `日差し`) as proof that the picture matches the line. Do not copy the requested Gemini situation onto a material entry that has no situation. Keep requested situation as `intended_scenario`. Folder meaning is product-level, not per-script. Load `config/product_video_material_aliases_<MODEL>.v1.json` into `.runtime/product-video-material-index/<MODEL>.semantic-aliases.v1.json`. Do not rewrite material sidecars or aliases to match this case's frozen lines. Do not add a new quality HOLD.
 

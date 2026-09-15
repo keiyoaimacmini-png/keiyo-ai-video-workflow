@@ -33,6 +33,7 @@ from visual_catalog import (  # noqa: E402
     apply_observed_scenes,
     load_catalog,
     refresh_catalog,
+    scene_match_score,
     sidecar_describes_scene,
 )
 from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
@@ -70,6 +71,7 @@ from narration import gate_tts_generate, narration_speed, prepare_tts_input, rec
 from prove_tts_speed import planned_editorial_duration, prove_editorial_timing, prove_tts_speed  # noqa: E402
 from rough_edit import build_rough_edit, execute_from_edit_plan, prove_placed_narration_clip  # noqa: E402
 from resolve_tts_text import compare_effective_to_frozen, resolve_effective_tts_text  # noqa: E402
+from semantic_material_match import make_scene_id  # noqa: E402
 from tts_attempts import generation_count_for_cut, load_attempts, may_generate_cut, record_generation_attempt  # noqa: E402
 from tts_session import may_reuse_session, prove_session_setup, record_session_setup  # noqa: E402
 from parse_gemini_scripts import parse_gemini_scripts  # noqa: E402
@@ -1785,6 +1787,243 @@ def test_selection_quality_case_cuts() -> None:
     check("operator-history-keeps-range", operator.get("selection", {}).get("source_in") == 0.05)
 
 
+def _manifest_clip(cut_id: str, line: str, source_duration: float = 3.6) -> dict[str, Any]:
+    return {
+        "cut_id": cut_id,
+        "line": line,
+        "audio_path": f"{cut_id}.mp3",
+        "source_duration_seconds": source_duration,
+        "editor_playback_rate": 1.2,
+        "planned_duration_seconds": source_duration / 1.2,
+        "source_already_accelerated": False,
+    }
+
+
+def test_semantic_fallback_matcher(root: Path) -> None:
+    sauna_line = "夏場の車内、サウナ状態になってない？"
+    sauna_sit = "強い日差しに照らされた車内のハンドルに触れようとして『熱っ！』と手を引っ込める人物"
+    bones_line = "10本骨構造だからしっかり張れて崩れない"
+    bones_sit = "骨組み部分を見せる"
+    v_line = "V字カットでミラーを避ける"
+    v_sit = "上部V字がルームミラーを避けている"
+    pack_line = "収納ポーチにまとまる"
+    pack_sit = "本体をポーチへしまう"
+
+    hot = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/車内暑い/IMG_3948.mov",
+        source_in=3.5,
+        source_out=7.0,
+        objects=["熱い"],
+        actions=["手を引く"],
+        description="人物がハンドルに触れて「熱っ！」という反応で手を引く",
+    )
+    vcut = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/vcut.mov",
+        source_in=1.0,
+        source_out=5.0,
+        objects=["切り欠き"],
+        features=["上部の切り欠き"],
+        description="上部がミラー支柱を避けるように切り欠かれている",
+    )
+    pouch = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/コンパクト収納/pouch.mov",
+        source_in=0.5,
+        source_out=4.5,
+        objects=["ポーチ"],
+        actions=["しまう"],
+        description="折りたたんだ本体をポーチへ滑り込ませる",
+    )
+    ribs = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3963.mov",
+        source_in=0.6,
+        source_out=3.16,
+        objects=["骨組み", "10本骨"],
+        features=["10本骨"],
+        description="裏面の頑丈な10本の骨組みが見える",
+    )
+    hot_id = make_scene_id(hot["source"], 3.5, 7.0)
+    v_id = make_scene_id(vcut["source"], 1.0, 5.0)
+    pouch_id = make_scene_id(pouch["source"], 0.5, 4.5)
+    check(
+        "semantic-a-not-deterministic",
+        scene_match_score(hot["catalog_scene"], sauna_line, sauna_sit) == 0,
+    )
+    check(
+        "semantic-c-not-deterministic",
+        scene_match_score(vcut["catalog_scene"], v_line, v_sit) == 0,
+    )
+
+    def script_for(cut_id: str, line: str, situation: str) -> dict[str, Any]:
+        return {"cuts": [{"cut_id": cut_id, "line": line, "situation": situation}]}
+
+    def manifest_for(cut_id: str, line: str) -> dict[str, Any]:
+        return {"clips": [_manifest_clip(cut_id, line)]}
+
+    calls_a: list[str] = []
+
+    def send_a(prompt: str) -> str:
+        calls_a.append(prompt)
+        return json.dumps(
+            {
+                "c1": {
+                    "scene_id": hot_id,
+                    "source": hot["source"],
+                    "source_in": 3.5,
+                    "source_out": 7.0,
+                    "reason": "高温の車内を熱いハンドルへの反応で表現",
+                }
+            },
+            ensure_ascii=False,
+        )
+
+    case_id = "pv-AN-S998-semantic"
+    (root / "outputs" / case_id).mkdir(parents=True, exist_ok=True)
+    plan_a = assemble_plan(
+        script_for("c1", sauna_line, sauna_sit),
+        manifest_for("c1", sauna_line),
+        {"c1": [hot]},
+        semantic_match_fn=send_a,
+        project_root=root,
+        case_id=case_id,
+    )
+    check("semantic-a-match", plan_a.get("status") == "OK", str(plan_a.get("hold")))
+    check("semantic-a-picks-hot-handle", "IMG_3948.mov" in str((plan_a.get("cuts") or [{}])[0].get("source")))
+    check("semantic-a-marks-fallback", (plan_a.get("cuts") or [{}])[0].get("from_semantic_fallback") is True)
+    check("semantic-a-one-call", len(calls_a) == 1)
+    saved = json.loads((root / "outputs" / case_id / "semantic-material-match.json").read_text(encoding="utf-8"))
+    check("semantic-a-persists", saved.get("c1", {}).get("scene_id") == hot_id)
+
+    calls_b: list[str] = []
+
+    def send_b(prompt: str) -> str:
+        calls_b.append(prompt)
+        return "{}"
+
+    plan_b = assemble_plan(
+        script_for("c8", bones_line, bones_sit),
+        manifest_for("c8", bones_line),
+        {"c8": [hot]},
+        semantic_match_fn=send_b,
+    )
+    check("semantic-b-no-match", plan_b.get("status") == "HOLD")
+    check("semantic-b-called-once", len(calls_b) == 1)
+
+    calls_c: list[str] = []
+
+    def send_c(prompt: str) -> str:
+        calls_c.append(prompt)
+        return json.dumps(
+            {
+                "c7": {
+                    "scene_id": v_id,
+                    "source": vcut["source"],
+                    "source_in": 1.0,
+                    "source_out": 5.0,
+                    "reason": "V字とルームミラーが見える",
+                }
+            },
+            ensure_ascii=False,
+        )
+
+    plan_c = assemble_plan(
+        script_for("c7", v_line, v_sit),
+        manifest_for("c7", v_line),
+        {"c7": [vcut]},
+        semantic_match_fn=send_c,
+    )
+    check("semantic-c-match", plan_c.get("status") == "OK", str(plan_c.get("hold")))
+    check("semantic-c-picks-vcut", (plan_c.get("cuts") or [{}])[0].get("from_semantic_fallback") is True)
+
+    calls_d: list[str] = []
+
+    def send_d(prompt: str) -> str:
+        calls_d.append(prompt)
+        return "{}"
+
+    plan_d = assemble_plan(
+        script_for("c9", pack_line, pack_sit),
+        manifest_for("c9", pack_line),
+        {"c9": [hot]},
+        semantic_match_fn=send_d,
+    )
+    check("semantic-d-no-match", plan_d.get("status") == "HOLD")
+    check("semantic-d-called-once", len(calls_d) == 1)
+
+    calls_e: list[str] = []
+
+    def send_e(prompt: str) -> str:
+        calls_e.append(prompt)
+        raise AssertionError("deterministic cut must not call Gemini")
+
+    plan_e = assemble_plan(
+        script_for("c8", bones_line, "裏面の頑丈な10本の骨組みをしっかり見せる商品単体カット"),
+        {"clips": [_manifest_clip("c8", bones_line, source_duration=2.4)]},
+        {"c8": [ribs]},
+        semantic_match_fn=send_e,
+    )
+    check("semantic-e-deterministic-ok", plan_e.get("status") == "OK", str(plan_e.get("hold")))
+    check("semantic-e-no-gemini", calls_e == [])
+    check("semantic-e-not-fallback", (plan_e.get("cuts") or [{}])[0].get("from_semantic_fallback") is not True)
+
+    calls_f: list[str] = []
+
+    def send_f(prompt: str) -> str:
+        calls_f.append(prompt)
+        return json.dumps(
+            {
+                "c1": {
+                    "scene_id": hot_id,
+                    "source": hot["source"],
+                    "source_in": 3.5,
+                    "source_out": 7.0,
+                    "reason": "高温の車内",
+                },
+                "c7": {
+                    "scene_id": v_id,
+                    "source": vcut["source"],
+                    "source_in": 1.0,
+                    "source_out": 5.0,
+                    "reason": "V字",
+                },
+                "c9": {
+                    "scene_id": pouch_id,
+                    "source": pouch["source"],
+                    "source_in": 0.5,
+                    "source_out": 4.5,
+                    "reason": "収納",
+                },
+            },
+            ensure_ascii=False,
+        )
+
+    plan_f = assemble_plan(
+        {
+            "cuts": [
+                {"cut_id": "c1", "line": sauna_line, "situation": sauna_sit},
+                {"cut_id": "c7", "line": v_line, "situation": v_sit},
+                {"cut_id": "c9", "line": "使わないときはサッとしまえる", "situation": "本体を袋へ収める"},
+            ]
+        },
+        {
+            "clips": [
+                _manifest_clip("c1", sauna_line),
+                _manifest_clip("c7", v_line),
+                _manifest_clip("c9", "使わないときはサッとしまえる"),
+            ]
+        },
+        {
+            "c1": [hot, vcut, pouch],
+            "c7": [hot, vcut, pouch],
+            "c9": [hot, vcut, pouch],
+        },
+        semantic_match_fn=send_f,
+    )
+    check("semantic-f-batch-ok", plan_f.get("status") == "OK", str(plan_f.get("hold")))
+    check("semantic-f-one-batch-call", len(calls_f) == 1)
+    if calls_f:
+        check("semantic-f-prompt-has-three-cuts", all(token in calls_f[0] for token in ("c1", "c7", "c9")))
+
+
 def test_caption_wrap() -> None:
     uv = wrap_caption("UVカット率はなんと約99パーセント！")
     wrapped = uv.get("caption_visual_wrap") or ""
@@ -2597,6 +2836,7 @@ def test_git_tracked_helpers() -> None:
         ("visual_catalog", ".cursor/skills/product-video/scripts/visual_catalog.py"),
         ("caption_wrap", ".cursor/skills/product-video/scripts/caption_wrap.py"),
         ("edit_plan", ".cursor/skills/product-video/scripts/edit_plan.py"),
+        ("semantic_material_match", ".cursor/skills/product-video/scripts/semantic_material_match.py"),
         ("timing", ".cursor/skills/product-video/scripts/timing.py"),
         ("preserve_shared_inputs", ".cursor/skills/product-video/scripts/preserve_shared_inputs.py"),
         ("run_preflight", ".cursor/skills/product-video/scripts/run_preflight.py"),
@@ -3023,6 +3263,7 @@ def main() -> int:
         test_semantic_folder_aliases(root)
         test_visual_catalog_onboarding(root)
         test_selection_quality_case_cuts()
+        test_semantic_fallback_matcher(root)
         test_timing_metrics(root)
         test_approved_shot_history(root)
         test_create_case(root)

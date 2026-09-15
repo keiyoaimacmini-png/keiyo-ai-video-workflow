@@ -15,6 +15,7 @@ from constants import MAJOR_VISUAL_KEYS
 from paths import case_root
 from prove_tts_speed import clip_target_duration
 from script_fidelity import assert_immutable
+from semantic_material_match import apply_semantic_matches, collect_scene_payloads, persist_matches, run_semantic_fallback
 from visual_catalog import scene_match_score
 from workflow_state import hold
 
@@ -52,6 +53,11 @@ def supports_line(candidate: dict[str, Any], line: str) -> bool:
 
 def annotate_visual_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> dict[str, Any]:
     clone = dict(candidate)
+    if clone.get("from_semantic_fallback") is True:
+        clone["visual_match"] = True
+        clone["semantic_valid"] = True
+        clone["visual_match_score"] = max(int(clone.get("visual_match_score") or 0), 1)
+        return clone
     scene = clone.get("catalog_scene") if isinstance(clone.get("catalog_scene"), dict) else clone
     score = int(clone.get("visual_match_score") or 0)
     if clone.get("from_visual_catalog") is True or clone.get("catalog_scene"):
@@ -366,8 +372,11 @@ def rank_key(
     usage: SelectionUsage | None,
 ) -> tuple[int, ...]:
     history = history_rank(candidate, line, intended_scenario)
+    fallback = 1 if candidate.get("from_semantic_fallback") is True else 0
     visual = int(candidate.get("visual_match_score") or 0)
-    visual_hit = 1 if visual > 0 or candidate.get("visual_match") is True else 0
+    deterministic_visual = 0
+    if fallback == 0 and (visual > 0 or candidate.get("visual_match") is True):
+        deterministic_visual = 1
     facts = 1 if candidate.get("semantic_valid") is True else 0
     aid = 1 if candidate.get("search_aid") is True else 0
     used_range = 1 if usage is not None and usage.range_used(candidate) else 0
@@ -376,14 +385,15 @@ def rank_key(
     same_prev = 1 if previous is not None and same_source_and_angle(candidate, previous) else 0
     return (
         history,
-        visual_hit,
+        deterministic_visual,
+        fallback,
         visual,
-        facts,
-        aid,
         -used_range,
         -used_source,
         -same_prev,
         variety,
+        facts,
+        aid,
     )
 
 
@@ -409,11 +419,11 @@ def pick_from_pool(
     if previous is not None:
         varied = [item for item in ranked if not same_source_and_angle(item, previous)]
         if varied:
-            best = rank_key(ranked[0], line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:5]
+            best = rank_key(ranked[0], line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:4]
             equal = [
                 item
                 for item in varied
-                if rank_key(item, line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:5]
+                if rank_key(item, line=line, intended_scenario=intended_scenario, previous=previous, usage=usage)[:4]
                 >= best
             ]
             if equal:
@@ -547,11 +557,15 @@ def assemble_plan(
     candidates_by_cut: dict[str, list[dict[str, Any]]],
     history: dict[str, Any] | None = None,
     file_durations: dict[str, float] | None = None,
+    *,
+    semantic_match_fn: Any = None,
+    project_root: Path | None = None,
+    case_id: str | None = None,
 ) -> dict[str, Any]:
     clips = {clip["cut_id"]: clip for clip in narration_manifest.get("clips") or []}
-    cuts: list[dict[str, Any]] = []
-    previous = None
-    usage = SelectionUsage()
+    prepared: dict[str, list[dict[str, Any]]] = {}
+    durations: dict[str, float] = {}
+    unresolved: list[dict[str, Any]] = []
     for cut in approved_script.get("cuts") or []:
         fidelity = assert_immutable(cut["line"], cut["line"], role="assembly_line")
         if fidelity.get("status") != "OK":
@@ -565,12 +579,52 @@ def assemble_plan(
                 target.get("hold") or "HOLD_NARRATION_DURATION",
                 target.get("reason") or f"invalid editorial duration for {cut['cut_id']}",
             )
-        duration = target["target_duration_seconds"]
-        selected = select_cut(
-            candidates_by_cut.get(cut["cut_id"]) or [],
+        duration = float(target["target_duration_seconds"])
+        durations[cut["cut_id"]] = duration
+        combined = prefer_history_candidates(
+            list(candidates_by_cut.get(cut["cut_id"]) or []),
             line=cut["line"],
             intended_scenario=cut["situation"],
-            duration_seconds=float(duration),
+            duration_seconds=duration,
+            history=history,
+        )
+        annotated = [annotate_visual_match(item, cut["line"], cut["situation"]) for item in combined]
+        prepared[cut["cut_id"]] = annotated
+        if not any(is_selectable(item, cut["line"]) for item in annotated):
+            unresolved.append(
+                {
+                    "cut_id": cut["cut_id"],
+                    "line": cut["line"],
+                    "situation": cut["situation"],
+                    "target_duration_seconds": duration,
+                }
+            )
+
+    if unresolved and (semantic_match_fn is not None or project_root is not None):
+        scenes = collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved])
+        fallback = run_semantic_fallback(
+            unresolved,
+            scenes,
+            send_fn=semantic_match_fn,
+            project_root=project_root,
+        )
+        if fallback.get("status") == "HOLD":
+            return fallback
+        matches = fallback.get("matches") if isinstance(fallback.get("matches"), dict) else {}
+        apply_semantic_matches(prepared, matches)
+        if project_root is not None and case_id and int(fallback.get("gemini_calls") or 0) > 0:
+            persist_matches(project_root, case_id, matches, gemini_calls=int(fallback.get("gemini_calls") or 0))
+
+    cuts: list[dict[str, Any]] = []
+    previous = None
+    usage = SelectionUsage()
+    for cut in approved_script.get("cuts") or []:
+        duration = durations[cut["cut_id"]]
+        selected = select_cut(
+            prepared.get(cut["cut_id"]) or [],
+            line=cut["line"],
+            intended_scenario=cut["situation"],
+            duration_seconds=duration,
             previous=previous,
             history=history,
             file_durations=file_durations,

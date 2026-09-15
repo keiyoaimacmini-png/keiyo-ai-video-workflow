@@ -179,6 +179,7 @@ OWNED_HELPERS = {
     "visual_catalog": "visual_catalog.py",
     "caption_wrap": "caption_wrap.py",
     "edit_plan": "edit_plan.py",
+    "semantic_material_match": "semantic_material_match.py",
     "timing": "timing.py",
 }
 
@@ -209,6 +210,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/visual_catalog.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/caption_wrap.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/edit_plan.py", "ASSEMBLY"),
+    (".cursor/skills/product-video/scripts/semantic_material_match.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/timing.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/preserve_shared_inputs.py", "DELIVERY"),
     (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),
