@@ -156,6 +156,8 @@ def normalize_scene(raw: dict[str, Any], *, source: str) -> dict[str, Any] | Non
             objects.append(tag)
         if tag not in features and not is_generic_token(tag):
             features.append(tag)
+    framing = str(raw.get("framing") or raw.get("camera_distance") or "").strip()
+    camera = str(raw.get("camera_distance") or raw.get("framing") or "").strip()
     return {
         "source": str(raw.get("source") or source),
         "source_in": float(start),
@@ -166,7 +168,8 @@ def normalize_scene(raw: dict[str, Any], *, source: str) -> dict[str, Any] | Non
         "product_state": str(raw.get("product_state") or "").strip(),
         "location": str(raw.get("location") or "").strip(),
         "visible_features": features,
-        "framing": str(raw.get("framing") or "").strip(),
+        "framing": framing,
+        "camera_distance": camera,
         "factual_description": description,
     }
 
@@ -306,24 +309,88 @@ def empty_file_entry(source: str, stamp: dict[str, Any], *, folder: str = "") ->
     }
 
 
+def _is_folder_label(text: str, folder: str) -> bool:
+    left = str(text or "").strip()
+    right = str(folder or "").strip()
+    return bool(left) and bool(right) and left == right
+
+
+def files_needing_observation(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    files = catalog.get("files") if isinstance(catalog, dict) else None
+    if not isinstance(files, dict):
+        return found
+    for stored, entry in files.items():
+        if not isinstance(entry, dict):
+            continue
+        scenes = [item for item in (entry.get("scenes") or []) if isinstance(item, dict)]
+        if entry.get("needs_observation") is True or not scenes:
+            clone = dict(entry)
+            clone["catalog_key"] = stored
+            found.append(clone)
+    return found
+
+
+def observation_usable(scene: dict[str, Any] | None, folder: str = "") -> bool:
+    if not isinstance(scene, dict):
+        return False
+    description = str(scene.get("factual_description") or "").strip()
+    if not description or _is_folder_label(description, folder):
+        return False
+    objects = [item for item in _strings(scene.get("objects")) if not _is_folder_label(item, folder)]
+    features = [item for item in _strings(scene.get("visible_features")) if not _is_folder_label(item, folder)]
+    actions = _strings(scene.get("actions"))
+    location = str(scene.get("location") or "").strip()
+    if _is_folder_label(location, folder):
+        location = ""
+    framing = str(scene.get("framing") or scene.get("camera_distance") or "").strip()
+    product_state = str(scene.get("product_state") or "").strip()
+    return bool(objects or features or actions or location or framing or product_state)
+
+
+def _scrub_folder_labels(scene: dict[str, Any], folder: str) -> dict[str, Any]:
+    cleaned = dict(scene)
+    cleaned["objects"] = [item for item in _strings(scene.get("objects")) if not _is_folder_label(item, folder)]
+    cleaned["visible_features"] = [
+        item for item in _strings(scene.get("visible_features")) if not _is_folder_label(item, folder)
+    ]
+    if _is_folder_label(str(scene.get("location") or ""), folder):
+        cleaned["location"] = ""
+    if _is_folder_label(str(scene.get("factual_description") or ""), folder):
+        cleaned["factual_description"] = ""
+    return cleaned
+
+
 def apply_observed_scenes(catalog: dict[str, Any], observations: list[dict[str, Any]]) -> dict[str, Any]:
     files = catalog.setdefault("files", {})
+    preexisting = {
+        key
+        for key, entry in files.items()
+        if isinstance(entry, dict)
+        and any(isinstance(item, dict) for item in (entry.get("scenes") or []))
+    }
     for raw in observations:
         if not isinstance(raw, dict):
             continue
         source = str(raw.get("source") or "")
         if not source:
             continue
+        key = relative_key(source)
+        if key in preexisting:
+            continue
         scene = normalize_scene(raw, source=source)
         if scene is None:
             continue
-        key = relative_key(source)
         entry = files.get(key)
+        folder = str((entry or {}).get("discovery_folder") or "") if isinstance(entry, dict) else ""
+        scene = _scrub_folder_labels(scene, folder)
+        if not observation_usable(scene, folder):
+            continue
         if not isinstance(entry, dict):
             entry = {
                 "source": source,
                 "discovery_folder": "",
-                "needs_observation": False,
+                "needs_observation": True,
                 "scenes": [],
             }
             files[key] = entry
@@ -404,9 +471,7 @@ def refresh_catalog(
         "reused": reused,
         "sidecar_ingested": sidecar_ingested,
         "history_ingested": observed,
-        "needs_observation": sum(
-            1 for item in files.values() if isinstance(item, dict) and item.get("needs_observation") is True
-        ),
+        "needs_observation": len(files_needing_observation(catalog)),
     }
 
 
@@ -447,11 +512,12 @@ def candidates_from_catalog(
                 "catalog_scene": scene,
                 "from_visual_catalog": True,
                 "visual": {
-                    "framing": scene.get("framing") or "",
-                    "camera_distance": scene.get("framing") or "",
+                    "framing": scene.get("framing") or scene.get("camera_distance") or "",
+                    "camera_distance": scene.get("camera_distance") or scene.get("framing") or "",
                     "location": scene.get("location") or "",
                     "subject": " ".join(_strings(scene.get("objects"))),
                     "action": " ".join(_strings(scene.get("actions"))),
+                    "product_state": scene.get("product_state") or "",
                     "interaction": "",
                     "movement": "",
                     "camera_angle": "",
@@ -468,7 +534,31 @@ def main() -> int:
     parser.add_argument("--material-root")
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--observe-json")
+    parser.add_argument("--list-unobserved", action="store_true")
     args = parser.parse_args()
+    root = Path(args.project_root)
+    observations = json.loads(args.observe_json) if args.observe_json else None
+    if args.list_unobserved:
+        catalog = load_catalog(root, args.product_model)
+        needed = files_needing_observation(catalog)
+        payload = {
+            "status": "OK",
+            "product_model": args.product_model,
+            "path": catalog_path(root, args.product_model).as_posix(),
+            "file_count": len(catalog.get("files") or {}),
+            "needs_observation": len(needed),
+            "unobserved": [
+                {
+                    "source": item.get("source"),
+                    "discovery_folder": item.get("discovery_folder") or "",
+                    "needs_observation": item.get("needs_observation") is True,
+                    "scene_count": len([scene for scene in (item.get("scenes") or []) if isinstance(scene, dict)]),
+                }
+                for item in needed
+            ],
+        }
+        emit(payload)
+        return 0
     root = Path(args.project_root)
     observations = json.loads(args.observe_json) if args.observe_json else None
     if args.refresh:
@@ -488,11 +578,7 @@ def main() -> int:
             "product_model": args.product_model,
             "file_count": len(catalog.get("files") or {}),
             "path": catalog_path(root, args.product_model).as_posix(),
-            "needs_observation": sum(
-                1
-                for item in (catalog.get("files") or {}).values()
-                if isinstance(item, dict) and item.get("needs_observation") is True
-            ),
+            "needs_observation": len(files_needing_observation(catalog)),
         }
     emit(payload)
     return 0

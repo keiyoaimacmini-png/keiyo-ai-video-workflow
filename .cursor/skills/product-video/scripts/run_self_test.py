@@ -39,7 +39,9 @@ from material_index import (  # noqa: E402
 )
 from visual_catalog import (  # noqa: E402
     apply_observed_scenes,
+    files_needing_observation,
     load_catalog,
+    observation_usable,
     refresh_catalog,
     scene_match_score,
     sidecar_describes_scene,
@@ -1989,6 +1991,89 @@ def test_visual_catalog_onboarding(root: Path) -> None:
     stored = load_catalog(root, product)
     observed = next(item for item in stored["files"].values() if "IMG_0369" in str(item.get("source") or ""))
     check("catalog-observation-has-vcut", any("V字カット" in (scene.get("visible_features") or []) for scene in observed.get("scenes") or []))
+    check("catalog-unobserved-after-sidecar", len(files_needing_observation(load_catalog(root, product))) == 0)
+    leftover = {
+        "schema": "product_video_visual_catalog.v1",
+        "product_model": product,
+        "files": {
+            "empty.mov": {
+                "source": "empty.mov",
+                "discovery_folder": "設置風景",
+                "needs_observation": True,
+                "scenes": [],
+            },
+            "kept.mov": {
+                "source": "kept.mov",
+                "discovery_folder": "設置風景",
+                "needs_observation": False,
+                "scenes": [
+                    {
+                        "source": "kept.mov",
+                        "source_in": 0.0,
+                        "source_out": 2.0,
+                        "objects": ["元のシーン"],
+                        "actions": ["設置済み"],
+                        "factual_description": "既にあるV字カット",
+                        "framing": "close",
+                    }
+                ],
+            },
+        },
+    }
+    check("catalog-lists-empty-scenes", [item.get("source") for item in files_needing_observation(leftover)] == ["empty.mov"])
+    apply_observed_scenes(
+        leftover,
+        [
+            {
+                "source": "empty.mov",
+                "source_in": 0.0,
+                "source_out": 3.2,
+                "objects": ["設置風景"],
+                "factual_description": "設置風景",
+                "location": "設置風景",
+            },
+            {
+                "source": "empty.mov",
+                "source_in": 0.0,
+                "source_out": 3.2,
+                "objects": ["サンシェード"],
+                "actions": ["広げる"],
+                "product_state": "展開中",
+                "location": "cabin_interior",
+                "framing": "wide",
+                "camera_distance": "wide",
+                "visible_features": ["フロントガラス"],
+                "factual_description": "車内正面からサンシェードを広げる",
+            },
+            {
+                "source": "empty.mov",
+                "source_in": 3.2,
+                "source_out": 6.8,
+                "objects": ["ルームミラー"],
+                "actions": ["フィット"],
+                "product_state": "設置済み",
+                "location": "windshield_interior",
+                "framing": "close",
+                "visible_features": ["V字カット"],
+                "factual_description": "V字カットとルームミラー",
+            },
+            {
+                "source": "kept.mov",
+                "source_in": 0.0,
+                "source_out": 2.0,
+                "objects": ["上書き禁止"],
+                "actions": ["畳む"],
+                "factual_description": "再解析してはいけない",
+                "framing": "wide",
+            },
+        ],
+    )
+    empty_scenes = leftover["files"]["empty.mov"]["scenes"]
+    check("catalog-rejects-folder-only-observation", observation_usable({"factual_description": "設置風景", "objects": ["設置風景"]}, "設置風景") is False)
+    check("catalog-keeps-objective-fields", leftover["files"]["empty.mov"].get("needs_observation") is False and len(empty_scenes) == 2)
+    check("catalog-splits-ranges", [round(item["source_in"], 1) for item in empty_scenes] == [0.0, 3.2])
+    check("catalog-does-not-reobserve-existing", leftover["files"]["kept.mov"]["scenes"][0]["objects"] == ["元のシーン"])
+    check("catalog-unobserved-cleared", files_needing_observation(leftover) == [])
 
 
 def _catalog_candidate(

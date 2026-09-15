@@ -12,6 +12,8 @@ Reuse the current material root from PREPARE. Do not inventory every file. Do no
 
 Load history, refresh the persistent material index, and refresh the visual scene catalog. Unchanged files are reused; only mtime/size/sidecar changes are updated. Do not re-watch the whole library.
 
+Unobserved files (`needs_observation` or empty `scenes`) are a **one-time product-library onboarding** job, not an ASSEMBLY re-watch. List them with `visual_catalog.py --list-unobserved`. Write objective on-screen scenes (`source` / `source_in` / `source_out` / `objects` / `actions` / `product_state` / `location` / `framing` / `camera_distance` / `visible_features` / `factual_description`) and apply with `--observe-json`. Skip files that already have scenes. Do not use the folder name as scene content. Do not score picture quality. After onboarding, later cases refresh only changed files.
+
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/approved_shots.py" --project-root <PROJECT_ROOT> --product-model <MODEL>
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/material_index.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --material-root <MATERIAL_ROOT> --refresh
