@@ -3596,8 +3596,14 @@ def test_prompt_template() -> None:
     check("prompt-asks-3-to-5", "3〜5パターン" in prompt)
     check("prompt-bans-model-in-line", "識別番号はセリフに入れない" in prompt)
     check("prompt-bans-model-in-cta", "CTAにも型番を入れない" in prompt)
-    check("prompt-short-line-range", "12〜22文字" in prompt)
-    check("prompt-short-line-cap", "25文字を大きく超えない" in prompt)
+    check("prompt-short-line-range", "12〜28文字" in prompt)
+    check("prompt-short-line-cap", "長くても35文字程度" in prompt)
+    check("prompt-facts-are-upstream", "上流工程で確認済みの商品情報です" in prompt)
+    check("prompt-no-extra-questions", "追加質問をせず、この情報だけを使って" in prompt)
+    check("prompt-template-has-no-product-examples", all(
+        token not in template
+        for token in ("AN-S182", "UV99", "V字カット", "10本骨", "人物追跡")
+    ))
     check("prompt-requires-evidence-id", "根拠ID" in prompt)
     check("prompt-labels-f1", "F1: 車内の日差しを遮るサンシェード" in prompt)
     check("prompt-labels-f2", "F2: 傘型でパッと開く" in prompt)
