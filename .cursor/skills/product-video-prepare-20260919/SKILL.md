@@ -1,5 +1,5 @@
 ---
-name: product-video-prepare
+name: product-video-prepare-20260919
 description: Prepare one new isolated product-video case from verified product inputs. Use only when /product-video dispatches PREPARE.
 disable-model-invocation: true
 ---
@@ -7,11 +7,12 @@ disable-model-invocation: true
 # PREPARE
 
 Read this file only when dispatch says `product-video-prepare`.
+When this Skill's behavior changes, rename the folder and frontmatter `name` date (`YYYYMMDD`) together. Keep the logical dispatch id.
 
 1. Resolve `PROJECT_ROOT`. Reuse the current material-management helper; do not redesign it:
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --require-materials
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/resolve_product_inputs.py" --project-root <PROJECT_ROOT> --product-model <MODEL> --require-materials
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/prove_material_videos.py" --material-root <resolved material_root>
 ```
 

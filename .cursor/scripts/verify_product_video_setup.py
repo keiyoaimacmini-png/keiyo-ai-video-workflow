@@ -1,117 +1,43 @@
 #!/usr/bin/env python3
-"""Fail-closed skill and material preflight for Cursor product-video runs."""
+"""Fail-closed check for the current /product-video layout."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-from pathlib import Path
-import re
 import subprocess
 import sys
+from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_NAME = "produce-tiktok-product-video-portable"
-SKILL_ROOT = REPO_ROOT / ".cursor" / "skills" / SKILL_NAME
+ENTRY_SKILL = "product-video"
+SKILL_DATE = "20260919"
+ENTRY_ROOT = REPO_ROOT / ".cursor" / "skills" / ENTRY_SKILL
 SETTINGS_PATH = REPO_ROOT / "config" / "product_video_settings_AN-S182.v1.json"
-EXPECTED_SETTINGS_SHA256 = "a90ee56e42e8ddfcc9c4fec7970bffcc1e4396bbe6dcd37df9a2f74b399e0afa"
-REQUIRED_SKILL_FILES = (
-    "SKILL.md",
-    "manifest.json",
-    "references/checkpoint-contract.md",
-    "references/core-invariants.md",
-    "references/execution-plan-contract.md",
-    "references/fast-path.md",
-    "references/workflow-state-contract.md",
-    "references/host-adapter-contract.md",
-    "references/hold-registry.md",
-    "references/payload-contract.md",
-    "references/portability-notes.md",
-    "references/product-and-material-contract.md",
-    "references/self-repair.md",
-    "stages/01-prepare-script.md",
-    "stages/02-validate-script.md",
-    "stages/03-build-rough-cut.md",
-    "stages/04-finish.md",
-    "stages/05-verify-timeline.md",
-    "stages/06-deliver.md",
-    "scripts/build_rule_snapshot.py",
-    "scripts/validate_product_video_payload.py",
-    "scripts/validate_workflow_state.py",
-    "scripts/validate_execution_plan.py",
-    "scripts/validate_nonfinal_slack.py",
-    "scripts/validate_track_pairing.py",
-    "scripts/validate_timeline_integrity.py",
-    "scripts/purge_local_working_media.py",
-    "scripts/prepare_bulk_tts_scene_gaps.py",
-    "scripts/resolve_product_inputs.py",
-    "scripts/render_gemini_web_prompt.py",
-    "scripts/send_gemini_cli_prompt.py",
-    "scripts/apply_spoken_lines.py",
-    "scripts/prove_source_range.py",
-    "scripts/upload_drive_local_file.py",
-    "scripts/capture_capcut_result_audio.py",
+EXPECTED_SETTINGS_SHA256 = "ef6865669fcf07a3a71423881be716e7a5c34dd7d588c8aea8d80e986fbf9c5f"
+LOGICAL_STAGE_SKILLS = (
+    "product-video-prepare",
+    "product-video-script",
+    "product-video-narration",
+    "product-video-assembly",
+    "product-video-rough-edit",
+    "product-video-delivery",
 )
-SELF_TESTS = (
-    "validate_product_video_payload.py",
-    "validate_workflow_state.py",
-    "validate_execution_plan.py",
-    "validate_nonfinal_slack.py",
-    "validate_track_pairing.py",
-    "validate_timeline_integrity.py",
-    "purge_local_working_media.py",
-    "prepare_bulk_tts_scene_gaps.py",
+REMOVED_SKILL_DIRS = (
+    "produce-tiktok-product-video-portable",
+    "produce-tiktok-product-video-v3",
+)
+REQUIRED_HELPERS = (
     "resolve_product_inputs.py",
-    "render_gemini_web_prompt.py",
     "send_gemini_cli_prompt.py",
-    "upload_drive_local_file.py",
     "capture_capcut_result_audio.py",
-)
-FORBIDDEN_TEXT = (
-    ".codex/",
-    "codex-project",
-    "mcp__",
-)
-FORBIDDEN_PATH_PATTERNS = (
-    ("macOS home path", re.compile(r"/Users/[^/\s]+/")),
-    ("Linux home path", re.compile(r"/home/[^/\s]+/")),
-    ("Windows home path", re.compile(r"(?i)\b[A-Z]:\\Users\\[^\\\s]+\\")),
-)
-REQUIRED_TEXT = (
-    ("SKILL.md", "does not block `COMPLETE`"),
-    ("references/hold-registry.md", "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE"),
-    ("references/host-adapter-contract.md", "Do not encode the completed video as base64"),
-    ("references/host-adapter-contract.md", "Do not open Chrome.app for 格納"),
-    ("references/core-invariants.md", "Do not spawn a successor case to obtain Holiday Twist"),
-    ("references/fast-path.md", "Do not pause after `粗編集OK` for Path 1"),
-    ("references/checkpoint-contract.md", "in, midpoint, and out frames"),
-    ("stages/03-build-rough-cut.md", "Do not use Motion Graphics as the viewer-facing caption layer"),
-    ("stages/04-finish.md", "TTS sidecar"),
-    ("stages/04-finish.md", "product-video-center"),
-    ("stages/04-finish.md", "Do not add a caption background band"),
-    ("stages/04-finish.md", "Dela Gothic One"),
-    ("stages/04-finish.md", "white fill"),
-    ("references/product-and-material-contract.md", "Dela Gothic One"),
-    ("stages/06-deliver.md", "Do not inline the completed video as base64"),
-    ("stages/06-deliver.md", "upload_drive_local_file.py"),
-    ("stages/06-deliver.md", "same turn"),
-    ("stages/06-deliver.md", "Do not open Chrome.app for 格納"),
-    ("stages/06-deliver.md", "格納日"),
-    ("stages/01-prepare-script.md", "Do not leave a paste for the operator"),
-    ("references/hold-registry.md", "does not authorize an operator paste"),
-    ("references/fast-path.md", "Do not screenshot, OCR, or Accessibility-hunt"),
-    ("references/hold-registry.md", "HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED"),
-    ("references/hold-registry.md", "HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED"),
-    ("references/host-adapter-contract.md", "drive.google.com"),
-    ("stages/01-prepare-script.md", "send_gemini_cli_prompt.py"),
-    ("stages/01-prepare-script.md", "agy"),
-    ("stages/01-prepare-script.md", "Gemini 3.8 Flash"),
-    ("stages/01-prepare-script.md", "Do not hash or watch the material root"),
-    ("stages/03-build-rough-cut.md", "prove_source_range.py"),
-    ("references/host-adapter-contract.md", "Gemini 3.8 Flash"),
-    ("references/hold-registry.md", "HOLD_GEMINI_CLI_NOT_VERIFIED"),
+    "prove_source_range.py",
+    "upload_drive_local_file.py",
+    "purge_local_working_media.py",
+    "run_preflight.py",
+    "dispatch.py",
 )
 
 
@@ -123,76 +49,49 @@ def digest(path: Path) -> str:
     return hasher.hexdigest()
 
 
+def frontmatter_name(path: Path) -> str | None:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("name:"):
+            return line.split(":", 1)[1].strip()
+    return None
+
+
 def validate_static() -> list[str]:
     errors: list[str] = []
-    if SKILL_ROOT.name != SKILL_NAME:
-        errors.append("skill folder name mismatch")
-    for relative in REQUIRED_SKILL_FILES:
-        path = SKILL_ROOT / relative
-        if path.is_symlink() or not path.is_file():
-            errors.append(f"missing or unsafe skill file: {relative}")
-    actual_files = {
-        path.relative_to(SKILL_ROOT).as_posix()
-        for path in SKILL_ROOT.rglob("*")
-        if path.is_file() and not path.is_symlink()
-    }
-    unexpected_files = actual_files - set(REQUIRED_SKILL_FILES)
-    if unexpected_files:
-        errors.append("unexpected skill files: " + ", ".join(sorted(unexpected_files)))
-    if errors:
-        return errors
-
-    skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
-    match = re.search(r"(?m)^name:\s*([^\s]+)\s*$", skill_text)
-    if match is None or match.group(1) != SKILL_NAME:
-        errors.append("SKILL.md name must match the Cursor skill folder")
-
-    for path in sorted(SKILL_ROOT.rglob("*")):
-        if path.is_symlink():
-            errors.append(f"symlink is not allowed in the skill: {path.relative_to(SKILL_ROOT)}")
+    entry = ENTRY_ROOT / "SKILL.md"
+    if not entry.is_file():
+        return ["missing /product-video entrypoint"]
+    if frontmatter_name(entry) != ENTRY_SKILL:
+        errors.append("entrypoint frontmatter name must stay product-video")
+    skills_root = REPO_ROOT / ".cursor" / "skills"
+    for removed in REMOVED_SKILL_DIRS:
+        if (skills_root / removed).exists():
+            errors.append(f"legacy skill still present: {removed}")
+    for logical in LOGICAL_STAGE_SKILLS:
+        dated = f"{logical}-{SKILL_DATE}"
+        if (skills_root / logical).exists():
+            errors.append(f"undated stage skill must not remain: {logical}")
+        skill_md = skills_root / dated / "SKILL.md"
+        if not skill_md.is_file():
+            errors.append(f"missing dated skill: {dated}")
             continue
-        if not path.is_file() or path.suffix.lower() not in {".md", ".py", ".json"}:
-            continue
-        text = path.read_text(encoding="utf-8")
-        for forbidden in FORBIDDEN_TEXT:
-            if forbidden.lower() in text.lower():
-                errors.append(f"host-specific text in {path.relative_to(SKILL_ROOT)}: {forbidden}")
-        for label, pattern in FORBIDDEN_PATH_PATTERNS:
-            if pattern.search(text):
-                errors.append(f"host-specific path in {path.relative_to(SKILL_ROOT)}: {label}")
-
-    for relative, needle in REQUIRED_TEXT:
-        text = (SKILL_ROOT / relative).read_text(encoding="utf-8")
-        if needle not in text:
-            errors.append(f"missing required guard text in {relative}: {needle}")
-
+        if frontmatter_name(skill_md) != dated:
+            errors.append(f"frontmatter name must match folder: {dated}")
+    for name in REQUIRED_HELPERS:
+        path = ENTRY_ROOT / "scripts" / name
+        if not path.is_file():
+            errors.append(f"missing helper: {name}")
     if SETTINGS_PATH.is_symlink() or not SETTINGS_PATH.is_file():
         errors.append("canonical AN-S182 settings file is missing or unsafe")
     elif digest(SETTINGS_PATH) != EXPECTED_SETTINGS_SHA256:
         errors.append("canonical AN-S182 settings SHA-256 mismatch")
-
-    if errors:
-        return errors
-
-    for script_name in SELF_TESTS:
-        script = SKILL_ROOT / "scripts" / script_name
-        result = subprocess.run(
-            [sys.executable, str(script), "--self-test"],
-            cwd=REPO_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            message = (result.stderr or result.stdout).strip()
-            errors.append(f"self-test failed for {script_name}: {message}")
     return errors
 
 
 def resolve_case_inputs(product_model: str, require_materials: bool) -> tuple[list[str], dict]:
     command = [
         sys.executable,
-        str(SKILL_ROOT / "scripts" / "resolve_product_inputs.py"),
+        str(ENTRY_ROOT / "scripts" / "resolve_product_inputs.py"),
         "--project-root",
         str(REPO_ROOT),
         "--product-model",
@@ -214,10 +113,7 @@ def resolve_case_inputs(product_model: str, require_materials: bool) -> tuple[li
 
 
 def material_folder_status(root: Path) -> tuple[list[str], dict]:
-    summary = {
-        "folder": root.name,
-        "material_root_exists": False,
-    }
+    summary = {"folder": root.name, "material_root_exists": False}
     if root.is_symlink() or not root.is_dir():
         return ["HOLD_INPUT_MATERIALS_REQUIRED"], summary
     summary["material_root_exists"] = True
@@ -246,7 +142,18 @@ def main() -> int:
     material_summary["settings_path"] = resolved.get("settings_path")
     material_summary["drive_folder_title"] = resolved.get("drive_folder_title")
     if material_errors and args.require_materials:
-        print(json.dumps({"status": "HOLD", "errors": material_errors, "materials": material_summary, "resolved": resolved}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": "HOLD",
+                    "errors": material_errors,
+                    "materials": material_summary,
+                    "resolved": resolved,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 2
 
     status = "READY" if not material_errors else "STATIC_READY_MATERIALS_PENDING"

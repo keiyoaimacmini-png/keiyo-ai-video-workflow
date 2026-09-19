@@ -1,5 +1,5 @@
 ---
-name: product-video-script
+name: product-video-script-20260919
 description: Generate 3-5 Gemini script variants and wait for explicit 案Nで台本OK. Use only when /product-video dispatches SCRIPT.
 disable-model-invocation: true
 ---
@@ -7,6 +7,7 @@ disable-model-invocation: true
 # SCRIPT
 
 Read this file only when dispatch says `product-video-script`.
+When this Skill's behavior changes, rename the folder and frontmatter `name` date (`YYYYMMDD`) together. Keep the logical dispatch id.
 
 Read [gemini-script-instructions.md](../product-video/references/gemini-script-instructions.md) only to confirm the prompt template. Do not rewrite it.
 
@@ -21,7 +22,7 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/render_script_prom
 2. Send with the existing Gemini transport. Do not use Gemini.app, the Gemini API, or `GEMINI_API_KEY`:
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py" --prompt-file <task-root>/gemini-script-prompt.txt
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/send_gemini_cli_prompt.py" --prompt-file <task-root>/gemini-script-prompt.txt
 ```
 
 If that helper HOLDs, stop with that HOLD.

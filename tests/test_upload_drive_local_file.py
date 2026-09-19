@@ -21,7 +21,7 @@ HELPER = (
     REPO
     / ".cursor"
     / "skills"
-    / "produce-tiktok-product-video-portable"
+    / "product-video"
     / "scripts"
     / "upload_drive_local_file.py"
 )

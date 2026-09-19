@@ -13,7 +13,7 @@ Ver2 の本番ホストは、Cursor Cloud Agent（VM）ではなく、**操作 M
 5. この Mac で次を実行する。
 
 ```bash
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
+python3 .cursor/skills/product-video/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
@@ -31,8 +31,8 @@ Cursor の親モデルは切り替えない。台本は Gemini API でも Gemini
 2. キー無し brief から `render_gemini_web_prompt.py` の出力を出す。それが Gemini に渡す文面である。ルール md や lessons は足さない。
 
 ```bash
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemini_web_prompt.py --brief <task-root>/gemini-web-brief.v1.json
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py --prompt-file <task-root>/gemini-web-prompt.txt
+python3 .cursor/skills/product-video/scripts/render_script_prompt.py --project-root . --product-information "<verified>" --appeal-points "<verified>" --output <task-root>/gemini-script-prompt.txt
+python3 .cursor/skills/product-video/scripts/send_gemini_cli_prompt.py --prompt-file <task-root>/gemini-script-prompt.txt
 ```
 
 3. この Mac の **Antigravity CLI（`agy`）** に、Google AI のサブスクと同じ Google アカウントでログインする。エージェントはログインを起動しない。
@@ -62,7 +62,7 @@ Drive 格納は、書き出し読戻しの同じターンで `scripts/upload_dri
 型番・設定・素材を、その案件の値に置き換えて渡します。
 
 ```text
-/produce-tiktok-product-video-portable
+/product-video
 
 本番ホストはこの物理 Mac の Cursor Desktop Agent です。Cloud Agent / Cloud VM では作らないでください。
 

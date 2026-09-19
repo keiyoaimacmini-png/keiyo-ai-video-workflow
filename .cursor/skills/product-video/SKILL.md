@@ -11,7 +11,7 @@ Orchestrator only. Do not generate TTS, select clips, export, or upload Drive he
 
 - `PROJECT_ROOT`: this Git repository root
 - `SKILL_ROOT`: this directory
-- Do not load `produce-tiktok-product-video-portable` or `produce-tiktok-product-video-v3` Skills
+- Public entrypoint is `/product-video`. Stage Skills use dated folders; dispatch `skill` stays the undated logical id.
 
 ## 3-touch
 
@@ -31,7 +31,7 @@ python3 "${SKILL_ROOT}/scripts/dispatch.py" --project-root <PROJECT_ROOT> [--cas
 
 1. Read only the JSON.
 2. If `action` is `run_preflight`, run the start-time preflight in this same turn. Do not create a new case. Do not regenerate an approved script. Preserve `case_id` and completed stages.
-3. If `action` is `run_skill`, read **only** `.cursor/skills/<skill>/SKILL.md` and execute that stage.
+3. If `action` is `run_skill`, read **only** `.cursor/skills/<skill_dir>/SKILL.md` and execute that stage. `skill` is the stable logical id. `skill_dir` is the current dated folder.
 4. After that stage succeeds, run dispatch again in the same turn.
 5. Do not ask 「続けますか」「Continue?」「Proceed?」 between automatic stages.
 6. Stop only when `action` is `stop`.
@@ -80,6 +80,10 @@ Helper path:
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/run_preflight.py" --project-root <PROJECT_ROOT> --product-model <MODEL>
 ```
+
+## Skill dates
+
+Stage Skill folders and frontmatter names are `<logical>-YYYYMMDD`. Change both on a production-behavior change. Do not keep the previous dated folder. Do not date this `/product-video` entrypoint. Typo/comment-only edits do not change the date.
 
 ## Retries
 

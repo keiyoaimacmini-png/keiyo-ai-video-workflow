@@ -1,5 +1,5 @@
 ---
-name: product-video-rough-edit
+name: product-video-rough-edit-20260919
 description: Place approved narration, selected video, and exact telop into a usable rough edit, then stop for the operator. Use only when /product-video dispatches ROUGH_EDIT.
 disable-model-invocation: true
 ---
@@ -7,6 +7,7 @@ disable-model-invocation: true
 # ROUGH_EDIT
 
 Read this file only when dispatch says `product-video-rough-edit`.
+When this Skill's behavior changes, rename the folder and frontmatter `name` date (`YYYYMMDD`) together. Keep the logical dispatch id.
 
 Use **one** editor project for this case. Create it if this case has none. Confirm its identity before placing clips. Do not create a successor project in a later stage.
 

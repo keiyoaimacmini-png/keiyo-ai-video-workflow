@@ -12,9 +12,10 @@ from constants import (
     SKILL_FOR_STAGE,
     STOP_STAGES,
     operator_rough_message,
+    physical_skill_name,
 )
 from bind_script_selection import bind_script_selection
-from paths import emit, project_root_from, skill_root, state_path
+from paths import emit, project_root_from, stage_skill_root, state_path
 from workflow_state import clear_hold, hold, load_state, stage_already_complete
 
 
@@ -29,10 +30,13 @@ def run_skill(skill: str, stage: str, *, project_root: Path | None = None, **ext
         "status": "OK",
         "action": "run_skill",
         "skill": skill,
+        "skill_dir": physical_skill_name(skill),
         "stage": stage,
         "ask_continue": False,
     }
     payload.update(extra)
+    if project_root is not None:
+        payload.setdefault("skill_root", str(stage_skill_root(Path(project_root), skill)))
     case_id = extra.get("case_id")
     if project_root is not None and case_id:
         try:
@@ -77,7 +81,7 @@ def dispatch(
             "PREPARE",
             project_root=root,
             case_id=created["case_id"],
-            skill_root=str(skill_root(root) / ".." / "product-video-prepare"),
+            skill_root=str(stage_skill_root(root, "product-video-prepare")),
         )
 
     case_id = resolved_case

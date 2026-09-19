@@ -8,7 +8,7 @@ from typing import Any
 
 import subprocess
 
-from constants import HELPER_SCRIPTS, LEGACY_TRACKED_HELPERS, OWNED_HELPERS, RUNTIME_HELPER_RELS, STATE_FILENAME
+from constants import HELPER_SCRIPTS, RUNTIME_HELPER_RELS, STATE_FILENAME, physical_skill_name
 
 
 def project_root_from(path: Path) -> Path:
@@ -25,17 +25,12 @@ def skill_root(project_root: Path) -> Path:
     return project_root / ".cursor" / "skills" / "product-video"
 
 
-def old_helper_root(project_root: Path) -> Path:
-    return project_root / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
+def stage_skill_root(project_root: Path, logical: str) -> Path:
+    return project_root / ".cursor" / "skills" / physical_skill_name(logical)
 
 
 def helper_relpath(name: str) -> str:
-    filename = HELPER_SCRIPTS[name]
-    if name in OWNED_HELPERS:
-        return f".cursor/skills/product-video/scripts/{filename}"
-    if name in LEGACY_TRACKED_HELPERS:
-        return f".cursor/skills/produce-tiktok-product-video-portable/scripts/{filename}"
-    raise KeyError(name)
+    return f".cursor/skills/product-video/scripts/{HELPER_SCRIPTS[name]}"
 
 
 def helper_path(project_root: Path, name: str) -> Path:

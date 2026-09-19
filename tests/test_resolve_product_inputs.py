@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parent.parent
-RESOLVER = REPO / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts" / "resolve_product_inputs.py"
+RESOLVER = REPO / ".cursor" / "skills" / "product-video" / "scripts" / "resolve_product_inputs.py"
 
 
 class ResolveProductInputsTests(unittest.TestCase):

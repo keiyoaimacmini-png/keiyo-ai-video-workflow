@@ -1,5 +1,5 @@
 ---
-name: product-video-assembly
+name: product-video-assembly-20260919
 description: Choose source clips from frozen lines, Gemini scenarios, and planned editorial narration durations. Use only when /product-video dispatches ASSEMBLY.
 disable-model-invocation: true
 ---
@@ -7,6 +7,7 @@ disable-model-invocation: true
 # ASSEMBLY
 
 Read this file only when dispatch says `product-video-assembly`.
+When this Skill's behavior changes, rename the folder and frontmatter `name` date (`YYYYMMDD`) together. Keep the logical dispatch id.
 
 Reuse the current material root from PREPARE. Do not inventory every file. Do not rewrite the approved script to fit a clip. Do not analyze the whole library and do not run AI picture scoring. Do not place anything on ChatCut in this stage.
 
@@ -46,7 +47,7 @@ If a candidate has `source_in` / `source_out` (or a scene range in md), `availab
 Prove only the chosen range, once per segment:
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/prove_source_range.py" --source <file> --in-sec <in> --out-sec <out> --output-dir <task-root>/evidence/<cut-id>
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/prove_source_range.py" --source <file> --in-sec <in> --out-sec <out> --output-dir <task-root>/evidence/<cut-id>
 ```
 
 Do not create a second editor project. Complete `ASSEMBLY`, return to `/product-video`. Next stage is ROUGH_EDIT.

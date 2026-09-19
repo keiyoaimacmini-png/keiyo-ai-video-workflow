@@ -7,7 +7,7 @@ disable-model-invocation: true
 # NARRATION
 
 Read this file only when dispatch says `product-video-narration`.
-When this Skill's flow, rules, or execution change, update the frontmatter `name` date (`YYYYMMDD`). Do not rename the folder or the dispatch identifier.
+When this Skill's flow, rules, or execution change, rename the folder and frontmatter `name` date (`YYYYMMDD`) together. Keep the logical dispatch id. Do not keep the previous dated folder.
 
 Approved-script cuts are a **queue**. Stay in this Skill until every cut is recorded. Do not return to `/product-video` dispatch, do not make a new LLM plan, and do not chat after a successful cut.
 Do not chat after a successful cut.
@@ -69,7 +69,7 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_cut.py" 
 7. Save that new result only. Use the helper's `duration_seconds`. Do not probe duration again.
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py" --url <new-result-src> --output <task-root>/tts/<cut-id>.mp3
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/capture_capcut_result_audio.py" --url <new-result-src> --output <task-root>/tts/<cut-id>.mp3
 ```
 
 8. Record the cut with that capture duration. `narration_cut.py --finish-cut` also rejects leftover-length audio (about 11s+ and far above one-line Holiday Twist history). No transcript. No LLM review.

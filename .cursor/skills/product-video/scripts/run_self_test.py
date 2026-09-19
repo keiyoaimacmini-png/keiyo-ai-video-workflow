@@ -16,6 +16,10 @@ SCRIPTS = Path(__file__).resolve().parent
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(SCRIPTS))
 
+
+def skill_md(logical: str) -> Path:
+    return REPO / ".cursor" / "skills" / physical_skill_name(logical) / "SKILL.md"
+
 from assembly import (  # noqa: E402
     adjacent_visual_diff,
     annotate_visual_match,
@@ -73,6 +77,7 @@ from classify_capcut_credit import classify_capcut_credit  # noqa: E402
 from constants import (  # noqa: E402
     DELIVERY_APPROVAL,
     DRIVE_DELIVERY_WARNING,
+    ENTRY_SKILL,
     HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE,
     HOLD_CAPCUT_CREDIT_UNVERIFIED,
     HOLD_CAPCUT_NEW_PURCHASE_REQUIRED,
@@ -81,12 +86,17 @@ from constants import (  # noqa: E402
     HOLD_PREFLIGHT_REQUIRED,
     HOLD_PRODUCT_FACTS_REQUIRED,
     HOLD_SCRIPT_PRODUCT_GROUNDING,
+    LOGICAL_STAGE_SKILLS,
     NARRATION_SPEED,
     OLD_SKILL_MARKERS,
     OPERATOR_ROUGH_MESSAGE,
     PERSISTENT_SHARED_INPUT_RELATIVE,
     PERSISTENT_SHARED_INPUT_ROOTS,
+    REMOVED_SKILL_DIRS,
+    SKILL_FOR_STAGE,
+    SKILL_VERSION_DATE,
     operator_rough_message,
+    physical_skill_name,
 )
 from delivery import may_complete, may_purge, may_start_job, prove_drive_ready, record_final_approved_shots  # noqa: E402
 from dispatch import dispatch  # noqa: E402
@@ -248,8 +258,6 @@ def fake_project(tmp: Path) -> Path:
         REPO / ".cursor" / "skills" / "product-video" / "scripts" / "run_preflight.py",
         owned_scripts / "run_preflight.py",
     )
-    helper_dir = tmp / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts"
-    helper_dir.mkdir(parents=True)
     for name in (
         "resolve_product_inputs.py",
         "send_gemini_cli_prompt.py",
@@ -258,12 +266,10 @@ def fake_project(tmp: Path) -> Path:
         "upload_drive_local_file.py",
         "purge_local_working_media.py",
     ):
-        relative = f".cursor/skills/produce-tiktok-product-video-portable/scripts/{name}"
+        relative = f".cursor/skills/product-video/scripts/{name}"
         if not git_tracks(REPO, relative):
-            raise FileNotFoundError(f"refusing untracked legacy helper: {relative}")
-        src = REPO / relative
-        dest = helper_dir / name
-        dest.symlink_to(src)
+            raise FileNotFoundError(f"refusing untracked helper: {relative}")
+        shutil.copy(REPO / relative, owned_scripts / name)
     config = tmp / "config"
     config.mkdir()
     settings = {
@@ -1405,7 +1411,7 @@ def test_tts_session(root: Path) -> None:
         holds <= {HOLD_CAPCUT_CHROME_MCP_UNAVAILABLE, "HOLD_CAPCUT_LOGIN_USER_ACTION_REQUIRED"},
         str(holds),
     )
-    skill = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    skill = skill_md("product-video-narration").read_text(encoding="utf-8")
     check("session-skill-once", "Session setup (once)" in skill)
     check("session-skill-no-per-cut-chat", "Do not chat after a successful cut" in skill)
     check("session-skill-keep-page", "same Chrome tab" in skill or "same session" in skill)
@@ -1696,7 +1702,7 @@ def test_narration_atomic_cut() -> None:
     started = mark_timing({}, "clear_write_readback", start=True, now=10.0)
     ended = mark_timing(started, "clear_write_readback", start=False, now=12.5)
     check("atomic-timing-elapsed", ended["clear_write_readback"]["elapsed_seconds"] == 2.5)
-    skill = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    skill = skill_md("product-video-narration").read_text(encoding="utf-8")
     check("atomic-skill-no-happy-prove-chain", "Do not run them on the happy path" in skill)
     check("atomic-skill-same-session", "same Chrome tab" in skill and "Holiday Twist" in skill)
     check("atomic-skill-playback-1-2", "playbackRate` 1.2" in skill or "playbackRate 1.2" in skill)
@@ -2969,6 +2975,16 @@ def test_caption_wrap() -> None:
     check("wrap-keeps-short-line", (short_ok.get("caption_visual_wrap") or "") == "下からチェック！")
     last_lines = (wrap_caption("チタンシルバーの特殊コーティング採用！").get("caption_visual_wrap") or "").split("\n")
     check("wrap-no-tiny-last-line", all(len(line) > 2 for line in last_lines))
+    hot = wrap_caption("まだ車内でアチアチ格闘技やってる人いる？")
+    check("wrap-does-not-split-yatteru", "やって\nる" not in (hot.get("caption_visual_wrap") or ""))
+    snag = wrap_caption("でもルームミラーに引っかかるんじゃないのって思うじゃん？")
+    check("wrap-does-not-split-hikakaru", "引っかか\nる" not in (snag.get("caption_visual_wrap") or ""))
+    pouch_nara = wrap_caption("専用ポーチにしまえば邪魔にならないし最高。")
+    check("wrap-does-not-split-naranai", "なら\nない" not in (pouch_nara.get("caption_visual_wrap") or ""))
+    twist = wrap_caption("普通の傘より気合い入ってない？")
+    check("wrap-does-not-split-haittenai", "入って\nない" not in (twist.get("caption_visual_wrap") or ""))
+    face = wrap_caption("表面はチタンシルバーコーティングで反射力ヤバいし")
+    check("wrap-does-not-orphan-hyomen", not (face.get("caption_visual_wrap") or "").startswith("表面は\n"))
 
 
 def test_timing_metrics(root: Path) -> None:
@@ -3038,6 +3054,7 @@ def test_dispatch_initial_entry(root: Path) -> None:
         return
     check("initial-entry-ready-no-exception", True)
     check("initial-entry-skill", first.get("skill") == "product-video-prepare")
+    check("initial-entry-skill-dir", first.get("skill_dir") == physical_skill_name("product-video-prepare"))
     check("initial-entry-stage", first.get("stage") == "PREPARE")
     case_id = first.get("case_id")
     check(
@@ -3154,6 +3171,7 @@ def test_preflight_operator_batch(root: Path) -> None:
     check("held-case-stays-narration", blocked.get("current_stage") == "NARRATION")
     resumed = dispatch(root, case_id=case_id, product_model="AN-S999", preflight_ready=True)
     check("held-case-resumes-narration", resumed.get("skill") == "product-video-narration" and resumed.get("stage") == "NARRATION")
+    check("held-case-resume-dir", resumed.get("skill_dir") == physical_skill_name("product-video-narration"))
     state = load_state(root, case_id)
     check("held-case-hold-cleared", state.get("hold") is None)
     check("held-case-variant-kept", state.get("selected_script_variant") == 2)
@@ -3171,6 +3189,7 @@ def test_dispatch_resume(root: Path) -> None:
     seed_state(root, case_id, "PREPARE", [], extra={"material_root": str(materials)})
     first = dispatch(root, case_id=case_id)
     check("dispatch-prepare", first.get("skill") == "product-video-prepare" and first.get("ask_continue") is False)
+    check("dispatch-prepare-dir", first.get("skill_dir") == physical_skill_name("product-video-prepare"))
     finish_prepare_missing = finish_prepare(root, case_id)
     check("prepare-needs-inputs", finish_prepare_missing.get("status") == "HOLD")
     inputs = build_product_inputs(
@@ -3195,6 +3214,7 @@ def test_dispatch_resume(root: Path) -> None:
     )
     again = dispatch(root, case_id=case_id)
     check("resume-skips-prepare", again.get("skill") == "product-video-script")
+    check("resume-script-dir", again.get("skill_dir") == physical_skill_name("product-video-script"))
     try:
         complete_stage(root, load_state(root, case_id), "PREPARE", {"status": "OK"})
         check("no-duplicate-prepare", False)
@@ -3209,6 +3229,7 @@ def test_dispatch_resume(root: Path) -> None:
     check("script-not-rerun", waiting.get("skill") is None)
     frozen = dispatch(root, case_id=case_id, utterance="案2で台本OK")
     check("explicit-selection-binds", frozen.get("skill") == "product-video-narration")
+    check("explicit-selection-dir", frozen.get("skill_dir") == physical_skill_name("product-video-narration"))
     state = load_state(root, case_id)
     check("variant-frozen", state.get("selected_script_variant") == 2)
     clips = [
@@ -3224,6 +3245,7 @@ def test_dispatch_resume(root: Path) -> None:
     check("assembly-to-rough", assembled.get("current_stage") == "ROUGH_EDIT")
     rough = dispatch(root, case_id=case_id)
     check("dispatch-rough", rough.get("skill") == "product-video-rough-edit")
+    check("dispatch-rough-dir", rough.get("skill_dir") == physical_skill_name("product-video-rough-edit"))
     waiting_op = complete_stage(root, load_state(root, case_id), "ROUGH_EDIT", {"usable_rough_edit": True})
     check("rough-to-waiting", waiting_op.get("current_stage") == "WAITING_FOR_OPERATOR")
     stop = dispatch(root, case_id=case_id, utterance="粗編集OK")
@@ -3238,6 +3260,7 @@ def test_dispatch_resume(root: Path) -> None:
         drive_fn=lambda: {"status": "OK"},
     )
     check("delivery-requires-phrase", delivery.get("skill") == "product-video-delivery")
+    check("delivery-skill-dir", delivery.get("skill_dir") == physical_skill_name("product-video-delivery"))
 
 
 def test_create_case(root: Path) -> None:
@@ -3609,7 +3632,7 @@ def test_script_grounding() -> None:
     held_batch = prove_scripts_grounding(generic_batch, info, appeals)
     check("grounding-B-batch-holds", held_batch.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
 
-    skill = (REPO / ".cursor" / "skills" / "product-video-script" / "SKILL.md").read_text(encoding="utf-8")
+    skill = skill_md("product-video-script").read_text(encoding="utf-8")
     check("grounding-regen-once", "once more" in skill or "同じ" in skill)
     check("grounding-no-third-regen", "third" in skill or "3" in skill or "再生成" in skill)
     check("grounding-hold-code", HOLD_SCRIPT_PRODUCT_GROUNDING in skill)
@@ -3680,37 +3703,39 @@ def test_prompt_template() -> None:
 
 
 def test_runtime_path() -> None:
-    names = (
-        "product-video",
-        "product-video-prepare",
-        "product-video-script",
-        "product-video-narration",
-        "product-video-assembly",
-        "product-video-rough-edit",
-        "product-video-delivery",
-    )
     skills_root = REPO / ".cursor" / "skills"
-    for name in names:
-        skill_md = skills_root / name / "SKILL.md" if name != "product-video" else skills_root / "product-video" / "SKILL.md"
-        # product-video-prepare lives beside product-video
-        skill_md = skills_root / name / "SKILL.md"
-        text = skill_md.read_text(encoding="utf-8")
-        check(f"skill-exists-{name}", skill_md.is_file() and len(text.splitlines()) < 500)
-        check(
-            f"no-old-skill-md-{name}",
-            "produce-tiktok-product-video-portable/SKILL.md" not in text
-            and "produce-tiktok-product-video-v3/SKILL.md" not in text,
-        )
-        check(f"no-craft-{name}", "validate_craft_quality.py" not in text and "select_common_tts_speed.py" not in text)
+    logicals = (ENTRY_SKILL, *LOGICAL_STAGE_SKILLS)
+    discovered = sorted(
+        path.name for path in skills_root.iterdir() if (path / "SKILL.md").is_file()
+    )
+    expected = sorted([ENTRY_SKILL, *[physical_skill_name(name) for name in LOGICAL_STAGE_SKILLS]])
+    check("cursor-skills-one-each", discovered == expected, str(discovered))
+    for removed in REMOVED_SKILL_DIRS:
+        check(f"legacy-dir-gone-{removed}", not (skills_root / removed).exists())
+        check(f"legacy-undated-gone-{removed}", removed not in discovered)
+    for logical in LOGICAL_STAGE_SKILLS:
+        check(f"undated-stage-gone-{logical}", not (skills_root / logical).exists())
+        path = skill_md(logical)
+        text = path.read_text(encoding="utf-8")
+        dated = physical_skill_name(logical)
+        check(f"skill-exists-{dated}", path.is_file() and len(text.splitlines()) < 500)
+        check(f"skill-name-{dated}", f"name: {dated}" in text.splitlines()[1])
+        check(f"no-old-skill-md-{logical}", all(marker not in text for marker in OLD_SKILL_MARKERS[:2]))
+        check(f"no-craft-{logical}", "validate_craft_quality.py" not in text and "select_common_tts_speed.py" not in text)
+    entry = (skills_root / ENTRY_SKILL / "SKILL.md").read_text(encoding="utf-8")
+    check("entry-is-product-video", entry.startswith("---\nname: product-video\n"))
+    check("entry-slash-product-video", "# /product-video" in entry)
     agents = (REPO / "AGENTS.md").read_text(encoding="utf-8")
     check("agents-entry-product-video", "invoke `/product-video`" in agents)
     check("agents-not-old-entry", "invoke `/produce-tiktok-product-video-portable`" not in agents)
+    check("agents-no-legacy-dir", all(name not in agents for name in REMOVED_SKILL_DIRS))
     for path in SCRIPTS.glob("*.py"):
         if path.name in {"constants.py", "run_self_test.py"}:
             continue
         text = path.read_text(encoding="utf-8")
         check(f"no-old-runtime-{path.name}", all(marker not in text for marker in OLD_SKILL_MARKERS))
-    check("entry-is-product-video", (skills_root / "product-video" / "SKILL.md").read_text(encoding="utf-8").startswith("---\nname: product-video"))
+    check("logical-narration-stable", SKILL_FOR_STAGE["NARRATION"] == "product-video-narration")
+    check("physical-narration-dated", physical_skill_name("product-video-narration") == f"product-video-narration-{SKILL_VERSION_DATE}")
 
 
 def test_gemini_cli_transport() -> None:
@@ -3761,60 +3786,47 @@ def test_git_tracked_helpers() -> None:
         check(f"tts-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
     missing = missing_git_tracked_helpers(REPO)
     check("runtime-helpers-git-tracked", missing == [], str(missing))
-    skill_py = re.compile(r"\$\{PROJECT_ROOT\}/(\.cursor/skills/[^\s`\"']+\.py)")
-    skills_root = REPO / ".cursor" / "skills"
-    for name in (
-        "product-video",
-        "product-video-prepare",
-        "product-video-script",
-        "product-video-narration",
-        "product-video-assembly",
-        "product-video-rough-edit",
-        "product-video-delivery",
+    for name, rel in (
+        ("resolve_product_inputs", ".cursor/skills/product-video/scripts/resolve_product_inputs.py"),
+        ("send_gemini_cli_prompt", ".cursor/skills/product-video/scripts/send_gemini_cli_prompt.py"),
+        ("capture_capcut_result_audio", ".cursor/skills/product-video/scripts/capture_capcut_result_audio.py"),
+        ("prove_source_range", ".cursor/skills/product-video/scripts/prove_source_range.py"),
+        ("upload_drive_local_file", ".cursor/skills/product-video/scripts/upload_drive_local_file.py"),
+        ("purge_local_working_media", ".cursor/skills/product-video/scripts/purge_local_working_media.py"),
     ):
-        text = (skills_root / name / "SKILL.md").read_text(encoding="utf-8")
+        check(f"migrated-{name}-owned-path", helper_relpath(name) == rel)
+        check(f"migrated-{name}-resolves-owned", helper_path(REPO, name) == REPO / rel)
+    skill_py = re.compile(r"\$\{PROJECT_ROOT\}/(\.cursor/skills/[^\s`\"']+\.py)")
+    for name in (ENTRY_SKILL, *LOGICAL_STAGE_SKILLS):
+        text = skill_md(name).read_text(encoding="utf-8")
+        check(f"skill-no-legacy-path-{name}", all(removed not in text for removed in REMOVED_SKILL_DIRS))
         for relative in skill_py.findall(text):
             check(
                 f"skill-helper-tracked-{name}:{Path(relative).name}",
                 git_tracks(REPO, relative),
                 relative,
             )
-    portable_untracked = (
-        REPO / ".cursor" / "skills" / "produce-tiktok-product-video-portable" / "scripts" / "prove_tts_textarea.py"
-    )
-    check(
-        "legacy-untracked-tts-not-required",
-        not git_tracks(
-            REPO,
-            ".cursor/skills/produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py",
-        ),
-    )
     check("owned-tts-exists", (REPO / owned).is_file())
-    narration_skill = (skills_root / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    narration_skill = skill_md("product-video-narration").read_text(encoding="utf-8")
     check("narration-skill-uses-cut-worker", "product-video/scripts/narration_cut.py" in narration_skill)
     check("narration-skill-name-dated", "name: product-video-narration-20260919" in narration_skill)
     check("narration-skill-old-tts-fallback-only", "fallback/debug only" in narration_skill)
     check("narration-skill-uses-speed-proof", "product-video/scripts/prove_tts_speed.py" in narration_skill)
     check("narration-skill-no-capcut-actual-speed-gate", "actual_speed == 1.2" not in narration_skill)
-    rough_skill = (skills_root / "product-video-rough-edit" / "SKILL.md").read_text(encoding="utf-8")
+    rough_skill = skill_md("product-video-rough-edit").read_text(encoding="utf-8")
     check("rough-skill-uses-chatcut-playbackRate", "playbackRate" in rough_skill and "prove_tts_speed.py" in rough_skill)
     check("rough-skill-one-pass", "one-pass" in rough_skill and "final_verify" in rough_skill)
     check("rough-skill-no-per-cut-inspect", "Do not call `inspect_item` after each write" in rough_skill)
     check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
     check("narration-skill-uses-session", "product-video/scripts/tts_session.py" in narration_skill)
-    check(
-        "narration-skill-no-legacy-tts",
-        "produce-tiktok-product-video-portable/scripts/prove_tts_textarea.py" not in narration_skill,
-    )
-    assembly_skill = (skills_root / "product-video-assembly" / "SKILL.md").read_text(encoding="utf-8")
+    check("narration-skill-uses-capture", "product-video/scripts/capture_capcut_result_audio.py" in narration_skill)
+    assembly_skill = skill_md("product-video-assembly").read_text(encoding="utf-8")
     check("assembly-skill-uses-history", "product-video/scripts/approved_shots.py" in assembly_skill)
     check("assembly-skill-uses-visual-catalog", "product-video/scripts/visual_catalog.py" in assembly_skill)
     check("assembly-skill-history-first", "approved-shot history" in assembly_skill)
-    delivery_skill = (skills_root / "product-video-delivery" / "SKILL.md").read_text(encoding="utf-8")
+    delivery_skill = skill_md("product-video-delivery").read_text(encoding="utf-8")
     check("delivery-skill-records-history", "approved_shots.py" in delivery_skill and "--record-final" in delivery_skill)
     check("delivery-skill-keeps-history", "product-video-approved-shots" in delivery_skill)
-    if portable_untracked.is_file():
-        check("does-not-use-untracked-copy-as-runtime", resolved != portable_untracked.resolve())
 
 
 def test_forbidden_state() -> None:
@@ -3894,7 +3906,7 @@ def test_capcut_credit_policy() -> None:
     check("credit-H-extra-purchase-holds", purchase.get("hold") == HOLD_CAPCUT_NEW_PURCHASE_REQUIRED)
     ambiguous = classify_capcut_credit({"title": "Credits will be consumed", "body_contains_pro": True})
     check("credit-H-ambiguous-holds", ambiguous.get("hold") == HOLD_CAPCUT_CREDIT_UNVERIFIED)
-    narration = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    narration = skill_md("product-video-narration").read_text(encoding="utf-8")
     check("credit-H-skill-allows-existing-consume", "Credits will be consumed" in narration and "approve_got_it" in narration)
     check(
         "credit-H-skill-blocks-new-contract",

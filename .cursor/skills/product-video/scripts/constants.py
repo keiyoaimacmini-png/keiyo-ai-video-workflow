@@ -91,6 +91,23 @@ SKILL_FOR_STAGE = {
     "DELIVERY": "product-video-delivery",
 }
 
+# Stable public entrypoint folder / slash command. Stage Skills are dated folders.
+SKILL_VERSION_DATE = "20260919"
+ENTRY_SKILL = "product-video"
+LOGICAL_STAGE_SKILLS = tuple(SKILL_FOR_STAGE.values())
+REMOVED_SKILL_DIRS = (
+    "produce-tiktok-product-video-portable",
+    "produce-tiktok-product-video-v3",
+)
+
+
+def physical_skill_name(logical: str) -> str:
+    if logical == ENTRY_SKILL:
+        return ENTRY_SKILL
+    if logical in LOGICAL_STAGE_SKILLS:
+        return f"{logical}-{SKILL_VERSION_DATE}"
+    raise KeyError(logical)
+
 STOP_STAGES = frozenset({"SCRIPT_SELECTION", "WAITING_FOR_OPERATOR", "COMPLETE"})
 SCRIPT_APPROVAL_RE = r"^案([1-5])で台本OK$"
 DELIVERY_APPROVAL = "完成・格納してください"
@@ -182,9 +199,6 @@ OWNED_HELPERS = {
     "edit_plan": "edit_plan.py",
     "semantic_material_match": "semantic_material_match.py",
     "timing": "timing.py",
-}
-
-LEGACY_TRACKED_HELPERS = {
     "resolve_product_inputs": "resolve_product_inputs.py",
     "send_gemini_cli_prompt": "send_gemini_cli_prompt.py",
     "capture_capcut_result_audio": "capture_capcut_result_audio.py",
@@ -193,7 +207,9 @@ LEGACY_TRACKED_HELPERS = {
     "purge_local_working_media": "purge_local_working_media.py",
 }
 
-HELPER_SCRIPTS = {**OWNED_HELPERS, **LEGACY_TRACKED_HELPERS}
+LEGACY_TRACKED_HELPERS: dict[str, str] = {}
+
+HELPER_SCRIPTS = dict(OWNED_HELPERS)
 
 RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/prove_tts_textarea.py", "NARRATION"),
@@ -215,10 +231,10 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/semantic_material_match.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/timing.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/preserve_shared_inputs.py", "DELIVERY"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py", "PREPARE"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/capture_capcut_result_audio.py", "NARRATION"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/prove_source_range.py", "ASSEMBLY"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/upload_drive_local_file.py", "DELIVERY"),
-    (".cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py", "DELIVERY"),
+    (".cursor/skills/product-video/scripts/resolve_product_inputs.py", "PREPARE"),
+    (".cursor/skills/product-video/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
+    (".cursor/skills/product-video/scripts/capture_capcut_result_audio.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/prove_source_range.py", "ASSEMBLY"),
+    (".cursor/skills/product-video/scripts/upload_drive_local_file.py", "DELIVERY"),
+    (".cursor/skills/product-video/scripts/purge_local_working_media.py", "DELIVERY"),
 )

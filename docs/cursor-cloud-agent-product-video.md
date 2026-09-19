@@ -16,7 +16,7 @@
 6. Cloud Agent内で次を実行する。
 
 ```bash
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
+python3 .cursor/skills/product-video/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
@@ -31,7 +31,7 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 型番・設定・素材を、その案件の値に置き換えて渡します。
 
 ```text
-/produce-tiktok-product-video-portable
+/product-video
 
 製品型番は<MODEL>です。
 商品設定はconfig/product_video_settings_<MODEL>.v1.jsonです。

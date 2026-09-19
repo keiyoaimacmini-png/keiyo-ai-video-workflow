@@ -24,7 +24,7 @@ SETTINGS_NAME = "product_video_settings_{model}.v1.json"
 HOLD_MODEL = "HOLD_MODEL_UNVERIFIED"
 HOLD_SETTINGS = "HOLD_PRODUCT_VIDEO_SETTINGS"
 HOLD_MATERIALS = "HOLD_INPUT_MATERIALS_REQUIRED"
-AN_S182_SETTINGS_SHA256 = "a90ee56e42e8ddfcc9c4fec7970bffcc1e4396bbe6dcd37df9a2f74b399e0afa"
+AN_S182_SETTINGS_SHA256 = "ef6865669fcf07a3a71423881be716e7a5c34dd7d588c8aea8d80e986fbf9c5f"
 
 
 def sha256_file(path: Path) -> str:
@@ -53,6 +53,38 @@ def hold_payload(code: str, **extra: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {"status": "HOLD", "hold": code}
     payload.update(extra)
     return payload
+
+
+def interpret_start_alignment(settings: dict[str, Any]) -> dict[str, Any]:
+    """Map require_start_alignment to per-track rules. Never treat false as no alignment."""
+    recon = settings.get("timeline_reconciliation")
+    if recon is None:
+        recon = {}
+    if not isinstance(recon, dict):
+        return hold_payload(HOLD_SETTINGS, reason="timeline_reconciliation must be an object when present")
+    require = recon.get("require_start_alignment", True)
+    if require is False:
+        return hold_payload(
+            HOLD_SETTINGS,
+            reason="require_start_alignment must stay true; use start_alignment to name per-track rules",
+        )
+    spec = recon.get("start_alignment")
+    if spec is None:
+        spec = {}
+    if not isinstance(spec, dict):
+        return hold_payload(HOLD_SETTINGS, reason="start_alignment must be an object when present")
+    return {
+        "status": "READY",
+        "require_start_alignment": True,
+        "head_delta_definition": spec.get("head_delta_definition", "caption_start_frame - source_start_frame"),
+        "source_start": "exact_cut_start",
+        "tts_start": "exact_cut_start",
+        "caption_start": "exact_or_bounded_positive_1_or_2",
+        "caption_end": "exact",
+        "negative_head_delta_allowed": False,
+        "max_positive_head_delta_frames": 2,
+        "abs_window_not_used": True,
+    }
 
 
 def resolve_product_inputs(
@@ -109,7 +141,12 @@ def resolve_product_inputs(
         "drive_folder_title": product_model,
         "delivery_mode_default": "drive",
         "export_only_requires_explicit_request": True,
+        "start_alignment": interpret_start_alignment(settings),
     }
+    if payload["start_alignment"].get("status") != "READY":
+        payload.update({k: v for k, v in payload["start_alignment"].items()})
+        payload["status"] = "HOLD"
+        return payload
     if require_materials and not materials_present:
         payload.update(hold_payload(HOLD_MATERIALS, **{k: v for k, v in payload.items() if k != "status" and k != "hold"}))
         payload["status"] = "HOLD"
@@ -162,6 +199,20 @@ def self_test() -> int:
         env_ready = resolve_product_inputs(root, "AN-S999", material_root_env=str(env_root), require_materials=True)
         check("env-material-root", env_ready.get("material_root") == env_root.as_posix())
         check("env-ready", env_ready.get("status") == "READY")
+        check("default-start-alignment", env_ready.get("start_alignment", {}).get("source_start") == "exact_cut_start")
+        check("caption-bounded-not-abs", env_ready.get("start_alignment", {}).get("abs_window_not_used") is True)
+
+        disabled = {
+            "schema_version": "1",
+            "status": "active",
+            "product_model": "AN-S999",
+            "timeline_reconciliation": {"require_start_alignment": False},
+        }
+        disabled_path = config / "product_video_settings_AN-S999.v1.json"
+        disabled_path.write_text(json.dumps(disabled, ensure_ascii=False) + "\n", encoding="utf-8")
+        disabled_result = resolve_product_inputs(root, "AN-S999")
+        check("require-start-alignment-false-holds", disabled_result.get("hold") == HOLD_SETTINGS)
+        settings_path.write_text(json.dumps(settings, ensure_ascii=False) + "\n", encoding="utf-8")
 
         wrong_model_file = config / "product_video_settings_AN-Z002.v1.json"
         wrong_model_file.write_text(

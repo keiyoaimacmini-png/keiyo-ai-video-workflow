@@ -1,6 +1,6 @@
 # 商品動画スキル：台本から Drive 格納まで
 
-Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive フォルダへ新規格納するまでの流れです。実行の正本は `.cursor/skills/produce-tiktok-product-video-portable/SKILL.md` です。この文書は人向けの地図です。
+Cursor で 1 本の TikTok 商品動画を新規に作り、型番名の Drive フォルダへ新規格納するまでの流れです。実行の正本は `.cursor/skills/product-video/SKILL.md` です。この文書は人向けの地図です。
 
 枝 `v2/mac-local` では、本番ホストは操作 Mac 上の Cursor Desktop Agent です。Cloud Agent では作りません。この Mac での起動文は [mac-desktop-agent-product-video.md](mac-desktop-agent-product-video.md) です。
 
@@ -36,7 +36,7 @@ CapCut 用にエージェントが操作できるブラウザは Cursor 内蔵�
 開始前:
 
 ```bash
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
+python3 .cursor/skills/product-video/scripts/resolve_product_inputs.py --project-root . --product-model <MODEL> --require-materials
 python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --require-materials
 ```
 
@@ -98,8 +98,8 @@ python3 .cursor/scripts/verify_product_video_setup.py --product-model <MODEL> --
 7. `COMPLETE` のあと、格納済みのこの案件だけ、**この Mac** の作業コピーを消す。まず Finder のダウンロードに完成ファイル名があるかを見る。続けてリポジトリ内 `outputs/<case-id>/` と `out/` を確認する。無いコピーを失敗にしない。
 
 ```bash
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id>
-python3 .cursor/skills/produce-tiktok-product-video-portable/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id> --execute --i-confirm-destination-stored
+python3 .cursor/skills/product-video/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id>
+python3 .cursor/skills/product-video/scripts/purge_local_working_media.py --project-root . --task-root outputs/<case-id> --case-id <case-id> --execute --i-confirm-destination-stored
 ```
 
 原本、Drive 上の格納ファイル、JSON receipt、設定、進行中の別案件は消さない。本番がこの Mac なら、消す対象もこの Mac だけである。Cloud VM で作った旧案件だけ、VM 側を消したあとに操作 Mac でも同じ相対パスを確認する。
@@ -122,12 +122,12 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 1. この非公開リポジトリを clone する。チャットにパスワードやトークンを貼らない。
 2. その PC の製品型番用設定と素材コピーを用意する。
 3. 上の `READY` 確認を通す。
-4. Cursor で枝 `v2/mac-local` を開き、実行先をその PC の Desktop Agent にする。`/produce-tiktok-product-video-portable` を起動し、まず `台本OK` まで進めて止める。
+4. Cursor で枝 `v2/mac-local` を開き、実行先をその PC の Desktop Agent にする。`/product-video` を起動し、まず `台本OK` まで進めて止める。
 
 依頼例:
 
 ```text
-/produce-tiktok-product-video-portable
+/product-video
 
 製品型番は AN-S182 です。
 商品設定は config/product_video_settings_AN-S182.v1.json です。
@@ -146,7 +146,7 @@ Git に載せるのはスキル、検証器、契約、設定ファイル、メ�
 
 | 役割 | 場所 |
 | --- | --- |
-| 入口 | `.cursor/skills/produce-tiktok-product-video-portable/SKILL.md` |
+| 入口 | `.cursor/skills/product-video/SKILL.md` |
 | 不変条件 | `references/core-invariants.md` |
 | 状態機械 | `references/workflow-state-contract.md` |
 | ホスト能力 | `references/host-adapter-contract.md` |

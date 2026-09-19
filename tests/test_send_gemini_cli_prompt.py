@@ -15,7 +15,7 @@ HELPER = (
     REPO
     / ".cursor"
     / "skills"
-    / "produce-tiktok-product-video-portable"
+    / "product-video"
     / "scripts"
     / "send_gemini_cli_prompt.py"
 )

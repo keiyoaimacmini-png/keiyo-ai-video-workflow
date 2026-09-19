@@ -2,7 +2,7 @@
 
 ## Gemini に渡す文面
 
-Gemini に送るのは `.cursor/skills/produce-tiktok-product-video-portable/scripts/render_gemini_web_prompt.py` の出力だけである。
+Gemini に送るのは `.cursor/skills/product-video/scripts/render_script_prompt.py` の出力だけである。
 
 このファイル、`common.md`、lessons、製品例、禁止の追記、前回の台詞見本は足さない。プロンプト本文を手で書き換えない。案件で差し込むのは brief の `verified_facts` と内部の製品型番だけである。`usable_shots`、`observed_actions`、ファイル名、ハッシュ、開始終了秒は Gemini に渡さない。
 
