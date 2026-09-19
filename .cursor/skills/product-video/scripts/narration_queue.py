@@ -15,13 +15,11 @@ from workflow_state import atomic_write, hold
 
 SCHEMA = "product_video_narration_queue.v1"
 CUT_STEPS = (
-    "clear",
-    "write_frozen",
-    "exact_readback",
-    "generate",
-    "credit_got_it",
-    "capture",
-    "save_duration",
+    "clear_write_readback",
+    "generate_submit",
+    "generate_wait",
+    "result_capture",
+    "record_cut",
 )
 BETWEEN_CUTS = {
     "skip_mcp_rediscovery": True,
@@ -185,6 +183,7 @@ def record_queue_clip(
     line: str,
     audio_path: str,
     source_duration_seconds: float,
+    timing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     clip = record_clip(
         cut_id=cut_id,
@@ -201,6 +200,8 @@ def record_queue_clip(
             continue
         item["status"] = "recorded"
         item["clip"] = clip
+        if isinstance(timing, dict):
+            item["timing"] = timing
         found = True
         data["setup"] = True
         break

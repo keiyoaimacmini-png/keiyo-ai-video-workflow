@@ -49,6 +49,16 @@ from visual_catalog import (  # noqa: E402
     scene_match_score,
     sidecar_describes_scene,
 )
+from narration_cut import (  # noqa: E402
+    credit_dialog_action,
+    duration_is_anomaly,
+    finish_cut,
+    mark_timing,
+    observation_is_fabricated,
+    prove_duration,
+    prove_input,
+    prove_result_fresh,
+)
 from narration_queue import finish_queue, record_queue_clip, start_queue  # noqa: E402
 from timing import (  # noqa: E402
     ROUGH_EDIT_METRIC_KEYS,
@@ -1608,14 +1618,18 @@ def test_narration_queue(root: Path) -> None:
     check("queue-no-dispatch-before-done", first.get("return_to_dispatch") is False and first.get("skip_dispatch") is True)
     check("queue-no-chat", first.get("skip_chat") is True and first.get("skip_llm_plan") is True)
     check("queue-no-manifest-yet", first.get("write_manifest") is False)
-    recorded = record_queue_clip(
+    adopted = finish_cut(
         root,
         case_id,
         cut_id="c1",
         line="車、サウナすぎん？",
         audio_path="c1.mp3",
-        source_duration_seconds=2.4,
+        capture={"duration_seconds": 2.4},
+        before_result="src-c0",
+        after_result="src-c1",
     )
+    check("queue-finish-cut-uses-capture-duration", adopted.get("duration_seconds") == 2.4 and adopted.get("remeasure") is False)
+    recorded = adopted
     check("queue-next-cut-no-setup", recorded.get("cut_id") == "c2" and recorded.get("setup_session") is not True)
     check("queue-skips-mcp-between-cuts", recorded.get("skip_mcp_rediscovery") is True)
     check("queue-skips-voice-between-cuts", recorded.get("skip_voice_reselect") is True)
@@ -1635,8 +1649,60 @@ def test_narration_queue(root: Path) -> None:
     done = finish_queue(root, case_id)
     check("queue-writes-manifest-once", done.get("write_manifest") is True and done.get("clip_count") == 2)
     check("queue-returns-to-dispatch-after-all", done.get("return_to_dispatch") is True)
+    check("queue-atomic-steps", first.get("cut_steps") == [
+        "clear_write_readback",
+        "generate_submit",
+        "generate_wait",
+        "result_capture",
+        "record_cut",
+    ])
     manifest = json.loads((case / "narration-manifest.json").read_text(encoding="utf-8"))
     check("queue-manifest-has-both-cuts", [clip["cut_id"] for clip in manifest.get("clips") or []] == ["c1", "c2"])
+
+
+def test_narration_atomic_cut() -> None:
+    frozen = "吸盤ペタペタ貼って落ちるやつ、あれ何？"
+    mismatch = prove_input(frozen, "別の行です", attempt=1)
+    check("atomic-mismatch-no-generate", mismatch.get("generate") is not True and mismatch.get("retry") is True)
+    retry_hold = prove_input(frozen, "別の行です", attempt=2)
+    check("atomic-second-mismatch-holds", retry_hold.get("hold") == "HOLD_TTS_INPUT_FIELD_UNVERIFIED" and retry_hold.get("generate") is not True)
+    matched = prove_input(frozen, frozen, attempt=1)
+    check("atomic-live-match-generates", matched.get("generate") is True and matched.get("exact_match") is True)
+    fabricated = prove_input(frozen, None, observation={"inner_text": frozen, "textarea_readback": frozen})
+    check(
+        "atomic-rejects-copied-expected",
+        fabricated.get("generate") is not True
+        and fabricated.get("fabricated_readback") is True
+        and observation_is_fabricated(frozen, {"inner_text": frozen}),
+    )
+    live_obs = prove_input(frozen, None, observation={"browser_actual": frozen, "browser_field_read": True})
+    check("atomic-browser-actual-ok", live_obs.get("generate") is True)
+    stale = prove_result_fresh("src-old", "src-old")
+    check("atomic-stale-result-blocks-capture", stale.get("capture") is not True and stale.get("hold") == "HOLD_TTS_RESULT_NOT_FRESH")
+    fresh = prove_result_fresh("src-old", "src-new")
+    check("atomic-new-result-allows-capture", fresh.get("capture") is True)
+    check("atomic-normal-duration-ok", prove_duration(frozen, 3.2).get("adopt") is True)
+    check("atomic-slow-but-ok", prove_duration(frozen, 8.5).get("adopt") is True)
+    check("atomic-stacked-duration-hold", prove_duration(frozen, 14.16).get("hold") == "HOLD_TTS_DURATION_ANOMALY")
+    check("atomic-c8-accident-hold", duration_is_anomaly("UVカット率約99パー、UPF40以上で日差し対策バッチリ！", 14.16) is True)
+    check("atomic-c8-success-ok", duration_is_anomaly("UVカット率約99パー、UPF40以上で日差し対策バッチリ！", 6.696) is False)
+    existing = credit_dialog_action({"title": "Credits will be consumed", "buttons": ["Cancel", "Got it"]})
+    check(
+        "atomic-credit-no-classifier",
+        existing.get("approve_got_it") is True and existing.get("require_classifier") is False,
+    )
+    purchase = credit_dialog_action({"title": "Credits will be consumed", "purchase_credits": True})
+    check("atomic-credit-purchase-holds", purchase.get("hold") == HOLD_CAPCUT_NEW_PURCHASE_REQUIRED)
+    started = mark_timing({}, "clear_write_readback", start=True, now=10.0)
+    ended = mark_timing(started, "clear_write_readback", start=False, now=12.5)
+    check("atomic-timing-elapsed", ended["clear_write_readback"]["elapsed_seconds"] == 2.5)
+    skill = (REPO / ".cursor" / "skills" / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
+    check("atomic-skill-no-happy-prove-chain", "Do not run them on the happy path" in skill)
+    check("atomic-skill-same-session", "same Chrome tab" in skill and "Holiday Twist" in skill)
+    check("atomic-skill-playback-1-2", "playbackRate` 1.2" in skill or "playbackRate 1.2" in skill)
+    from constants import SKILL_FOR_STAGE
+
+    check("atomic-dispatch-id-unchanged", SKILL_FOR_STAGE.get("NARRATION") == "product-video-narration")
 
 
 def test_material_index_and_edit_plan(root: Path) -> None:
@@ -3681,6 +3747,7 @@ def test_git_tracked_helpers() -> None:
         ("tts_session", ".cursor/skills/product-video/scripts/tts_session.py"),
         ("approved_shots", ".cursor/skills/product-video/scripts/approved_shots.py"),
         ("narration_queue", ".cursor/skills/product-video/scripts/narration_queue.py"),
+        ("narration_cut", ".cursor/skills/product-video/scripts/narration_cut.py"),
         ("material_index", ".cursor/skills/product-video/scripts/material_index.py"),
         ("visual_catalog", ".cursor/skills/product-video/scripts/visual_catalog.py"),
         ("caption_wrap", ".cursor/skills/product-video/scripts/caption_wrap.py"),
@@ -3724,9 +3791,9 @@ def test_git_tracked_helpers() -> None:
     )
     check("owned-tts-exists", (REPO / owned).is_file())
     narration_skill = (skills_root / "product-video-narration" / "SKILL.md").read_text(encoding="utf-8")
-    check("narration-skill-uses-owned-tts", "product-video/scripts/prove_tts_textarea.py" in narration_skill)
-    check("narration-skill-uses-prepare-tts", "product-video/scripts/prepare_tts_field.py" in narration_skill)
-    check("narration-skill-uses-resolve-tts", "product-video/scripts/resolve_tts_text.py" in narration_skill)
+    check("narration-skill-uses-cut-worker", "product-video/scripts/narration_cut.py" in narration_skill)
+    check("narration-skill-name-dated", "name: product-video-narration-20260919" in narration_skill)
+    check("narration-skill-old-tts-fallback-only", "fallback/debug only" in narration_skill)
     check("narration-skill-uses-speed-proof", "product-video/scripts/prove_tts_speed.py" in narration_skill)
     check("narration-skill-no-capcut-actual-speed-gate", "actual_speed == 1.2" not in narration_skill)
     rough_skill = (skills_root / "product-video-rough-edit" / "SKILL.md").read_text(encoding="utf-8")
@@ -4109,6 +4176,7 @@ def main() -> int:
         test_tts_runtime_gaps(root)
         test_tts_session(root)
         test_narration_queue(root)
+        test_narration_atomic_cut()
         test_material_index_and_edit_plan(root)
         test_semantic_folder_aliases(root)
         test_visual_catalog_onboarding(root)
