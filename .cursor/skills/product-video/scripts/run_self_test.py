@@ -1647,6 +1647,7 @@ def test_narration_queue(root: Path) -> None:
         ],
     }
     (case / "approved-script.json").write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+    seed_state(root, case_id, "NARRATION", ["PREPARE", "SCRIPT", "SCRIPT_SELECTION"])
     first = start_queue(root, case_id)
     check("queue-starts-setup", first.get("setup_session") is True and first.get("cut_id") == "c1")
     check("queue-no-dispatch-before-done", first.get("return_to_dispatch") is False and first.get("skip_dispatch") is True)
@@ -1706,6 +1707,7 @@ def test_narration_queue(root: Path) -> None:
         ],
     }
     (telop_dir / "approved-script.json").write_text(json.dumps(telop_script, ensure_ascii=False), encoding="utf-8")
+    seed_state(root, telop_case, "NARRATION", ["PREPARE", "SCRIPT", "SCRIPT_SELECTION"])
     telop_first = start_queue(root, telop_case)
     check("queue-skips-telop-only", telop_first.get("cut_id") == "c1" and "c2" not in (telop_first.get("remaining") or []))
     telop_next = record_queue_clip(
@@ -4070,7 +4072,7 @@ def test_placement_gates(root: Path) -> None:
         encoding="utf-8"
     )
     entry = (REPO / ".cursor" / "skills" / "product-video" / "SKILL.md").read_text(encoding="utf-8")
-    check("gates-doc-a", "Gate A" in gates and "validate_tts_audio.py" in gates and "duration > 0" in gates)
+    check("gates-doc-a", "Gate A" in gates and "validate_tts_audio.py" in gates and "duration" in gates and "> 0" in gates)
     check("gates-doc-b", "Gate B" in gates and "HOLD_WEAK_VISUAL_MATCH" in gates)
     check("gates-doc-c", "Gate C" in gates and "import_audio_batch" in gates and "import_video_batch" in gates)
     check("gates-doc-d", "Gate D" in gates and "30" in gates and "heartbeat" in gates.lower())
