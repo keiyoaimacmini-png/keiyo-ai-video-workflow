@@ -30,7 +30,7 @@ CapCut 用にエージェントが操作できるブラウザは Cursor 内蔵�
 | 製品型番 | 依頼で指定した `AN-…`。別案件の型番を推測しない |
 | 設定 | 必ず `config/product_video_settings_<MODEL>.v1.json` |
 | 素材 | `PRODUCT_VIDEO_MATERIAL_ROOT`、未設定なら `.runtime/product-video-inputs/<MODEL>_コピー` |
-| Drive 親フォルダ | タイトルが検証済み型番と一致するフォルダ 1 つ（完成動画の直下など、案件で確定した親） |
+| Drive 親フォルダ | タイトルが検証済み型番と exact case で一致するフォルダ。同名が複数なら「完成動画」直下。`動画素材保存用` 配下には格納しない |
 | 案件 | 新しい case ID、`outputs/<case-id>/`、新しいエディタ project |
 
 開始前:

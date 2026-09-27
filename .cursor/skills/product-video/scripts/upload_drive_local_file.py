@@ -41,6 +41,8 @@ AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 UPLOAD_URI = "https://www.googleapis.com/upload/drive/v3/files"
 FILES_URI = "https://www.googleapis.com/drive/v3/files"
 FOLDER_MIME = "application/vnd.google-apps.folder"
+COMPLETED_LIBRARY_PARENT = "完成動画"
+MATERIAL_LIBRARY_PARENT = "動画素材保存用"
 CHUNK_SIZE = 8 * 1024 * 1024
 SECRET_RE = re.compile(
     r"(?i)(ya29\.|1//[0-9A-Za-z_-]{8,}|Bearer\s+|refresh_token|client_secret|access_token)"
@@ -262,6 +264,23 @@ def drive_get_json(token: str, url: str, http: HttpFn) -> dict[str, Any]:
     return json_body(response)
 
 
+def folder_parent_name(token: str, row: dict[str, Any], http: HttpFn) -> str | None:
+    parents = row.get("parents")
+    if not isinstance(parents, list) or not parents or not isinstance(parents[0], str) or not parents[0]:
+        return None
+    params = urllib.parse.urlencode(
+        {
+            "fields": "name,mimeType,trashed",
+            "supportsAllDrives": "true",
+        }
+    )
+    meta = drive_get_json(token, f"{FILES_URI}/{parents[0]}?{params}", http)
+    name = meta.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    return name
+
+
 def locate_parent(token: str, parent_title: str, http: HttpFn) -> str | dict[str, str]:
     query = (
         f"mimeType = '{FOLDER_MIME}' and name = '{escape_drive_query(parent_title)}' "
@@ -271,7 +290,7 @@ def locate_parent(token: str, parent_title: str, http: HttpFn) -> str | dict[str
         {
             "q": query,
             "pageSize": "10",
-            "fields": "files(id,name,mimeType,trashed)",
+            "fields": "files(id,name,mimeType,trashed,parents)",
             "supportsAllDrives": "true",
             "includeItemsFromAllDrives": "true",
         }
@@ -291,9 +310,23 @@ def locate_parent(token: str, parent_title: str, http: HttpFn) -> str | dict[str
         and isinstance(row.get("id"), str)
         and row["id"]
     ]
-    if len(exact) != 1:
-        return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
-    return exact[0]["id"]
+    named: list[tuple[dict[str, Any], str | None]] = []
+    for row in exact:
+        parent_name = folder_parent_name(token, row, http) if row.get("parents") else None
+        named.append((row, parent_name))
+    if not any(parent_name is not None for _, parent_name in named):
+        if len(exact) != 1:
+            return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
+        return exact[0]["id"]
+    eligible = [(row, parent_name) for row, parent_name in named if parent_name != MATERIAL_LIBRARY_PARENT]
+    if not eligible:
+        return hold(HOLD_SCOPE, "completed video must not be stored in 動画素材保存用")
+    if len(eligible) == 1:
+        return eligible[0][0]["id"]
+    finished = [(row, parent_name) for row, parent_name in eligible if parent_name == COMPLETED_LIBRARY_PARENT]
+    if len(finished) == 1:
+        return finished[0][0]["id"]
+    return hold(HOLD_SCOPE, "parent folder title must match exactly one Drive folder")
 
 
 def collision_exists(token: str, parent_id: str, title: str, http: HttpFn) -> bool:
@@ -755,6 +788,55 @@ def self_test() -> int:
         ),
     )
     check("duplicate-exact-scope", isinstance(duplicate_exact, dict) and duplicate_exact.get("hold") == HOLD_SCOPE)
+
+    delivery_id = "d" * 33
+    material_id = "m" * 33
+    finished_parent = "f" * 33
+    library_parent = "l" * 33
+
+    def folder_row(folder_id: str, parent: str) -> dict[str, str]:
+        return {
+            "id": folder_id,
+            "name": "AN-S176",
+            "mimeType": FOLDER_MIME,
+            "trashed": False,
+            "parents": [parent],
+        }
+
+    def named_folder(name: str) -> HttpResponse:
+        return HttpResponse(200, {}, json.dumps({"name": name, "mimeType": FOLDER_MIME, "trashed": False}).encode("utf-8"))
+
+    chosen = locate_parent(
+        "ya29.self-test-token",
+        "AN-S176",
+        _ScriptedHttp(
+            [
+                HttpResponse(
+                    200,
+                    {},
+                    json.dumps({"files": [folder_row(delivery_id, finished_parent), folder_row(material_id, library_parent)]}).encode("utf-8"),
+                ),
+                named_folder(COMPLETED_LIBRARY_PARENT),
+                named_folder(MATERIAL_LIBRARY_PARENT),
+            ]
+        ),
+    )
+    check("prefer-completed-library", chosen == delivery_id)
+
+    material_only = locate_parent(
+        "ya29.self-test-token",
+        "AN-S176",
+        _ScriptedHttp(
+            [
+                HttpResponse(200, {}, json.dumps({"files": [folder_row(material_id, library_parent)]}).encode("utf-8")),
+                named_folder(MATERIAL_LIBRARY_PARENT),
+            ]
+        ),
+    )
+    check(
+        "reject-material-library",
+        isinstance(material_only, dict) and material_only.get("hold") == HOLD_SCOPE,
+    )
 
     renamed = upload_local_file(
         project_root=root,

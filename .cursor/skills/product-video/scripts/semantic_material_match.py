@@ -14,11 +14,19 @@ from pathlib import Path
 from typing import Any, Callable
 
 from paths import case_root, emit, helper_path
+from visual_catalog import lamp_color_allowed, requested_lamp_color
 from workflow_state import atomic_write, hold
 
 SCHEMA = "product_video_semantic_material_match.v1"
 MATCH_FILENAME = "semantic-material-match.json"
+MAX_SEGMENTS_PER_CUT = 2
 SendFn = Callable[[str], Any]
+
+
+def stitch_floor_seconds(target: float | None) -> float | None:
+    if target is None:
+        return None
+    return float(target) / float(MAX_SEGMENTS_PER_CUT)
 
 
 def _number(value: object, *, allow_zero: bool = False) -> float | None:
@@ -155,6 +163,8 @@ def compact_scene_from_candidate(candidate: dict[str, Any]) -> dict[str, Any] | 
         "objects": _strings(scene.get("objects") or candidate.get("scenario_tags") or candidate.get("objects")),
         "visible_features": _strings(scene.get("visible_features") or candidate.get("visible_features")),
         "product_state": str(scene.get("product_state") or "").strip(),
+        "location": str(scene.get("location") or "").strip(),
+        "framing": str(scene.get("framing") or scene.get("camera_distance") or "").strip(),
         "history_situation": history_situation,
     }
     if candidate.get("from_approved_history") is True:
@@ -278,7 +288,9 @@ def build_semantic_prompt(cuts: list[dict[str, Any]], scenes: list[dict[str, Any
         "そのセリフとsituationを視覚的に表現できるかだけを判定してください。\n"
         "metadataに書かれていない物体・動作・機能・効果を推測して追加しないでください。\n"
         "動画ファイル・画像・画質点数は使いません。以下のJSONだけを使ってください。\n"
-        "duration が target_duration_seconds 未満のsceneは選ばないでください。\n"
+        "1本のsceneで target_duration_seconds に足りなくても、意味が合うsceneなら選んでください。"
+        "不足分は、同じファイル内で元のsceneを含んだまま隣接フレームへ延長できるときだけ延長し、"
+        "別のcatalog sceneの境界は越えません。その窓が取れないときだけ同じ意味の別sceneとつなぎます。\n"
         "表現できないcutは出力しないでください。各cutは最大1 sceneです。\n"
         "完成したJSONオブジェクトだけを出力してください。前置きやツール利用は不要です。\n"
         "形式:\n"
@@ -540,7 +552,8 @@ def apply_semantic_matches(
             if start is not None and end is not None and end > start:
                 duration = end - start
         target = (targets or {}).get(cut_id)
-        if target is not None and (duration is None or duration + 1e-9 < float(target)):
+        floor = stitch_floor_seconds(target)
+        if floor is not None and (duration is None or duration + 1e-9 < floor):
             continue
         marked = False
         pool = candidates_by_cut.setdefault(cut_id, [])
@@ -582,6 +595,126 @@ def live_send_prompt(project_root: Path, prompt: str) -> dict[str, Any]:
     return module.send_prompt(prompt)
 
 
+def scene_rank_text(scene: dict[str, Any]) -> str:
+    chunks: list[str] = []
+
+    def add(label: str, value: object) -> None:
+        if isinstance(value, list):
+            text = "、".join(_strings(value))
+        else:
+            text = str(value or "").strip()
+        if text:
+            chunks.append(f"{label}: {text}")
+
+    add("画面", scene.get("factual_description") or scene.get("history_situation"))
+    add("物", scene.get("objects"))
+    add("動作", scene.get("actions"))
+    add("商品の状態", scene.get("product_state"))
+    add("場所", scene.get("location"))
+    add("画角", scene.get("framing"))
+    add("見た目", scene.get("visible_features"))
+    return " / ".join(chunks)
+
+
+def duration_qualified_scenes(scenes: list[dict[str, Any]], target: object) -> list[dict[str, Any]]:
+    floor = stitch_floor_seconds(_number(target))
+    found: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for scene in scenes:
+        duration = _number(scene.get("duration"))
+        if floor is not None and (duration is None or duration + 1e-9 < floor):
+            continue
+        scene_id = str(scene.get("scene_id") or "").strip()
+        text = scene_rank_text(scene)
+        if not scene_id or not text or scene_id in seen:
+            continue
+        seen.add(scene_id)
+        found.append(scene)
+    return found
+
+
+def load_jev_results(project_root: Path, case_id: str) -> dict[str, Any]:
+    path = case_root(project_root, case_id) / "jev-rank-results.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    cuts = data.get("cuts") if isinstance(data, dict) else None
+    return cuts if isinstance(cuts, dict) else {}
+
+
+def accepted_jev_scene_id(row: object, allowed: set[str]) -> str | None:
+    if not isinstance(row, dict) or row.get("answers") is not True:
+        return None
+    action = str(row.get("action") or "auto").strip().lower()
+    if action in {"review", "escalate"}:
+        return None
+    coverage = str(row.get("coverage") or "complete").strip().lower()
+    if coverage not in {"complete"}:
+        return None
+    scene_id = str(row.get("scene_id") or "").strip()
+    if scene_id not in allowed:
+        return None
+    return scene_id
+
+
+def plan_jev_resolution(
+    cuts: list[dict[str, Any]],
+    scenes: list[dict[str, Any]],
+    results: dict[str, Any],
+) -> dict[str, Any]:
+    matches: dict[str, dict[str, Any]] = {}
+    requests: list[dict[str, Any]] = []
+    for cut in cuts:
+        cut_id = str(cut.get("cut_id") or "").strip()
+        line = str(cut.get("line") or "").strip()
+        situation = str(cut.get("situation") or cut.get("intended_scenario") or "").strip()
+        visible = scenes
+        if requested_lamp_color(line, situation):
+            visible = [scene for scene in scenes if lamp_color_allowed(scene, line, situation)]
+        qualified = duration_qualified_scenes(visible, cut.get("target_duration_seconds"))
+        if not cut_id or not qualified:
+            continue
+        if len(qualified) == 1:
+            scene = qualified[0]
+            matches[cut_id] = {
+                "scene_id": scene.get("scene_id"),
+                "source": scene.get("source"),
+                "source_in": scene.get("source_in"),
+                "source_out": scene.get("source_out"),
+                "reason": "only duration-qualified scene",
+            }
+            continue
+        allowed = {str(scene.get("scene_id") or "") for scene in qualified}
+        chosen = accepted_jev_scene_id(results.get(cut_id), allowed)
+        if chosen:
+            scene = next(item for item in qualified if str(item.get("scene_id") or "") == chosen)
+            matches[cut_id] = {
+                "scene_id": chosen,
+                "source": scene.get("source"),
+                "source_in": scene.get("source_in"),
+                "source_out": scene.get("source_out"),
+                "reason": "jev_rank",
+            }
+            continue
+        requests.append(
+            {
+                "cut_id": cut_id,
+                "query": (
+                    f"セリフ: {line}\nシチュエーション: {situation}\n"
+                    "このセリフの画面として合う場面を、候補の説明だけから選ぶ。"
+                ),
+                "candidates": [
+                    {"id": str(scene.get("scene_id") or ""), "text": scene_rank_text(scene)}
+                    for scene in qualified
+                ],
+            }
+        )
+    return {"matches": matches, "requests": requests}
+
+
 def run_semantic_fallback(
     cuts: list[dict[str, Any]],
     scenes: list[dict[str, Any]],
@@ -593,11 +726,12 @@ def run_semantic_fallback(
         return {"status": "OK", "matches": {}, "gemini_calls": 0, "skipped": True}
     targets = [_number(cut.get("target_duration_seconds")) for cut in cuts]
     min_target = min((item for item in targets if item is not None), default=None)
-    if min_target is not None:
+    floor = stitch_floor_seconds(min_target)
+    if floor is not None:
         scenes = [
             scene
             for scene in scenes
-            if (_number(scene.get("duration")) or 0) + 1e-9 >= min_target
+            if (_number(scene.get("duration")) or 0) + 1e-9 >= floor
         ]
     if not scenes:
         return {"status": "OK", "matches": {}, "gemini_calls": 0, "skipped": True}

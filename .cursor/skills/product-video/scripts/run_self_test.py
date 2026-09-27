@@ -83,6 +83,7 @@ from constants import (  # noqa: E402
     HOLD_CAPCUT_NEW_PURCHASE_REQUIRED,
     HOLD_INPUT_MATERIALS_REQUIRED,
     HOLD_MATERIAL_VIDEO_REQUIRED,
+    HOLD_OPERATOR_PAUSED,
     HOLD_PREFLIGHT_REQUIRED,
     HOLD_PRODUCT_FACTS_REQUIRED,
     HOLD_SCRIPT_PRODUCT_GROUNDING,
@@ -325,12 +326,37 @@ def visual(subject: str, framing: str, location: str) -> dict[str, str]:
 
 
 def test_parser() -> None:
+    from script_grounding import parse_evidence_ids
+
+    check("evidence-hook-note", parse_evidence_ids("HOOK（RE-HOOK）") == ["HOOK"])
+    check("evidence-rejects-junk", parse_evidence_ids("おまけ") == [])
     for count in (3, 4, 5):
         parsed = parse_gemini_scripts(sample_scripts(count))
         check(f"parser-{count}", parsed.get("status") == "OK" and parsed.get("variant_count") == count)
         if parsed.get("status") == "OK":
             first = parsed["variants"][0]
             check(f"parser-{count}-situation", first["cuts"][0]["situation"].startswith("車内"))
+    noted = sample_scripts(3).replace("カット1\n", "カット1（中盤RE-HOOK）\n", 1)
+    parsed_noted = parse_gemini_scripts(noted)
+    check(
+        "parser-cut-note",
+        parsed_noted.get("status") == "OK" and parsed_noted["variants"][0]["cuts"][0]["index"] == 1,
+    )
+    unquoted = sample_scripts(3).replace("「車内でハンドルを握る人物」", "車内でハンドルを握る人物")
+    parsed_unquoted = parse_gemini_scripts(unquoted)
+    check(
+        "parser-unquoted-situation",
+        parsed_unquoted.get("status") == "OK"
+        and parsed_unquoted["variants"][0]["cuts"][0]["situation"] == "車内でハンドルを握る人物"
+        and parsed_unquoted["variants"][0]["cuts"][0]["line"].startswith("車、サウナすぎん？"),
+    )
+    unquoted_line = sample_scripts(3).replace("「車、サウナすぎん？1」", "車、サウナすぎん？1", 1)
+    parsed_line = parse_gemini_scripts(unquoted_line)
+    check(
+        "parser-unquoted-line",
+        parsed_line.get("status") == "OK"
+        and parsed_line["variants"][0]["cuts"][0]["line"] == "車、サウナすぎん？1",
+    )
     two = parse_gemini_scripts(sample_scripts(2))
     check("parser-reject-2", two.get("status") == "HOLD")
     six = parse_gemini_scripts(sample_scripts(6))
@@ -1664,6 +1690,31 @@ def test_narration_queue(root: Path) -> None:
     ])
     manifest = json.loads((case / "narration-manifest.json").read_text(encoding="utf-8"))
     check("queue-manifest-has-both-cuts", [clip["cut_id"] for clip in manifest.get("clips") or []] == ["c1", "c2"])
+    telop_case = "pv-AN-S999-telop"
+    telop_dir = root / "outputs" / telop_case
+    telop_dir.mkdir(parents=True, exist_ok=True)
+    telop_script = {
+        "schema": "product_video_approved_script.v1",
+        "variant_id": 1,
+        "title": "telop",
+        "cuts": [
+            {"cut_id": "c1", "index": 1, "line": "車、サウナすぎん？", "situation": "車内"},
+            {"cut_id": "c2", "index": 2, "line": "アンドロイドはアプリが必要", "situation": "画面", "telop_only": True},
+            {"cut_id": "c3", "index": 3, "line": "これ一枚で全然違う。", "situation": "手元"},
+        ],
+    }
+    (telop_dir / "approved-script.json").write_text(json.dumps(telop_script, ensure_ascii=False), encoding="utf-8")
+    telop_first = start_queue(root, telop_case)
+    check("queue-skips-telop-only", telop_first.get("cut_id") == "c1" and "c2" not in (telop_first.get("remaining") or []))
+    telop_next = record_queue_clip(
+        root,
+        telop_case,
+        cut_id="c1",
+        line="車、サウナすぎん？",
+        audio_path="c1.mp3",
+        source_duration_seconds=2.0,
+    )
+    check("queue-telop-not-next", telop_next.get("cut_id") == "c3")
 
 
 def test_narration_atomic_cut() -> None:
@@ -1802,6 +1853,38 @@ def test_material_index_and_edit_plan(root: Path) -> None:
     check("edit-plan-final-verify-last", ops[-1] == "final_verify")
     audio_step = next(step for step in planned.get("chatcut_steps") or [] if step.get("op") == "place_audio")
     check("edit-plan-audio-adds-batched", isinstance(audio_step.get("adds"), list) and len(audio_step.get("adds") or []) == 1)
+    telop_plan = build_edit_plan(
+        {
+            "schema": "product_video_approved_script.v1",
+            "cuts": [
+                {"cut_id": "c1", "index": 1, "line": line, "situation": situation},
+                {
+                    "cut_id": "c2",
+                    "index": 2,
+                    "line": "アンドロイドはアプリが必要",
+                    "situation": "アプリの画面",
+                    "telop_only": True,
+                },
+            ],
+        },
+        {
+            "cuts": [
+                {"cut_id": "c1", "source": "a.mov", "source_in": 0.0, "source_out": 4.0, "available_duration": 4.0},
+                {"cut_id": "c2", "source": "b.mov", "source_in": 0.0, "source_out": 4.0, "available_duration": 4.0},
+            ]
+        },
+        manifest,
+    )
+    check("edit-plan-telop-only", telop_plan.get("status") == "OK", str(telop_plan.get("hold")))
+    telop_cut = (telop_plan.get("cuts") or [{}, {}])[1]
+    check(
+        "edit-plan-telop-has-caption-without-audio",
+        telop_cut.get("telop_only") is True
+        and telop_cut.get("narration_audio_path") is None
+        and telop_cut.get("caption_text") == "アンドロイドはアプリが必要",
+    )
+    telop_audio = next(step for step in telop_plan.get("chatcut_steps") or [] if step.get("op") == "place_audio")
+    check("edit-plan-telop-skips-its-audio", len(telop_audio.get("adds") or []) == 1)
     executed = execute_from_edit_plan(planned, editor_project_identity="chatcut:proj-speed")
     check("rough-executes-plan", executed.get("usable_rough_edit") is True and executed.get("reselect_in_editor") is False)
     batched = chatcut_execution_steps(
@@ -2678,8 +2761,55 @@ def test_semantic_fallback_matcher(root: Path) -> None:
         {"c8": [ribs, long_ribs]},
         semantic_match_fn=send_h,
     )
-    check("semantic-h-short-token-still-fallback", len(calls_h) == 1, str(plan_h.get("hold")))
-    check("semantic-h-picks-long-ribs", plan_h.get("status") == "OK" and (plan_h.get("cuts") or [{}])[0].get("from_semantic_fallback") is True)
+    check("semantic-h-short-scene-extends-in-file", plan_h.get("status") == "OK" and len(calls_h) == 0, str(plan_h.get("hold")))
+    chosen_h = (plan_h.get("cuts") or [{}])[0]
+    check(
+        "semantic-h-keeps-original-scene",
+        "IMG_3963" in str(chosen_h.get("source"))
+        and float(chosen_h.get("source_in") or 9) <= 0.6 + 1e-6
+        and float(chosen_h.get("source_out") or 0) >= 3.16 - 1e-6,
+    )
+    blocked_catalog = {
+        "files": {
+            ribs["source"]: {
+                "source": ribs["source"],
+                "scenes": [
+                    {"source_in": 0.6, "source_out": 3.16},
+                    {"source_in": 3.2, "source_out": 8.0},
+                ],
+            }
+        }
+    }
+    calls_h_blocked: list[str] = []
+
+    def send_h_blocked(prompt: str) -> str:
+        calls_h_blocked.append(prompt)
+        return json.dumps(
+            {
+                "c8": {
+                    "scene_id": long_id,
+                    "source": long_ribs["source"],
+                    "source_in": 0.0,
+                    "source_out": 5.0,
+                    "reason": "骨が張っている",
+                }
+            },
+            ensure_ascii=False,
+        )
+
+    plan_h_blocked = assemble_plan(
+        script_for("c8", bones_line, bones_sit),
+        {"clips": [_manifest_clip("c8", bones_line, source_duration=4.8)]},
+        {"c8": [ribs, long_ribs]},
+        semantic_match_fn=send_h_blocked,
+        catalog=blocked_catalog,
+    )
+    check("semantic-h-blocked-still-fallback", len(calls_h_blocked) == 1, str(plan_h_blocked.get("hold")))
+    check(
+        "semantic-h-blocked-picks-long-ribs",
+        plan_h_blocked.get("status") == "OK"
+        and (plan_h_blocked.get("cuts") or [{}])[0].get("from_semantic_fallback") is True,
+    )
 
 
 def test_minimal_range_padding() -> None:
@@ -2729,8 +2859,29 @@ def test_minimal_range_padding() -> None:
         duration=12.0,
     )
     padded_c = apply_minimal_range_padding(tiny, 3.0)
-    check("pad-c-no-large-gap", padded_c.get("range_padded") is not True)
-    check("pad-c-still-short", duration_passes(padded_c, 3.0) is False)
+    check("pad-c-same-file-window", padded_c.get("range_padded") is True)
+    check("pad-c-keeps-scene-in", abs(float(padded_c.get("source_in") or 0) - 1.0) < 1e-9)
+    check("pad-c-extends-after", abs(float(padded_c.get("source_out") or 0) - 4.0) < 1e-9)
+    check("pad-c-meets-target", duration_passes(padded_c, 3.0) is True)
+    blocked = apply_minimal_range_padding(
+        tiny,
+        3.0,
+        scene_ranges={tiny["source"]: [(1.0, 2.0), (2.2, 5.0)]},
+    )
+    check("pad-c-stops-at-other-scene", blocked.get("range_padded") is not True)
+    check("pad-c-other-scene-still-short", duration_passes(blocked, 3.0) is False)
+    heat = _catalog_candidate(
+        ".runtime/product-video-inputs/AN-S182_コピー/車内暑い/IMG_3899.MOV",
+        source_in=4.5,
+        source_out=7.22,
+        objects=["炎天下"],
+        description="炎天下に止めた車に戻り、ドアを開けた瞬間に熱気で顔をゆがめる人物の寄り",
+        duration=8.133,
+    )
+    padded_heat = apply_minimal_range_padding(heat, 4.6)
+    check("pad-heat-same-file", padded_heat.get("range_padded") is True)
+    check("pad-heat-contains-scene", float(padded_heat.get("source_in") or 9) <= 4.5 and float(padded_heat.get("source_out") or 0) >= 7.22)
+    check("pad-heat-meets-target", abs(float(padded_heat.get("available_duration") or 0) - 4.6) < 1e-6)
 
     short_file = dict(titanium)
     short_file["source_duration_seconds"] = 3.0
@@ -2778,29 +2929,29 @@ def test_meaning_pair_segments() -> None:
         objects=["UV", "遮断"],
         features=["紫外線"],
         description="車内に入ってくる紫外線を遮断しているイメージのカット",
-        duration=8.34,
+        duration=4.14,
     )
     block["material_id"] = "uv-block"
     block["visual"] = visual("glass", "wide", "windshield")
     shade = _catalog_candidate(
         ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3892.MOV",
-        source_in=3.5,
-        source_out=6.86,
+        source_in=0.2,
+        source_out=3.56,
         objects=["日差し"],
         features=["遮る"],
         description="外から差し込む激しい直射日光を遮るフロントガラス全体の引き",
-        duration=6.86,
+        duration=3.56,
     )
     shade["material_id"] = "sun-block"
     shade["visual"] = visual("car", "wide", "parking")
     shadow = _catalog_candidate(
         ".runtime/product-video-inputs/AN-S182_コピー/設置風景/IMG_3891.MOV",
-        source_in=2.5,
-        source_out=6.12,
+        source_in=0.2,
+        source_out=3.82,
         objects=["UPF", "生地"],
         features=["影"],
         description="シェードの生地アップと影になった運転席のコントラスト",
-        duration=8.0,
+        duration=3.82,
     )
     shadow["material_id"] = "upf-shadow"
     shadow["visual"] = visual("fabric", "medium", "parking")
@@ -2871,7 +3022,7 @@ def test_meaning_pair_segments() -> None:
         source_out=4.26,
         objects=["UV"],
         description="フロントガラス越しに日差しを遮っている様子を外側から撮影",
-        duration=8.34,
+        duration=4.26,
     )
     overlap["material_id"] = "uv-overlap"
     overlapped = select_cut(
@@ -3179,6 +3330,17 @@ def test_preflight_operator_batch(root: Path) -> None:
         "held-case-stages-kept",
         state.get("completed_stages") == ["PREPARE", "SCRIPT", "SCRIPT_SELECTION"],
     )
+    paused_id = "pv-AN-S999-paused"
+    seed_state(
+        root,
+        paused_id,
+        "ROUGH_EDIT",
+        ["PREPARE", "SCRIPT", "SCRIPT_SELECTION", "NARRATION", "ASSEMBLY"],
+        extra={"hold": {"code": HOLD_OPERATOR_PAUSED, "stage": "ROUGH_EDIT"}},
+    )
+    paused = dispatch(root, case_id=paused_id, product_model="AN-S999", preflight_ready=True)
+    check("operator-pause-stops", paused.get("action") == "stop" and paused.get("reason") == "operator_paused")
+    check("operator-pause-keeps-hold", (load_state(root, paused_id).get("hold") or {}).get("code") == HOLD_OPERATOR_PAUSED)
     cleared = clear_hold(root, case_id)
     check("clear-hold-keeps-stage", cleared.get("current_stage") == "NARRATION")
 
@@ -3423,6 +3585,23 @@ def test_product_facts_prepare(root: Path) -> None:
     )
     check("facts-B-build-cta-model-holds", thin_proof.get("hold") == HOLD_PRODUCT_FACTS_REQUIRED)
     check("facts-E-focus-not-in-information", "優先訴求だけ" not in (settings_only.get("product_information") or ""))
+    from material_ledger_observe import vision_prompt
+    from compile_material_ledger import parse_note
+    from visual_catalog import normalize_scene
+
+    prompt = vision_prompt("AN-S151TLE", "- ピンクライトがある", "IMG_0715.MOV", ["IMG_0715.MOV の 0.2秒。参照は @frame_0_2.jpg"])
+    check("vision-names-model", "AN-S151TLE" in prompt and "ピンクライト" in prompt)
+    check("vision-reads-video", "動画素材 IMG_0715.MOV" in prompt and "静止画素材の管理ではありません" in prompt)
+    check("vision-hides-unseen-specs", "画面に見えない" in prompt and "product_visible" in prompt)
+    _meta, scenes = parse_note(
+        "## 0.000–3.000\n"
+        "factual_description: 手元のモニター\n"
+        "objects: モニター\n"
+        "product_visible: true\n"
+        "product_parts: 画面、ピンクライト\n"
+    )
+    scene = normalize_scene(scenes[0], source="clip.mov")
+    check("vision-note-keeps-parts", scene is not None and "ピンクライト" in (scene or {}).get("visible_features", []))
 
 
 def _grounding_cut(index: int, line: str, evidence: list[str], situation: str = "手元") -> dict:
@@ -3633,8 +3812,7 @@ def test_script_grounding() -> None:
     check("grounding-B-batch-holds", held_batch.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING)
 
     skill = skill_md("product-video-script").read_text(encoding="utf-8")
-    check("grounding-regen-once", "once more" in skill or "同じ" in skill)
-    check("grounding-no-third-regen", "third" in skill or "3" in skill or "再生成" in skill)
+    check("grounding-repair-same-turn", "in the same turn" in skill and "Do not stop the operator" in skill)
     check("grounding-hold-code", HOLD_SCRIPT_PRODUCT_GROUNDING in skill)
     check("grounding-hide-from-operator", "根拠ID" in skill and "Do **not** show" in skill)
 
@@ -3657,7 +3835,7 @@ def test_script_grounding() -> None:
         second = accept_gemini_output(root, case_id, sample_scripts(3))
         check(
             "grounding-regen-second-holds",
-            second.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING and second.get("regenerate") is False,
+            second.get("hold") == HOLD_SCRIPT_PRODUCT_GROUNDING and second.get("regenerate") is True,
         )
         check("grounding-stage-not-complete", load_state(root, case_id)["current_stage"] == "SCRIPT")
         frozen_ok = accept_gemini_output(root, case_id, grounded_sample_scripts(3))
@@ -3685,8 +3863,13 @@ def test_prompt_template() -> None:
     check("prompt-asks-3-to-5", "3〜5パターン" in prompt)
     check("prompt-bans-model-in-line", "識別番号はセリフに入れない" in prompt)
     check("prompt-bans-model-in-cta", "CTAにも型番を入れない" in prompt)
-    check("prompt-short-line-range", "12〜28文字" in prompt)
-    check("prompt-short-line-cap", "長くても35文字程度" in prompt)
+    check("prompt-bans-company-name", "慶洋エンジニアリング" in template and "書かない" in template)
+    check("prompt-specifies-dopagaki-phrasing", "ドパガキに刺さる台詞" in template and "言い回しも口語" in template)
+    check("prompt-bans-desu-masu", "です、ます、でした、ません、ましょうは使わない" in template)
+    check("prompt-exclamation-not-every-line", "毎回付けない" in template and "全カットの語尾を感嘆符にしない" in template)
+    check("prompt-cut-about-3-seconds", "1カットの基本は、1.2倍速で約3秒" in prompt)
+    check("prompt-line-char-range", "目安は15〜20文字" in prompt)
+    check("prompt-no-old-35-char-cap", "長くても35文字程度" not in prompt)
     check("prompt-facts-are-upstream", "上流工程で確認済みの商品情報です" in prompt)
     check("prompt-no-extra-questions", "追加質問をせず、この情報だけを使って" in prompt)
     check("prompt-template-has-no-product-examples", all(
@@ -3706,7 +3889,10 @@ def test_runtime_path() -> None:
     skills_root = REPO / ".cursor" / "skills"
     logicals = (ENTRY_SKILL, *LOGICAL_STAGE_SKILLS)
     discovered = sorted(
-        path.name for path in skills_root.iterdir() if (path / "SKILL.md").is_file()
+        path.name
+        for path in skills_root.iterdir()
+        if (path / "SKILL.md").is_file()
+        and (path.name == ENTRY_SKILL or path.name.startswith("product-video-"))
     )
     expected = sorted([ENTRY_SKILL, *[physical_skill_name(name) for name in LOGICAL_STAGE_SKILLS]])
     check("cursor-skills-one-each", discovered == expected, str(discovered))
@@ -3809,7 +3995,7 @@ def test_git_tracked_helpers() -> None:
     check("owned-tts-exists", (REPO / owned).is_file())
     narration_skill = skill_md("product-video-narration").read_text(encoding="utf-8")
     check("narration-skill-uses-cut-worker", "product-video/scripts/narration_cut.py" in narration_skill)
-    check("narration-skill-name-dated", "name: product-video-narration-20260919" in narration_skill)
+    check("narration-skill-name-dated", f"name: product-video-narration-{SKILL_VERSION_DATE}" in narration_skill)
     check("narration-skill-old-tts-fallback-only", "fallback/debug only" in narration_skill)
     check("narration-skill-uses-speed-proof", "product-video/scripts/prove_tts_speed.py" in narration_skill)
     check("narration-skill-no-capcut-actual-speed-gate", "actual_speed == 1.2" not in narration_skill)
@@ -4157,11 +4343,152 @@ def test_drive_deferred_preflight(scratch: Path) -> None:
     )
 
 
+def test_product_script_rules() -> None:
+    from render_script_prompt import load_product_script_rules_text, merge_campaign_focus, render_script_prompt
+    from script_grounding import base_script_line_issues, product_script_rule_issues
+
+    company = [{"variant_id": 1, "title": "型", "cuts": [{"line": "これ！慶洋エンジニアリングのディフューザー！"}]}]
+    check("base-rule-blocks-company-name", any("慶洋エンジニアリング" in item for item in base_script_line_issues(company)))
+    replaced = [{"variant_id": 1, "title": "型", "cuts": [{"line": "これ！ファン式ディフューザー！"}]}]
+    check("base-rule-allows-product-type", base_script_line_issues(replaced) == [])
+    every_bang = [{"variant_id": 1, "title": "型", "cuts": [{"line": "これ！"}, {"line": "次も！"}]}]
+    check(
+        "base-rule-blocks-exclamation-every-line",
+        any("every line" in item for item in base_script_line_issues(every_bang)),
+    )
+    mixed_bang = [
+        {
+            "variant_id": 1,
+            "title": "型",
+            "cuts": [{"line": "これ！"}, {"line": "次は普通"}, {"line": "下からチェック！"}],
+        }
+    ]
+    check("base-rule-allows-some-exclamation", base_script_line_issues(mixed_bang) == [])
+    polite = [{"variant_id": 1, "title": "型", "cuts": [{"line": "広がります"}]}]
+    check("base-rule-blocks-masu", any("polite" in item for item in base_script_line_issues(polite)))
+    soon = [{"variant_id": 1, "title": "型", "cuts": [{"line": "有線で繋いですぐ使える"}]}]
+    check("base-rule-allows-desugu", base_script_line_issues(soon) == [])
+    rules = load_product_script_rules_text(REPO, "AN-S151TLE")
+    check("script-rules-ans151-voice", "10代から20代の女性" in rules)
+    check("script-rules-ans151-no-inch", "4.02インチ" in rules and "書かない" in rules)
+    check("script-rules-ans151-no-aspect", "16:9" in rules)
+    check("script-rules-ans151-late-detail", "後半" in rules and "解像度" in rules)
+    check("script-rules-ans151-iphone", "iPhoneとアンドロイド" in rules and "iOSとは言わない" in rules)
+    check("script-rules-ans151-wired", "有線で繋いですぐ使える" in rules)
+    check("script-rules-ans151-film", "ガラスフィルムが同梱" in rules)
+    check("script-rules-ans151-soft-terms", "正像" in rules and "いつもみたいに使える" in rules)
+    focus = merge_campaign_focus("夏の車内", rules)
+    check("script-rules-merge-keeps-focus", focus.startswith("夏の車内") and "4.02インチ" in focus)
+    check("script-rules-merge-dedup", merge_campaign_focus(rules, rules) == rules)
+    prompt = render_script_prompt(
+        load_template(REPO),
+        product_information="- 外カメラの写りを手元で確認できる",
+        product_appeal_points="- ピンクライトで盛れる",
+        user_campaign_focus=focus,
+    )
+    check("script-rules-in-prompt", "16:9" in prompt and "インチ数はセリフ" in prompt)
+    profile = {
+        "forbidden_line_substrings": ["4.02", "16:9", "16対9", "インチ"],
+        "late_detail_substrings": ["解像度", "1136"],
+        "late_detail_after_fraction": 0.5,
+    }
+
+    def variant(lines: list[str]) -> dict:
+        return {
+            "variant_id": 1,
+            "title": "盛れる",
+            "cuts": [{"cut": index + 1, "situation": "夜の部屋", "line": line} for index, line in enumerate(lines)],
+        }
+
+    early = product_script_rule_issues(REPO, "AN-S151TLE", [variant(["4.02インチだよ", "ピンクライト"])], profile)
+    check("script-rules-block-inch", any("4.02" in item for item in early))
+    aspect = product_script_rule_issues(REPO, "AN-S151TLE", [variant(["１６：９で見やすい", "手元で見える"])], profile)
+    check("script-rules-block-aspect", any("16:9" in item for item in aspect))
+    detail = product_script_rule_issues(
+        REPO,
+        "AN-S151TLE",
+        [variant(["解像度がきれい", "写りを見る", "ピンクライト", "1136まである"])],
+        profile,
+    )
+    check("script-rules-block-early-detail", any("解像度" in item and "cut 1" in item for item in detail))
+    check("script-rules-allow-late-detail", not any("1136" in item for item in detail))
+    check("script-rules-absent-model", product_script_rule_issues(REPO, "AN-S999", [variant(["そのまま"])]) == [])
+    spoken = variant(["iPhoneとアンドロイドでも使える", "約90グラムで軽い", "ガラスフィルムが入ってる"])
+    spoken["cuts"][0]["situation"] = "白いUSBケーブルが差さっている"
+    real = product_script_rule_issues(REPO, "AN-S151TLE", [spoken])
+    check("script-rules-allow-usb-in-situation", real == [], "; ".join(real))
+    ios = product_script_rule_issues(
+        REPO,
+        "AN-S151TLE",
+        [variant(["iOSでも使える", "約90グラム", "ガラスフィルム付き"])],
+    )
+    check("script-rules-block-ios", any("iOS" in item for item in ios))
+    missing = product_script_rule_issues(REPO, "AN-S151TLE", [variant(["有線で繋ぐだけ"])])
+    check("script-rules-require-film", any("ガラスフィルム" in item for item in missing))
+    check("script-rules-ans151-exclamation", "下からチェック！" in rules and "感嘆符" in rules)
+    check("script-rules-ans151-dayo", "だよ、だよね" in rules and "です、ます" in rules)
+    bang = product_script_rule_issues(
+        REPO,
+        "AN-S151TLE",
+        [variant(["盛れる！", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])],
+    )
+    check("script-rules-block-mid-exclamation", any("exclamation" in item for item in bang))
+    dayo = product_script_rule_issues(
+        REPO,
+        "AN-S151TLE",
+        [variant(["軽いだよ", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])],
+    )
+    check("script-rules-block-dayo", any("だよ" in item for item in dayo))
+    polite = product_script_rule_issues(
+        REPO,
+        "AN-S151TLE",
+        [variant(["使えます", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])],
+    )
+    check("script-rules-block-desu-masu", any("ます" in item for item in polite))
+    wired = variant(["有線で繋いですぐ使える", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])
+    check(
+        "script-rules-allow-de-sugu",
+        product_script_rule_issues(REPO, "AN-S151TLE", [wired]) == [],
+    )
+    yo = variant(["使えるよ", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])
+    check("script-rules-block-yo-ending", any("よ$" in item for item in product_script_rule_issues(REPO, "AN-S151TLE", [yo])))
+    noun = variant(["iPhoneとアンドロイドでも使える親切仕様", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])
+    check("script-rules-allow-noun-ending", product_script_rule_issues(REPO, "AN-S151TLE", [noun]) == [])
+    spoken_app = variant(["約90グラム", "ガラスフィルムが入ってる", "アンドロイドはアプリが必要なやつね", "下からチェック！"])
+    check(
+        "script-rules-block-spoken-app",
+        any("telop-only" in item for item in product_script_rule_issues(REPO, "AN-S151TLE", [spoken_app])),
+    )
+    telop_app = variant(["約90グラム", "ガラスフィルムが入ってる", "1136×640", "下からチェック！"])
+    telop_app["cuts"].insert(2, {"cut": 3, "situation": "アプリの画面", "line": "アンドロイドはアプリが必要", "telop_only": True})
+    check("script-rules-allow-telop-app", product_script_rule_issues(REPO, "AN-S151TLE", [telop_app]) == [])
+    kakeru = variant(["約90グラム", "ガラスフィルムが入ってる", "1136かける640", "下からチェック！"])
+    check(
+        "script-rules-block-kakeru",
+        any("かける" in item for item in product_script_rule_issues(REPO, "AN-S151TLE", [kakeru])),
+    )
+    quiet = variant(["有線で繋いでそのまま使える", "約90グラム", "ガラスフィルムが入ってる", "下からチェック！"])
+    check("script-rules-allow-final-exclamation", product_script_rule_issues(REPO, "AN-S151TLE", [quiet]) == [])
+    abrupt = variant(["防災の水は重くない？", "ポータブル電動浄水器！", "下からチェック！"])
+    check(
+        "script-rules-ans152-needs-lead-in",
+        any("そこでコレ" in item for item in product_script_rule_issues(REPO, "AN-S152", [abrupt])),
+    )
+    split = variant(["防災の水は重くない？", "そこでコレ！", "ポータブル電動浄水器！", "下からチェック！"])
+    check(
+        "script-rules-ans152-lead-in-not-its-own-cut",
+        any("own cut" in item for item in product_script_rule_issues(REPO, "AN-S152", [split])),
+    )
+    led = variant(["防災の水は重くない？", "そこでコレ、ポータブル電動浄水器！", "下からチェック！"])
+    check("script-rules-ans152-lead-in-same-cut", product_script_rule_issues(REPO, "AN-S152", [led]) == [])
+
+
 def main() -> int:
     print(f"REPO {REPO}")
     test_parser()
     test_approval_and_fidelity()
     test_prompt_template()
+    test_product_script_rules()
     test_script_grounding()
     test_assembly_and_variety()
     test_adjacent_visual_variety()

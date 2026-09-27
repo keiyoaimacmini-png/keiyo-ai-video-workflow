@@ -122,6 +122,7 @@ def record_clip(
     audio_path: str,
     source_duration_seconds: float | None = None,
     editor_playback_rate: float = NARRATION_SPEED,
+    allow_rate: float | None = None,
     source_already_accelerated: bool = False,
     duration_seconds: float | None = None,
     speed: float | None = None,
@@ -131,7 +132,7 @@ def record_clip(
         return hold("HOLD_NARRATION_SPEED", "do not record the source file as already 1.2x processed")
     if source_duration_seconds is None:
         return hold("HOLD_NARRATION_DURATION", "source_duration_seconds is the original file length")
-    planned = planned_editorial_duration(source_duration_seconds, rate)
+    planned = planned_editorial_duration(source_duration_seconds, rate, allow_rate=allow_rate)
     if planned.get("status") != "OK":
         hold_code = planned.get("hold") or "HOLD_NARRATION_SPEED"
         if hold_code == "HOLD_TTS_SPEED_UNVERIFIED":
@@ -145,7 +146,7 @@ def record_clip(
         "line": line,
         "audio_path": audio_path,
         "source_duration_seconds": planned["source_duration_seconds"],
-        "editor_playback_rate": NARRATION_SPEED,
+        "editor_playback_rate": planned["editor_playback_rate"],
         "planned_duration_seconds": planned["planned_duration_seconds"],
         "source_already_accelerated": False,
     }
@@ -153,9 +154,17 @@ def record_clip(
 
 def write_manifest(project_root: Path, case_id: str, clips: list[dict[str, Any]]) -> dict[str, Any]:
     dest = case_root(project_root, case_id) / "narration-manifest.json"
+    rates = [
+        float(clip["editor_playback_rate"])
+        for clip in clips
+        if isinstance(clip, dict)
+        and isinstance(clip.get("editor_playback_rate"), (int, float))
+        and not isinstance(clip.get("editor_playback_rate"), bool)
+    ]
+    manifest_rate = rates[0] if rates and all(item == rates[0] for item in rates) else NARRATION_SPEED
     payload = {
         "schema": "product_video_narration_manifest.v1",
-        "editor_playback_rate": NARRATION_SPEED,
+        "editor_playback_rate": manifest_rate,
         "clips": clips,
     }
     dest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

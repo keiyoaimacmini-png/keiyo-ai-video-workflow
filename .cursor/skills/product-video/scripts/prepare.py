@@ -16,7 +16,7 @@ from product_facts import facts_path_for, load_product_facts_profile, prove_usab
 from prove_material_videos import prove_material_videos
 from workflow_state import complete_stage, empty_state, hold, save_receipt, save_state, sha256_file
 
-MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,6}$")
+MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,8}$")
 INVENTED_CLAIM_RE = re.compile(
     r"(?i)(\d+\s*%|倍|最強|必ず|絶対|効果実証|医学的|保証)"
 )
@@ -163,7 +163,11 @@ def create_new_case(
     dest.mkdir(parents=True)
     state = empty_state(case_id, product_model)
     state["user_campaign_focus"] = user_campaign_focus.strip()
-    state["narration_speed"] = NARRATION_SPEED
+    narration_settings = settings.get("narration") if isinstance(settings.get("narration"), dict) else {}
+    raw_rate = narration_settings.get("editor_playback_rate", NARRATION_SPEED)
+    if isinstance(raw_rate, bool) or not isinstance(raw_rate, (int, float)) or raw_rate <= 0:
+        raw_rate = NARRATION_SPEED
+    state["narration_speed"] = float(raw_rate)
     state["material_root"] = resolved["material_root"]
     state["settings_path"] = resolved["settings_path"]
     state["settings_sha256"] = resolved["settings_sha256"]

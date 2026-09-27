@@ -7,10 +7,15 @@ import argparse
 import json
 from pathlib import Path
 
-from constants import HOLD_SCRIPT_PRODUCT_GROUNDING, MAX_SCRIPT_GROUNDING_ATTEMPTS
+from constants import HOLD_SCRIPT_PRODUCT_GROUNDING
 from parse_gemini_scripts import parse_gemini_scripts
 from paths import case_root, emit, helper_path
-from script_grounding import present_for_operator, prove_scripts_grounding
+from script_grounding import (
+    base_script_line_issues,
+    present_for_operator,
+    product_script_rule_issues,
+    prove_scripts_grounding,
+)
 from workflow_state import complete_stage, hold, load_state, save_state
 
 
@@ -43,11 +48,25 @@ def accept_gemini_output(project_root: Path, case_id: str, raw_text: str) -> dic
         str(inputs.get("product_appeal_points") or ""),
     )
     state = load_state(project_root, case_id)
+    if proof.get("status") == "OK":
+        issues = product_script_rule_issues(
+            project_root,
+            str(state.get("product_model") or ""),
+            parsed.get("variants") or [],
+        )
+        issues.extend(base_script_line_issues(parsed.get("variants") or []))
+        if issues:
+            proof = {
+                "status": "HOLD",
+                "reason": issues[0],
+                "regenerate": True,
+                "failures": [{"reason": item} for item in issues],
+            }
     if proof.get("status") != "OK":
         attempts = int(state.get("script_grounding_attempts") or 0) + 1
         state["script_grounding_attempts"] = attempts
         save_state(project_root, state)
-        regenerate = bool(proof.get("regenerate")) and attempts < MAX_SCRIPT_GROUNDING_ATTEMPTS
+        regenerate = bool(proof.get("regenerate"))
         payload = hold(
             HOLD_SCRIPT_PRODUCT_GROUNDING,
             proof.get("reason") or "script product grounding failed",

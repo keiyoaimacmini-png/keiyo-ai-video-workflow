@@ -40,7 +40,8 @@ Stop reasons:
 
 - `waiting_script_selection` — wait for exact `案Nで台本OK`
 - `waiting_for_operator` — wait for exact `完成・格納してください`
-- `hold` — genuine human or unrecoverable blocker
+- `hold` — genuine human or unrecoverable blocker. Script grounding and script-rule failures are not operator stops. Repair those drafts in the same turn and continue until the variants can be presented.
+- `operator_paused` — this product video stays held until the operator says to resume
 - `complete`
 
 A stage listed in `completed_stages` must not rerun. Resume from `current_stage`.

@@ -16,9 +16,10 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 ```
 
 - Settings path is always `config/product_video_settings_<MODEL>.v1.json`. For AN-S182 that file is pinned by SHA-256; do not infer or replace it. For any other model, add that model's own file instead of copying AN-S182.
-- Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>_コピー`. A folder is not enough; PREPARE requires at least one regular non-zero video file under that root.
+- Material root is `PRODUCT_VIDEO_MATERIAL_ROOT` when set, otherwise `.runtime/product-video-inputs/<MODEL>`. Do not add a `_コピー` suffix to a new product folder. If that plain folder is absent and `<MODEL>_コピー` already exists, keep using the existing folder. A folder is not enough; PREPARE requires at least one regular non-zero video file under that root.
 - Stages chain automatically: PREPARE → SCRIPT → (wait for `案Nで台本OK`) → NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR → (wait for `完成・格納してください`) → DELIVERY → COMPLETE.
 - Usual operator input is only `/product-video`, exact `案Nで台本OK`, and exact `完成・格納してください`.
+- 台本の根拠チェックや台本ルールで落ちた案は、同じターンで直して再判定する。オペレーターには止めない。手を止めるのは、台本提示後の案選択、粗編集後、格納完了後だけ。
 - Before a new case, and when resuming a held case, run `product-video/scripts/run_preflight.py` (materials, Gemini text-only one-shot, Chrome CDP + Playwright MCP, ChatCut; Drive OAuth/folder is deferred). Blocking failures HOLD start. Drive-only failure keeps start-time preflight `READY` with `delivery_ready: false`; Drive is required only at DELIVERY, before export. Do not write media, generate TTS, or spend credits in preflight. Transient connection failures retry up to 3 times without asking the operator. If several blocking checks fail, report them once as **開始前に直すこと**.
 - Do not ask Continue / Proceed between automatic stages. Do not require `粗編集OK`. Do not run an AI final visual-quality review.
 
@@ -28,18 +29,19 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - 使用モデルは **`gemini-3.8-flash`**。Auto / Pro / 別の Flash には落とさない。違うモデルなら `HOLD_GEMINI_MODEL_NOT_VERIFIED`。`agy` が無い、一発印刷が失敗する、枠が尽きた、ファイルを書き始めた場合は `HOLD_GEMINI_CLI_NOT_VERIFIED`。
 - 送りは `product-video/scripts/render_script_prompt.py` の出力を `product-video/scripts/send_gemini_cli_prompt.py` で送る。プロンプト本文を手で書き換えない。ヘルパーが HOLD したら探索に入らずその HOLD で止める。貼り付け文をオペレーターに渡して止めない。ログイン、CAPTCHA、2FA、アカウント選択だけ `HOLD_GEMINI_LOGIN_USER_ACTION_REQUIRED`。オペレーターは Terminal で `agy` を起動して Google ログインする。エージェントはログインを起動しない。
 - 採用は exact `案Nで台本OK` のみ。別の言い回しを承認に変換しない。凍結後は SCRIPT LINE == NARRATION == TELOP。言い換え・短縮・句読点変更をしない。
-- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明する。ASSEMBLY は ChatCut へ置く前に、商品別 `.runtime/product-video-material-index/<MODEL>.v1.json` と `.runtime/product-video-visual-catalog/<MODEL>.v1.json` とナレーションの `target_duration_seconds`（playbackRate 1.2 後）で `available_duration >= target` を判定する。mtime/size/sidecar が変わった素材だけ index と catalog を更新する。毎案件の全動画再視聴・再解析はしない。`source_in` / `source_out` がある候補はその range 尺。full clip 候補は md の source duration。足りない素材はランキング前に除外する。履歴でも尺不足なら採用しない。意味一致済みの catalog / history / semantic-fallback scene が target より 0.5秒以内だけ短いときは、同じファイル内で不足分だけ隣接フレームへ延長し、元の scene range を必ず含める。ChatCut 仮置きや案件ごとの再計測はしない。尺を通った候補だけを、1) セリフ / Gemini situation に意味が合う（人間が最終採用した approved-shot history → deterministic visual catalog match → 未解決カットだけ persistent catalog / history の TEXT を Gemini 3.8 Flash で1回意味マッチ。semantic fallback。動画再解析・画質採点・案件ごとの alias 追加はしない）→ 2) 必要尺 → 3) 同じ意味候補同士では直前カット、可能なら直前2cutとの visual difference を優先。別sourceでも framing / camera_distance / location / subject / objects / action / product_state がほぼ同じなら隣接では似た映像として扱う。意味の違う素材を見た目のためだけに選ばない。適切な意味候補が1つならそれを使い HOLD しない → 4) history / catalog の一致度 → 5) 動画全体で source / range を適度に分散（同じsourceなら別range。sourceが違うこと自体を見た目の違いとしない）→ 6) aliases / folder は候補探索の補助、の順で選ぶ。aliases の1語一致だけでは「この映像がセリフに合っている」と確定しない。汎用語（車内、ハンドル、設置、ミラー、日差し）の単独一致では分類しない。素材 entry に situation が無いときに要求側 Gemini situation を代入しない。requested situation は `intended_scenario` として別保持。既存 sidecar に scene / situation / in-out / 内容説明が十分なら映像を見直さず catalog へ取り込む。フォルダ名だけを scene 内容として確定しない。日本語文全体の完全一致は要求しない。台本ごとに sidecar や aliases を書き換えない。全カットを `edit-plan.json` に書いてから ChatCut へ入る。テロップの表示改行も配置前に確定する。全素材の再解析や AI 画質採点はしない。
+- 1カットの基本は、1.2倍速で約3秒。前後は約2.5〜3.5秒。一つの事実がそれより短く言えないときだけ、そのカットは長くてよい。尺を埋めるために文を足さない。セリフは、その型番の撮れている一つの場面で足りる長さにする。場面より長い文は、提示前に短くするかカットを分ける。
+- 素材の SHA と in/out は Gemini に作らせない。台本の前に全件ハッシュや全尺視聴はしない。選んだファイルの選んだ範囲だけ `prove_source_range.py` で証明する。SCRIPT と ASSEMBLY の前に、この Mac で Obsidian が開いていることを確認し、`~/Documents/product-video-materials/<MODEL>` の現行ノート（source size と mtime が動画と一致）を `.runtime/product-video-visual-catalog/<MODEL>.v1.json` へ写す。Obsidian が開いていない、または型番フォルダが無いときは台本と選定に入らない。未記入またはファイルが新しくなった動画だけ、Gemini 3.8 Flash でその動画の中身を読んでノートを書く。読む前に、その型番の `config/product_video_product_facts_<MODEL>.v1.json` を読む。外見が事実に無いときだけ、その型番の公式製品ページを確認し、確認できた外見だけを見る。見えていない仕様はノートに書かない。ライトの色は、製品本体の発光部がその色と分かるときだけ書く。車のソケット、ナビ、映り込み、白いスリットは製品のライト色にしない。製品が映っていれば製品名と部位で書き、別の物は製品と呼ばない。秒はこちらが決め、Gemini に in/out を作らせない。動画の中身を静止画素材の管理へ置き換えない。素材フォルダに静止画ファイルがある場合も、動画の代わりにしない。size と mtime が一致する既存ノートは、この確認のために見直さない。ASSEMBLY は ChatCut へ置く前に、商品別 `.runtime/product-video-material-index/<MODEL>.v1.json` と `.runtime/product-video-visual-catalog/<MODEL>.v1.json` とナレーションの `target_duration_seconds`（その型番の playbackRate 後）で `available_duration >= target` を判定する。mtime/size/sidecar が変わった素材だけ index と catalog を更新する。毎案件の全動画再視聴・再解析はしない。`source_in` / `source_out` がある候補はその range 尺。full clip 候補は md の source duration。足りない素材はランキング前に除外する。履歴でも尺不足なら採用しない。意味一致済みの catalog / history / semantic-fallback scene が target より短いとき、同じファイル内に元の scene range をすべて含んだ必要尺の窓が取れるなら、不足分だけ隣接フレームへ延長する。先に場面の後ろ、足りなければ前。0秒からの取り直しと、ファイル全体をその場面として使うことはしない。同じファイルの別 catalog scene の境界は越えない。その窓が取れないときだけ、意味が合う scene を最大2つ、それぞれの元の source_in / source_out の中でつなぐ。ループ、静止、再生速度の変更はしない。ChatCut 仮置きや案件ごとの再計測はしない。尺を通った候補だけを、1) セリフ / Gemini situation に意味が合う（人間が最終採用した approved-shot history → deterministic visual catalog match → 未解決カットは、尺を満たす場面が1つならその場面を使う。2つ以上残ったときだけ JEV の jev_rank をカットごとに1回呼び、候補は catalog / history の TEXT（画面の一文、物、動作、商品の状態、場所、画角）だけを渡す。先頭がセリフに合うと返り、action が auto で coverage が complete のときだけ採用する。review、escalate、coverage 不足、順位だけの結果は採用しない。候補が0ならそのカットで止める。この意味判断に Gemini は使わない。動画再解析・画質採点・案件ごとの alias 追加はしない）→ 2) 必要尺 → 3) 同じ意味候補同士では直前カット、可能なら直前2cutとの visual difference を優先。別sourceでも framing / camera_distance / location / subject / objects / action / product_state がほぼ同じなら隣接では似た映像として扱う。意味の違う素材を見た目のためだけに選ばない。適切な意味候補が1つならそれを使い HOLD しない → 4) history / catalog の一致度 → 5) 動画全体で source / range を適度に分散（同じsourceなら別range。sourceが違うこと自体を見た目の違いとしない）→ 6) aliases / folder は候補探索の補助、の順で選ぶ。aliases の1語一致だけでは「この映像がセリフに合っている」と確定しない。汎用語（車内、ハンドル、設置、ミラー、日差し）の単独一致では分類しない。素材 entry に situation が無いときに要求側 Gemini situation を代入しない。requested situation は `intended_scenario` として別保持。既存 sidecar に scene / situation / in-out / 内容説明が十分なら映像を見直さず catalog へ取り込む。フォルダ名だけを scene 内容として確定しない。日本語文全体の完全一致は要求しない。台本ごとに sidecar や aliases を書き換えない。全カットを `edit-plan.json` に書いてから ChatCut へ入る。テロップの表示改行も配置前に確定する。全素材の再解析や AI 画質採点はしない。
 - 作業が止まったら同じターンで続けるか、該当 HOLD で止めてオペレーターが動けるようにする。一晩待たない。
 
 ## Google Drive（格納はローカルパス。デスクトップアプリは使わない）
 
-- 完成動画の格納は、書き出し読戻しの**同じターン**で `scripts/upload_drive_local_file.py` を使う。ローカルファイルから HTTPS 再開始アップロードし、Drive 連携で読み戻す。格納に Chrome.app を開かない。親フォルダ名は型番と exact case。16–22MB なら数十秒が正常。完成動画をツール引数の base64 にしない。Cursor の Drive コネクタ秘密は読まない。
+- 完成動画の格納は、書き出し読戻しの**同じターン**で `scripts/upload_drive_local_file.py` を使う。ローカルファイルから HTTPS 再開始アップロードし、Drive 連携で読み戻す。格納に Chrome.app を開かない。親フォルダ名は型番と exact case。同名フォルダが複数あるときは「完成動画」直下を使う。「動画素材保存用」配下には格納しない。16–22MB なら数十秒が正常。完成動画をツール引数の base64 にしない。Cursor の Drive コネクタ秘密は読まない。
 - ヘルパーが OAuth 不足で HOLD したら `HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE`。オペレーターが `.runtime/drive-oauth-client.json` を置き、**リポジトリのルート**で `--login` する。ホームディレクトリでは実行しない。エージェントは `--login` を起動しない。Chrome.app をスクショ・OCR・クリック探索しない。
 - Drive の原本確認・素材取得が連携でできないときだけ、この Mac の **Google Chrome.app** で公式 Drive Web（`https://drive.google.com/`）を使う。
 - Google Drive デスクトップアプリ、ローカル同期マウント、rclone は使わない。
 - エージェント制御ブラウザは Chrome.app の Google ログインを共有しないので、Drive の代用にしない。
 - 必要な Chrome Drive Web を開けないときは `HOLD_DRIVE_WEB_NOT_VERIFIED`。ログイン、CAPTCHA、2FA、アカウント選択は `HOLD_DRIVE_LOGIN_USER_ACTION_REQUIRED`。パスワードはチャットに書かない。
-- フォルダ URL と生の Drive ID は Git に書かない。格納の親フォルダは型番名で特定する。
+- フォルダ URL と生の Drive ID は Git に書かない。格納の親フォルダは型番名で特定する。完成動画は「完成動画」直下の型番フォルダへ置く。「動画素材保存用」の型番フォルダは素材用であり、完成動画の格納先にしない。
 
 ## Approval and safety boundary
 
@@ -57,20 +59,32 @@ python3 .cursor/skills/product-video/scripts/run_self_test.py
 - 原本、Drive上の格納ファイル、Google Driveデスクトップの同期ミラー、JSONのreceipt、設定、進行中の別案件、`.runtime/product-video-inputs` 配下の再利用素材、`.runtime/product-video-approved-shots` の採用履歴は消さない。同期ミラーを Finder から消すと Drive 上の原本も消える。
 - 格納前、またはローカルが唯一の完成コピーのときは消さない。進行中の本編ファイルは消さない。
 
+## 画と公式画像
+
+全型番に適用する。型番固有の条件は `config/product_video_product_facts_<MODEL>.v1.json` の `edit_rules` に書き、ASSEMBLY と粗編集後の画の修正で読む。製品ルールは、この汎用ルールを外さない。
+
+- 隣のカットと、物・画角・距離・場所・動作がほぼ同じ映像を続けない。ファイルが違っても、その条件がほぼ同じなら同じ画として扱う。
+- セリフが色、点灯、開閉、動作を名指しするカットは、その状態が画面で分かる範囲を使う。別の状態の映像は使わない。複数の状態を並べた図を、そのうちの一つの状態を言うカットに置かない。
+- セリフが青・緑・白のライトを名指しするカットは、ノートにその色の単語があるだけでは採用しない。候補は、製品本体の発光部がその色だと書いてあり、ソケット・映り込み・分からない・手で隠れている、を含まない区間だけである。`edit-plan.json` を書く前に、その source range のフレームを見て、発光部がその色であることを確認する。違っていれば、同じターンでノートを直し、カタログを更新し、その区間を外して選び直す。確認前の色カットを粗編集に出してはならない。
+- 公式の公開画像は、そうしないと隣のカットと画が同じになるときだけ使う。全カットには置かない。1カット目には置かない。
+- その画像の内容は、そのカットのテロップと一致していること。テロップが言う動作を映像がすでに見せているカットには、画像を重ねない。
+- 画像は動画の上に置く。画像を主役にする。画面全体は画像にしない。横と下には動画が残る。
+- 画像を置くカットは、ChatCut へ入る前に `edit-plan.json` へ書く。
+
 ## ナレーション（session 1回 + queue 連続生成）
 
-- 編集上の再生速度は常に **1.2倍速**。速度選択アルゴリズムは使わない。CapCut 生成時に 1.2 を要求しない。ChatCut の音声クリップ `playbackRate` に 1.2 を付ける。
+- 編集上の再生速度は、AN-S152 は **1.5倍速**、それ以外は **1.2倍速**。速度選択アルゴリズムは使わない。CapCut 生成時に倍速を要求しない。ChatCut の音声クリップ `playbackRate` には、その型番の倍率を付ける。
 - 公式ホリデーツイストが案件の編集正本で出せないときは、CapCut 公式 Text to Speech で凍結行を **1カット分のセリフごとに** 生成し、原音だけ編集正本へ戻す。映像は CapCut に入れない。ChatCut 代替ボイスや新規 CapCut 案件は出さない。通常経路は起動済みの Google Chrome.app へ、このプロジェクトの Playwright MCP（`--cdp-endpoint=chrome`）で接続する。詳細は `.cursor/skills/product-video/references/capcut-chrome-mcp.md`。`cursor-ide-browser` や拡張機能方式へ自動で戻さない。
 - NARRATION 開始時に Chrome / MCP / CapCut TTS ページ / Holiday Twist / 入力欄 / credit policy を **1回だけ** 確認する。`narration_queue.py` の残りカットを同じ session で連続処理する。成功したカットをチャット報告せず次へ進む。workflow dispatch へ戻らない。LLM で新しい計画を作らない。session が失われたときだけ接続復旧を最大3回。カットごとに MCP 再探索、Chrome preflight、ページ再探索、Holiday Twist 再選択、voice ID 再解決はしない。全カット完了後に一度だけ `narration-manifest.json` を書いて ASSEMBLY へ進む。
 - 既存 CapCut 残高から今回の生成分を消費する確認（`Credits will be consumed`、必要クレジット数、Cancel / Got it、月額・年額料金なし、無料体験なし、決済フォームなし、追加購入なし）は Got it で続行してよい。本文に「Pro」とあることだけを理由に止めない。Pro 月額・年額契約、無料体験、追加クレジット購入、自動チャージ、新しい決済、契約変更は自動承認しない。区別できなければ HOLD。
 - 貼るのはそのカットの凍結行だけ。全行を空行区切りで一括貼りしない。
-- 生成前にテキスト欄を全置換し、読み戻しが凍結行と完全一致してから生成する。結果カードの `video`/`audio` currentSrc を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。原音の実再生時間を記録する。原音を 1.2 倍加工済みとは記録しない。
-- 1カット1クリップとして編集正本へ戻し、ChatCut でクリップ速度 1.2 を付けたあとの区間に映像とテロップを合わせる。
+- 生成前にテキスト欄を全置換し、読み戻しが凍結行と完全一致してから生成する。結果カードの `video`/`audio` currentSrc を `scripts/capture_capcut_result_audio.py` で案件の TTS 作業ディレクトリへ直接保存する。原音の実再生時間を記録する。原音を 1.2 倍加工済みとは記録しない。保存した音声が、最後のカットも含めてそのカットの凍結行であること。別の文が読まれているファイルはマニフェストに書かず、そのカットだけ作り直す。
+- 1カット1クリップとして編集正本へ戻し、ChatCut でその型番のクリップ速度（AN-S152 は 1.5、それ以外は 1.2）を付けたあとの区間に映像とテロップを合わせる。
 
 ## テロップ
 
-- 最終テロップは画面中央。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。
-- ChatCut では保存済みユーザープリセット `product-video-center` を一度 `preset_apply` する。案件ごとに太字・縁を作り直さない。背景帯は付けない。
+- 最終テロップは左右中央。1080×1920 では、文字ブロックの視覚的な中心を上から 24%（y=459）に置く。1行でも2行でも中心は同じ。画面下には置かない。案件エディタの字幕プログラム（ChatCut Caption Cards または CapCut ネイティブ）を使う。モーションを視聴者向け字幕にしない。
+- ChatCut では保存済みユーザープリセット `product-video-center` を一度 `preset_apply` する。適用後、共有レイアウトを left=108, top=316, width=864, height=287 にする。これはボックス中心が x=540, y=459 で、書き出し済みの AN-S176 ②（2026-09-26）でオペレーターが合わせた位置である。プリセット初期値の top=1417 のままにしない。案件ごとに太字・縁を作り直さない。背景帯は付けない。
 - テロップ文言は凍結行と完全一致。表示用改行は `edit-plan.json` の `caption_visual_wrap` を配置前に使う。`caption_wrap.py` は14文字前後の候補から句読点・意味句・節境界・助詞を優先し、商品名・UVカット / UPF40以上 / 約99パーセント / チタンシルバー / V字カット / ルームミラー / フロントガラス / 数字と単位の途中、助詞だけ次行、1〜2文字の最終行を避ける。ChatCut へ置いてから改行位置を考えない。文字の追加・削除・並べ替えはしない。
 - 太字の見出しフォント（Dela Gothic One）と白い文字、太い黒縁、ドロップシャドウで目立たせる。背景帯は付けない。
 

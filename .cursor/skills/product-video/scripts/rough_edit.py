@@ -33,6 +33,7 @@ def build_rough_edit(
     editor_project_identity: str,
     placed_telops: list[dict[str, str]],
     delivery_ready: bool = True,
+    allow_rate: float | None = None,
 ) -> dict[str, Any]:
     if not editor_project_identity:
         return hold("HOLD_EDITOR_PROJECT_UNVERIFIED", "editor project identity is required")
@@ -51,7 +52,7 @@ def build_rough_edit(
             return hold("HOLD_NARRATION_AUDIO", f"missing narration for {cut['cut_id']}")
         if cut["cut_id"] not in plan_cuts:
             return hold("HOLD_ASSEMBLY_PLAN", f"missing assembly cut {cut['cut_id']}")
-        target = clip_target_duration(clip)
+        target = clip_target_duration(clip, allow_rate=allow_rate)
         if target.get("status") != "OK":
             return hold(
                 target.get("hold") or "HOLD_NARRATION_DURATION",
@@ -64,7 +65,7 @@ def build_rough_edit(
                 "telop": telop,
                 "audio_path": clip["audio_path"],
                 "source_duration_seconds": target["source_duration_seconds"],
-                "editor_playback_rate": NARRATION_SPEED,
+                "editor_playback_rate": target.get("editor_playback_rate", NARRATION_SPEED),
                 "planned_duration_seconds": target["planned_duration_seconds"],
                 "material": plan_cuts[cut["cut_id"]].get("material_id") or plan_cuts[cut["cut_id"]].get("path"),
             }
@@ -109,7 +110,7 @@ def execute_from_edit_plan(
                 "caption_visual_wrap": wrapped,
                 "audio_path": cut.get("narration_audio_path"),
                 "source_duration_seconds": cut.get("source_duration_seconds"),
-                "editor_playback_rate": NARRATION_SPEED,
+                "editor_playback_rate": cut.get("editor_playback_rate", NARRATION_SPEED),
                 "planned_duration_seconds": cut.get("target_duration_seconds"),
                 "material": cut.get("video_source"),
                 "source_in": cut.get("source_in"),

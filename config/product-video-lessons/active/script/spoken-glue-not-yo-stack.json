@@ -5,7 +5,7 @@
   "defect": "uniform_yo_endings",
   "auto": true,
   "status": "active",
-  "product_models": [],
+  "product_models": ["AN-S182"],
   "note": "Operator intent, not a line template: vary non-CTA endings and glue adjacent lines. Standing taste is already in render_gemini_web_prompt.py. Do not append this lesson to the Gemini prompt. Do not Cursor-rewrite the six lines as the first path.",
   "bad": {
     "dialogue": [

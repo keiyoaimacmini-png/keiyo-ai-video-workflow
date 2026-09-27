@@ -19,6 +19,12 @@ from paths import emit, project_root_from, stage_skill_root, state_path
 from workflow_state import clear_hold, hold, load_state, stage_already_complete
 
 
+def hold_code(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("code") or "")
+    return str(value or "")
+
+
 def stop(reason: str, **extra: Any) -> dict[str, Any]:
     payload = {"status": "OK", "action": "stop", "reason": reason}
     payload.update(extra)
@@ -95,6 +101,16 @@ def dispatch(
 
     if stage == "COMPLETE":
         return stop("complete", case_id=case_id, current_stage=stage)
+
+    if hold_code(state.get("hold")) == "HOLD_OPERATOR_PAUSED":
+        return stop(
+            "operator_paused",
+            case_id=case_id,
+            current_stage=stage,
+            hold=state["hold"],
+            product_model=state.get("product_model"),
+            message_ja="この製品の動画は保留中です。再開する指示があるまで粗編集には戻りません。",
+        )
 
     if state.get("hold"):
         if not preflight_ready:

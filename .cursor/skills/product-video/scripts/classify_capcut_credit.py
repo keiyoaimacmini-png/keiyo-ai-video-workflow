@@ -10,9 +10,9 @@ from typing import Any
 from constants import HOLD_CAPCUT_CREDIT_UNVERIFIED, HOLD_CAPCUT_NEW_PURCHASE_REQUIRED
 from workflow_state import hold
 
-EXISTING_TITLE = "Credits will be consumed"
-GOT_IT = "Got it"
-CANCEL = "Cancel"
+EXISTING_TITLES = frozenset({"Credits will be consumed", "クレジットが消費されます"})
+GOT_IT_LABELS = frozenset({"Got it", "わかった"})
+CANCEL_LABELS = frozenset({"Cancel", "キャンセル"})
 
 NEW_CONTRACT_FLAGS = (
     ("pro_subscription", "Pro monthly or annual contract"),
@@ -26,10 +26,10 @@ NEW_CONTRACT_FLAGS = (
 )
 
 
-def _has_button(buttons: object, label: str) -> bool:
+def _has_button(buttons: object, labels: frozenset[str]) -> bool:
     if not isinstance(buttons, list):
         return False
-    return any(isinstance(item, str) and item.strip() == label for item in buttons)
+    return any(isinstance(item, str) and item.strip() in labels for item in buttons)
 
 
 def classify_capcut_credit(record: dict[str, Any]) -> dict[str, Any]:
@@ -52,10 +52,11 @@ def classify_capcut_credit(record: dict[str, Any]) -> dict[str, Any]:
     buttons = record.get("buttons")
     credits_ok = isinstance(credits, (int, float)) and not isinstance(credits, bool) and credits > 0
     existing = (
-        title == EXISTING_TITLE
+        isinstance(title, str)
+        and title in EXISTING_TITLES
         and credits_ok
-        and _has_button(buttons, CANCEL)
-        and _has_button(buttons, GOT_IT)
+        and _has_button(buttons, CANCEL_LABELS)
+        and _has_button(buttons, GOT_IT_LABELS)
         and all(record.get(key) is False for key, _label in NEW_CONTRACT_FLAGS)
     )
     if existing:

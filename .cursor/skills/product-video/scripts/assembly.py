@@ -12,25 +12,30 @@ from pathlib import Path
 from typing import Any
 
 from approved_shots import candidate_from_history, history_close_enough, matching_history_shots
-from constants import MAJOR_VISUAL_KEYS
+from constants import MAJOR_VISUAL_KEYS, TELOP_ONLY_DURATION_SECONDS
 from paths import case_root
-from prove_tts_speed import clip_target_duration
+from prove_tts_speed import case_allow_narration_rate, clip_target_duration, load_playback_override
 from script_fidelity import assert_immutable
 from semantic_material_match import (
     apply_semantic_matches,
     catalog_history_payloads,
     collect_scene_payloads,
+    load_jev_results,
     load_matches,
     merge_scene_payloads,
     persist_matches,
+    plan_jev_resolution,
     run_semantic_fallback,
 )
-from visual_catalog import scene_match_score, scene_text
+from visual_catalog import lamp_color_allowed, requested_lamp_color, scene_match_score, scene_text
 from workflow_state import hold
 
 DURATION_EPS = 1e-9
-MAX_RANGE_PAD_SECONDS = 0.5
 MAX_SEGMENTS_PER_CUT = 2
+CONTENT_MATCH_RELAX_FILENAME = "content-match-relax.v1.json"
+OPERATOR_CLOSE_SHOTS_FILENAME = "operator-close-shots.json"
+GESTURE_MATCH_TOKENS = ("人差し指を立て", "疑問顔")
+TALKING_HEAD_DESC_TOKENS = ("カメラに向かい話す顔", "疑問顔")
 COVERAGE_PATTERNS = (
     ("UV", re.compile(r"(?<![A-Za-z])UV(?![A-Za-z])")),
     ("UPF", re.compile(r"(?<![A-Za-z])UPF(?![A-Za-z0-9])")),
@@ -217,9 +222,18 @@ def supports_line(candidate: dict[str, Any], line: str) -> bool:
     return supported == line
 
 
+def _clear_meaning(candidate: dict[str, Any]) -> dict[str, Any]:
+    candidate["visual_match"] = False
+    candidate["semantic_valid"] = False
+    candidate["visual_match_score"] = 0
+    return candidate
+
+
 def annotate_visual_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> dict[str, Any]:
     clone = dict(candidate)
-    if clone.get("from_semantic_fallback") is True:
+    if not lamp_color_allowed(clone, line, intended_scenario):
+        return _clear_meaning(clone)
+    if clone.get("from_semantic_fallback") is True or clone.get("from_case_match_relax") is True:
         clone["visual_match"] = True
         clone["semantic_valid"] = True
         clone["visual_match_score"] = max(int(clone.get("visual_match_score") or 0), 1)
@@ -329,10 +343,91 @@ def contains_source_range(window: tuple[float, float], original: tuple[float, fl
     return window[0] <= original[0] + DURATION_EPS and window[1] + DURATION_EPS >= original[1]
 
 
+def catalog_scene_ranges(catalog: dict[str, Any] | None) -> dict[str, list[tuple[float, float]]]:
+    ranges: dict[str, list[tuple[float, float]]] = {}
+    files = (catalog or {}).get("files") if isinstance(catalog, dict) else None
+    if not isinstance(files, dict):
+        return ranges
+    for stored, entry in files.items():
+        if not isinstance(entry, dict):
+            continue
+        source = str(entry.get("source") or stored)
+        spans: list[tuple[float, float]] = []
+        for scene in entry.get("scenes") or []:
+            if not isinstance(scene, dict):
+                continue
+            try:
+                start = float(scene["source_in"])
+                end = float(scene["source_out"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if end > start + DURATION_EPS:
+                spans.append((start, end))
+        if spans:
+            ranges.setdefault(source, []).extend(spans)
+    return ranges
+
+
+def extension_limits(
+    scene_in: float,
+    scene_out: float,
+    file_duration: float,
+    sibling_ranges: list[tuple[float, float]] | None,
+) -> tuple[float, float]:
+    back = 0.0
+    forward = float(file_duration)
+    for start, end in sibling_ranges or []:
+        if end <= start + DURATION_EPS:
+            continue
+        if abs(start - scene_in) <= 1e-3 and abs(end - scene_out) <= 1e-3:
+            continue
+        if end > scene_out + DURATION_EPS:
+            occupied_from = max(start, scene_out)
+            if occupied_from <= scene_out + DURATION_EPS:
+                forward = min(forward, scene_out)
+            else:
+                forward = min(forward, occupied_from)
+        if start < scene_in - DURATION_EPS:
+            occupied_until = min(end, scene_in)
+            if occupied_until >= scene_in - DURATION_EPS:
+                back = max(back, scene_in)
+            else:
+                back = max(back, occupied_until)
+    return (max(0.0, back), min(float(file_duration), forward))
+
+
+def shortage_window(
+    file_duration: float,
+    target: float,
+    scene_in: float,
+    scene_out: float,
+    back_limit: float,
+    forward_limit: float,
+) -> tuple[float, float] | None:
+    span = scene_out - scene_in
+    extra = target - span
+    if extra <= DURATION_EPS:
+        return (scene_in, scene_out)
+    room_after = max(0.0, min(file_duration, forward_limit) - scene_out)
+    room_before = max(0.0, scene_in - max(0.0, back_limit))
+    if room_after + room_before + DURATION_EPS < extra:
+        return None
+    after = min(extra, room_after)
+    before = extra - after
+    start = scene_in - before
+    end = scene_out + after
+    if start < -DURATION_EPS or end > file_duration + DURATION_EPS:
+        return None
+    if end - start + DURATION_EPS < target:
+        return None
+    return (start, end)
+
+
 def apply_minimal_range_padding(
     candidate: dict[str, Any],
     target_seconds: float,
     file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
 ) -> dict[str, Any]:
     clone = dict(candidate)
     rng = source_range(clone)
@@ -344,12 +439,12 @@ def apply_minimal_range_padding(
         return clone
     if not is_meaning_matched_scene(clone):
         return clone
-    if target - span > MAX_RANGE_PAD_SECONDS + DURATION_EPS:
-        return clone
     file_duration = lookup_file_duration(clone, file_durations)
     if file_duration is None or file_duration + DURATION_EPS < target:
         return clone
-    window = fit_window(file_duration, target, rng[0], rng[1])
+    siblings = (scene_ranges or {}).get(source_id(clone) or "", [])
+    back, forward = extension_limits(rng[0], rng[1], file_duration, siblings)
+    window = shortage_window(file_duration, target, rng[0], rng[1], back, forward)
     if window is None or not contains_source_range(window, rng):
         return clone
     if window[1] - window[0] + DURATION_EPS < target:
@@ -369,8 +464,9 @@ def has_duration_for_target(
     candidate: dict[str, Any],
     target_seconds: float,
     file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
 ) -> bool:
-    padded = apply_minimal_range_padding(candidate, target_seconds, file_durations)
+    padded = apply_minimal_range_padding(candidate, target_seconds, file_durations, scene_ranges)
     return duration_passes(padded, target_seconds, file_durations)
 
 
@@ -438,6 +534,130 @@ def as_full_clip(
     return clone
 
 
+def load_operator_close_shots(project_root: Path | None, case_id: str | None) -> dict[str, dict[str, Any]]:
+    if project_root is None or not case_id:
+        return {}
+    path = case_root(Path(project_root), case_id) / OPERATOR_CLOSE_SHOTS_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    cuts = data.get("cuts") if isinstance(data, dict) else None
+    if not isinstance(cuts, dict):
+        return {}
+    found: dict[str, dict[str, Any]] = {}
+    for cut_id, row in cuts.items():
+        if isinstance(row, dict) and str(row.get("scene_id") or "").strip():
+            found[str(cut_id)] = row
+    return found
+
+
+def load_content_match_relax(project_root: Path | None, case_id: str | None) -> dict[str, Any] | None:
+    if project_root is None or not case_id:
+        return None
+    path = case_root(Path(project_root), case_id) / CONTENT_MATCH_RELAX_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or data.get("enabled") is not True:
+        return None
+    return data
+
+
+def cut_content_match_relaxed(relax: dict[str, Any] | None, cut_id: str) -> bool:
+    if not relax:
+        return False
+    allowed = relax.get("cut_ids")
+    if not isinstance(allowed, list) or not allowed:
+        return True
+    return cut_id in allowed
+
+
+def _catalog_scene_candidate(source: str, scene: dict[str, Any]) -> dict[str, Any]:
+    start = scene.get("source_in")
+    end = scene.get("source_out")
+    return {
+        "from_visual_catalog": True,
+        "from_case_match_relax": True,
+        "catalog_scene": scene,
+        "semantic_valid": True,
+        "visual_match": True,
+        "visual_match_score": 1,
+        "search_aid": False,
+        "source": source,
+        "material_id": source,
+        "source_in": start,
+        "source_out": end,
+        "in_sec": start,
+        "out_sec": end,
+        "factual_description": scene.get("factual_description") or "",
+    }
+
+
+def relaxed_extra_candidates(
+    *,
+    history: dict[str, Any] | None,
+    catalog: dict[str, Any] | None,
+    line: str,
+    intended_scenario: str,
+    duration_seconds: float,
+) -> list[dict[str, Any]]:
+    situation = intended_scenario or ""
+    if not any(token in situation for token in GESTURE_MATCH_TOKENS):
+        return []
+    extras: list[dict[str, Any]] = []
+    seen: set[tuple[str, float, float]] = set()
+
+    def note(item: dict[str, Any]) -> None:
+        key = range_key(item)
+        if key is None or key in seen:
+            return
+        seen.add(key)
+        extras.append(item)
+
+    for shot in (history or {}).get("shots") or []:
+        if not isinstance(shot, dict):
+            continue
+        shot_sit = str(shot.get("situation") or "")
+        if not any(token in shot_sit for token in GESTURE_MATCH_TOKENS):
+            continue
+        note(
+            {
+                **candidate_from_history(
+                    shot,
+                    line=line,
+                    situation=intended_scenario,
+                    duration_seconds=duration_seconds,
+                ),
+                "from_case_match_relax": True,
+                "semantic_valid": True,
+                "visual_match": True,
+                "visual_match_score": max(1, 0),
+            }
+        )
+    files = (catalog or {}).get("files") if isinstance(catalog, dict) else None
+    if isinstance(files, dict):
+        for stored, entry in files.items():
+            if not isinstance(entry, dict):
+                continue
+            source = str(entry.get("source") or stored)
+            for scene in entry.get("scenes") or []:
+                if not isinstance(scene, dict):
+                    continue
+                desc = str(scene.get("factual_description") or "")
+                if not any(token in desc for token in TALKING_HEAD_DESC_TOKENS):
+                    continue
+                clone = dict(scene)
+                clone["source"] = clone.get("source") or source
+                note(_catalog_scene_candidate(source, clone))
+    return extras
+
+
 def prefer_history_candidates(
     candidates: list[dict[str, Any]],
     *,
@@ -464,10 +684,11 @@ def duration_eligible(
     candidates: list[dict[str, Any]],
     target_seconds: float,
     file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
 ) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     for item in candidates:
-        padded = apply_minimal_range_padding(item, target_seconds, file_durations)
+        padded = apply_minimal_range_padding(item, target_seconds, file_durations, scene_ranges)
         if duration_passes(padded, target_seconds, file_durations):
             found.append(padded)
     return found
@@ -524,15 +745,32 @@ class SelectionUsage:
     def source_used(self, source: str) -> int:
         return self.source_counts.get(source, 0)
 
+    def window_overlaps(self, source: str, start: float, end: float) -> bool:
+        if not source or end <= start:
+            return False
+        for window in self.windows.get(source, []):
+            if start < window[1] - DURATION_EPS and window[0] < end - DURATION_EPS:
+                return True
+        return False
+
     def range_used(self, item: dict[str, Any]) -> bool:
         key = range_key(item)
-        return key in self.used_ranges if key is not None else False
+        if key is not None and key in self.used_ranges:
+            return True
+        sid = source_id(item)
+        rng = source_range(item) if isinstance(item, dict) else None
+        if not sid or rng is None:
+            return False
+        return self.window_overlaps(sid, rng[0], rng[1])
 
     def pair_order_used(self, keys: tuple[tuple[str, float, float], ...]) -> bool:
         return keys in self.pair_orders
 
 
-def is_selectable(candidate: dict[str, Any], line: str) -> bool:
+def is_selectable(candidate: dict[str, Any], line: str, intended_scenario: str = "") -> bool:
+    intended = intended_scenario or str(candidate.get("intended_scenario") or "")
+    if not lamp_color_allowed(candidate, line, intended):
+        return False
     if not supports_line(candidate, line):
         return False
     return (
@@ -545,6 +783,8 @@ def is_selectable(candidate: dict[str, Any], line: str) -> bool:
 
 
 def history_rank(candidate: dict[str, Any], line: str, intended_scenario: str) -> int:
+    if not lamp_color_allowed(candidate, line, intended_scenario):
+        return 0
     if candidate.get("from_approved_history") is not True:
         return 0
     return 1 if history_close_enough(candidate, line, intended_scenario) else 0
@@ -554,6 +794,9 @@ def semantic_tier(candidate: dict[str, Any], line: str, intended_scenario: str) 
     if history_rank(candidate, line, intended_scenario) > 0:
         return 4
     if candidate.get("from_semantic_fallback") is True:
+        reason = str(candidate.get("semantic_fallback_reason") or "")
+        if reason in {"jev_rank", "operator_continuous_shot", "operator_video_0.8"}:
+            return 4
         return 2
     meaning = (
         candidate.get("visual_match") is True
@@ -599,6 +842,10 @@ def folder_only_catalog_scene(item: dict[str, Any] | None) -> bool:
 
 
 def stitch_meaning_match(candidate: dict[str, Any], line: str, intended_scenario: str) -> bool:
+    if not lamp_color_allowed(candidate, line, intended_scenario):
+        return False
+    if candidate.get("from_case_match_relax") is True:
+        return True
     if history_rank(candidate, line, intended_scenario) > 0:
         return True
     if candidate.get("from_semantic_fallback") is True:
@@ -708,6 +955,163 @@ def stitch_two_scenes(
     return chosen
 
 
+def adopted_hold_windows(
+    matches: dict[str, dict[str, Any]],
+    durations: dict[str, float],
+    scene_ranges: dict[str, list[tuple[float, float]]] | None,
+) -> tuple[dict[str, list[tuple[float, float]]], dict[str, list[tuple[float, float]]]]:
+    """Reserve each adopted scene plus the shortage beside it, without overlapping."""
+    holds: dict[str, list[tuple[float, float]]] = {}
+    primary_holds: dict[str, list[tuple[float, float]]] = {}
+
+    def overlaps(source: str, start: float, end: float) -> bool:
+        for left, right in holds.get(source) or []:
+            if start < right - DURATION_EPS and left < end - DURATION_EPS:
+                return True
+        return False
+
+    def add(source: str, start: float, end: float, *, primary: bool = False) -> None:
+        holds.setdefault(source, []).append((start, end))
+        if primary:
+            primary_holds.setdefault(source, []).append((start, end))
+
+    primaries: list[tuple[str, str, float, float, float]] = []
+    for cut_id, match in matches.items():
+        source = str(match.get("source") or "")
+        start = _number(match.get("source_in"), allow_zero=True)
+        end = _number(match.get("source_out"))
+        target = durations.get(cut_id)
+        if not source or start is None or end is None or end <= start or target is None:
+            continue
+        add(source, start, end, primary=True)
+        primaries.append((cut_id, source, start, end, float(target)))
+    for _cut_id, source, start, end, target in primaries:
+        need = target - (end - start)
+        if need <= DURATION_EPS:
+            continue
+        placed = False
+        for scene_start, scene_end in (scene_ranges or {}).get(source) or []:
+            if abs(scene_start - end) > 1e-3 or scene_end - scene_start + DURATION_EPS < need:
+                continue
+            if overlaps(source, scene_start, scene_start + need):
+                continue
+            add(source, scene_start, scene_start + need)
+            placed = True
+            break
+        if placed:
+            continue
+        for scene_start, scene_end in (scene_ranges or {}).get(source) or []:
+            if abs(scene_end - start) > 1e-3 or scene_end - scene_start + DURATION_EPS < need:
+                continue
+            tail = scene_end - need
+            if tail < scene_start - DURATION_EPS or overlaps(source, tail, scene_end):
+                continue
+            add(source, tail, scene_end)
+            break
+    return holds, primary_holds
+
+
+def _blocked_by_hold(item: dict[str, Any], holds: dict[str, list[tuple[float, float]]] | None) -> bool:
+    if not holds:
+        return False
+    sid = source_id(item)
+    rng = source_range(item)
+    if not sid or rng is None:
+        return False
+    for start, end in holds.get(sid) or []:
+        if rng[0] < end - DURATION_EPS and start < rng[1] - DURATION_EPS:
+            return True
+    return False
+
+
+def _slice_free(
+    usage: SelectionUsage | None,
+    source: str,
+    start: float,
+    end: float,
+    holds: dict[str, list[tuple[float, float]]] | None = None,
+    ignore: tuple[float, float] | None = None,
+) -> bool:
+    if usage is not None and usage.window_overlaps(source, start, end):
+        return False
+    for left, right in (holds or {}).get(source) or []:
+        if ignore is not None and abs(left - ignore[0]) <= 1e-3 and abs(right - ignore[1]) <= 1e-3:
+            continue
+        if start < right - DURATION_EPS and left < end - DURATION_EPS:
+            return False
+    return True
+
+
+def _segments_choice(
+    primary: dict[str, Any],
+    segments: list[dict[str, Any]],
+    target_seconds: float,
+) -> dict[str, Any]:
+    chosen = dict(primary)
+    first = segments[0]
+    chosen.update(
+        {
+            "source": first["source"],
+            "material_id": primary.get("material_id") or first["source"],
+            "source_in": first["source_in"],
+            "source_out": first["source_out"],
+            "in_sec": first["source_in"],
+            "out_sec": first["source_out"],
+            "available_duration": float(target_seconds),
+            "target_duration_seconds": float(target_seconds),
+            "multi_segment": True,
+            "video_segments": segments,
+        }
+    )
+    return chosen
+
+
+def adjacent_duration_stitch(
+    primary: dict[str, Any],
+    target_seconds: float,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None,
+    usage: SelectionUsage | None,
+    holds: dict[str, list[tuple[float, float]]] | None = None,
+) -> dict[str, Any] | None:
+    """Keep an adopted scene, then add only the shortage inside the next or previous scene."""
+    rng = source_range(primary)
+    sid = source_id(primary)
+    if rng is None or not sid:
+        return None
+    span = rng[1] - rng[0]
+    need = float(target_seconds) - span
+    if need <= DURATION_EPS:
+        return None
+    for start, end in (scene_ranges or {}).get(sid) or []:
+        if abs(start - rng[1]) > 1e-3 or end - start + DURATION_EPS < need:
+            continue
+        if not _slice_free(usage, sid, start, start + need, holds, ignore=rng):
+            continue
+        return _segments_choice(
+            primary,
+            [
+                {"source": sid, "source_in": rng[0], "source_out": rng[1], "duration": span},
+                {"source": sid, "source_in": start, "source_out": start + need, "duration": need},
+            ],
+            target_seconds,
+        )
+    for start, end in (scene_ranges or {}).get(sid) or []:
+        if abs(end - rng[0]) > 1e-3 or end - start + DURATION_EPS < need:
+            continue
+        tail = end - need
+        if tail < start - DURATION_EPS or not _slice_free(usage, sid, tail, end, holds, ignore=rng):
+            continue
+        return _segments_choice(
+            primary,
+            [
+                {"source": sid, "source_in": tail, "source_out": end, "duration": need},
+                {"source": sid, "source_in": rng[0], "source_out": rng[1], "duration": span},
+            ],
+            target_seconds,
+        )
+    return None
+
+
 def select_meaning_pair(
     candidates: list[dict[str, Any]],
     *,
@@ -717,6 +1121,7 @@ def select_meaning_pair(
     previous: dict[str, Any] | None = None,
     previous_2: dict[str, Any] | None = None,
     usage: SelectionUsage | None = None,
+    first_pool: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     scenes = dedupe_scene_ranges(
         [
@@ -725,23 +1130,30 @@ def select_meaning_pair(
             if stitch_meaning_match(item, line, intended_scenario) and original_span(item) is not None
         ]
     )
+    pools: list[list[dict[str, Any]]] = []
     if usage is not None:
         unused = [item for item in scenes if not usage.range_used(item)]
-        if len(unused) >= MAX_SEGMENTS_PER_CUT:
-            scenes = unused
-    if len(scenes) < 2:
-        return None
+        if unused:
+            pools.append(unused)
+    pools.append(scenes)
     pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    for left in scenes:
-        for right in scenes:
-            if not can_pair_scenes(left, right, duration_seconds):
-                continue
-            keys = (range_key(left), range_key(right))
-            if None in keys:
-                continue
-            if usage is not None and usage.pair_order_used(keys):
-                continue
-            pairs.append((left, right))
+    for pool in pools:
+        if len(pool) < 2:
+            continue
+        found: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for left in pool:
+            for right in pool:
+                if not can_pair_scenes(left, right, duration_seconds):
+                    continue
+                keys = (range_key(left), range_key(right))
+                if None in keys:
+                    continue
+                if usage is not None and usage.pair_order_used(keys):
+                    continue
+                found.append((left, right))
+        if found:
+            pairs = found
+            break
     if not pairs:
         return None
     first_options = []
@@ -752,6 +1164,11 @@ def select_meaning_pair(
             continue
         seen.add(key)
         first_options.append(left)
+    if first_pool:
+        allowed = {range_key(item) for item in first_pool}
+        first_options = [item for item in first_options if range_key(item) in allowed]
+    if not first_options:
+        return None
     first = pick_from_pool(
         first_options,
         previous,
@@ -802,7 +1219,7 @@ def unused_alternate_range(
         start = float(item[0])
         end = float(item[1])
         key = (sid, round(start, 3), round(end, 3))
-        if key in seen or key in usage.used_ranges:
+        if key in seen or key in usage.used_ranges or usage.window_overlaps(sid, start, end):
             continue
         seen.add(key)
         if end > start:
@@ -907,6 +1324,11 @@ def stamp_selection(
         if unused is not None:
             rng = unused
             stamped["full_clip"] = False
+        elif file_duration is not None:
+            window = next_full_clip_window(file_duration, target_seconds, usage.windows.get(sid, []))
+            rng = window
+            if window is not None:
+                stamped["full_clip"] = True
     if rng is None and usage is not None:
         unused = unused_alternate_range(stamped, usage)
         if unused is not None:
@@ -945,11 +1367,12 @@ def _filter_reuse(
     intended_scenario: str,
     usage: SelectionUsage | None,
 ) -> list[dict[str, Any]]:
+    del line, intended_scenario
     if usage is None or not pool:
         return pool
     unused_range = [item for item in pool if not usage.range_used(item)]
     if unused_range:
-        pool = unused_range
+        return unused_range
     return pool
 
 
@@ -964,6 +1387,9 @@ def select_cut(
     history: dict[str, Any] | None = None,
     file_durations: dict[str, float] | None = None,
     usage: SelectionUsage | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
+    holds: dict[str, list[tuple[float, float]]] | None = None,
+    primary_holds: dict[str, list[tuple[float, float]]] | None = None,
 ) -> dict[str, Any]:
     combined = prefer_history_candidates(
         candidates,
@@ -973,11 +1399,17 @@ def select_cut(
         history=history,
     )
     annotated = [annotate_visual_match(item, line, intended_scenario) for item in combined]
-    valid = [item for item in annotated if is_selectable(item, line)]
+    if holds:
+        annotated = [
+            item
+            for item in annotated
+            if item.get("from_semantic_fallback") is True or not _blocked_by_hold(item, holds)
+        ]
+    valid = [item for item in annotated if is_selectable(item, line, intended_scenario)]
     if not valid:
         return hold("HOLD_MEDIA_NOT_MATCHED", "no semantically valid material for this line")
     meaning = [item for item in annotated if stitch_meaning_match(item, line, intended_scenario)]
-    eligible_meaning = duration_eligible(meaning, duration_seconds, file_durations)
+    eligible_meaning = duration_eligible(meaning, duration_seconds, file_durations, scene_ranges)
     if eligible_meaning:
         pool = _filter_reuse(eligible_meaning, line=line, intended_scenario=intended_scenario, usage=usage)
         chosen = stamp_selection(
@@ -996,19 +1428,39 @@ def select_cut(
             usage,
         )
     else:
-        paired = select_meaning_pair(
-            meaning,
-            line=line,
-            intended_scenario=intended_scenario,
-            duration_seconds=duration_seconds,
-            previous=previous,
-            previous_2=previous_2,
-            usage=usage,
-        )
+        fallback = [item for item in meaning if item.get("from_semantic_fallback") is True]
+        paired = None
+        if fallback:
+            primary = pick_from_pool(
+                fallback,
+                previous,
+                line=line,
+                intended_scenario=intended_scenario,
+                usage=usage,
+                previous_2=previous_2,
+            )
+            paired = adjacent_duration_stitch(
+                primary,
+                duration_seconds,
+                scene_ranges,
+                usage,
+                primary_holds if primary_holds is not None else holds,
+            )
+        if paired is None:
+            paired = select_meaning_pair(
+                meaning,
+                line=line,
+                intended_scenario=intended_scenario,
+                duration_seconds=duration_seconds,
+                previous=previous,
+                previous_2=previous_2,
+                usage=usage,
+                first_pool=fallback or None,
+            )
         if paired is not None:
             chosen = paired
         else:
-            eligible = duration_eligible(valid, duration_seconds, file_durations)
+            eligible = duration_eligible(valid, duration_seconds, file_durations, scene_ranges)
             if not eligible:
                 return hold(
                     "HOLD_MEDIA_NOT_MATCHED",
@@ -1035,6 +1487,63 @@ def select_cut(
     return {"status": "OK", "selection": chosen}
 
 
+def _drop_wrong_lamp_colors(
+    prepared: dict[str, list[dict[str, Any]]],
+    cuts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    blocked: list[dict[str, str]] = []
+    for cut in cuts:
+        line = str(cut.get("line") or "")
+        situation = str(cut.get("situation") or "")
+        if requested_lamp_color(line, situation) is None:
+            continue
+        cut_id = str(cut.get("cut_id") or "")
+        prepared[cut_id] = [
+            item
+            for item in prepared.get(cut_id) or []
+            if lamp_color_allowed(item, line, situation)
+        ]
+        if not prepared[cut_id]:
+            blocked.append({"cut_id": cut_id, "line": line, "situation": situation})
+    if not blocked:
+        return None
+    return hold(
+        "HOLD_LAMP_COLOR_UNSTATED",
+        "named lamp color has no scene that states the product lamp is that color",
+        cuts=blocked,
+    )
+
+
+def _lamp_color_proofs(project_root: Path | None, case_id: str | None) -> dict[str, Any]:
+    if project_root is None or not case_id:
+        return {}
+    path = case_root(project_root, case_id) / "lamp-color-proof.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    cuts = data.get("cuts") if isinstance(data, dict) else None
+    return cuts if isinstance(cuts, dict) else {}
+
+
+def _lamp_frame_gap(item: dict[str, Any], proof: dict[str, Any] | None, color: str) -> bool:
+    if not isinstance(proof, dict) or proof.get("product_lamp_is_that_color") is not True:
+        return True
+    if proof.get("color") != color or str(proof.get("source") or "") != source_id(item):
+        return True
+    rng = source_range(item)
+    if rng is None:
+        return True
+    try:
+        start = float(proof.get("source_in"))
+        end = float(proof.get("source_out"))
+    except (TypeError, ValueError):
+        return True
+    return abs(start - rng[0]) > 0.05 or abs(end - rng[1]) > 0.05
+
+
 def assemble_plan(
     approved_script: dict[str, Any],
     narration_manifest: dict[str, Any],
@@ -1048,24 +1557,36 @@ def assemble_plan(
     catalog: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     clips = {clip["cut_id"]: clip for clip in narration_manifest.get("clips") or []}
+    scene_ranges = catalog_scene_ranges(catalog)
+    override = load_playback_override(project_root, case_id) if project_root is not None and case_id else {}
+    allow_rate = case_allow_narration_rate(project_root, case_id) if project_root is not None and case_id else None
+    video_rates = override.get("video_playback_rate_by_cut") if isinstance(override.get("video_playback_rate_by_cut"), dict) else {}
+    locked_sources = override.get("locked_sources") if isinstance(override.get("locked_sources"), dict) else {}
     prepared: dict[str, list[dict[str, Any]]] = {}
     durations: dict[str, float] = {}
+    video_rate_by_cut: dict[str, float] = {}
     unresolved: list[dict[str, Any]] = []
+    relax = load_content_match_relax(project_root, case_id)
     for cut in approved_script.get("cuts") or []:
         fidelity = assert_immutable(cut["line"], cut["line"], role="assembly_line")
         if fidelity.get("status") != "OK":
             return fidelity
-        clip = clips.get(cut["cut_id"])
-        if not clip:
-            return hold("HOLD_NARRATION_DURATION", f"missing narration duration for {cut['cut_id']}")
-        target = clip_target_duration(clip)
-        if target.get("status") != "OK":
-            return hold(
-                target.get("hold") or "HOLD_NARRATION_DURATION",
-                target.get("reason") or f"invalid editorial duration for {cut['cut_id']}",
-            )
-        duration = float(target["target_duration_seconds"])
-        durations[cut["cut_id"]] = duration
+        if cut.get("telop_only") is True:
+            duration = float(TELOP_ONLY_DURATION_SECONDS)
+        else:
+            clip = clips.get(cut["cut_id"])
+            if not clip:
+                return hold("HOLD_NARRATION_DURATION", f"missing narration duration for {cut['cut_id']}")
+            target = clip_target_duration(clip, allow_rate=allow_rate if isinstance(allow_rate, float) else None)
+            if target.get("status") != "OK":
+                return hold(
+                    target.get("hold") or "HOLD_NARRATION_DURATION",
+                    target.get("reason") or f"invalid editorial duration for {cut['cut_id']}",
+                )
+            duration = float(target["target_duration_seconds"])
+        video_rate = float(video_rates.get(cut["cut_id"]) or 1.0)
+        video_rate_by_cut[cut["cut_id"]] = video_rate
+        durations[cut["cut_id"]] = duration * video_rate
         combined = prefer_history_candidates(
             list(candidates_by_cut.get(cut["cut_id"]) or []),
             line=cut["line"],
@@ -1073,10 +1594,19 @@ def assemble_plan(
             duration_seconds=duration,
             history=history,
         )
+        if cut_content_match_relaxed(relax, cut["cut_id"]):
+            combined = list(combined) + relaxed_extra_candidates(
+                history=history,
+                catalog=catalog,
+                line=cut["line"],
+                intended_scenario=cut["situation"],
+                duration_seconds=duration,
+            )
         annotated = [annotate_visual_match(item, cut["line"], cut["situation"]) for item in combined]
         prepared[cut["cut_id"]] = annotated
         if not any(
-            is_selectable(item, cut["line"]) and has_duration_for_target(item, duration, file_durations)
+            is_selectable(item, cut["line"], cut["situation"])
+            and has_duration_for_target(item, duration, file_durations, scene_ranges)
             for item in annotated
         ):
             unresolved.append(
@@ -1087,6 +1617,10 @@ def assemble_plan(
                     "target_duration_seconds": duration,
                 }
             )
+    blocked = _drop_wrong_lamp_colors(prepared, list(approved_script.get("cuts") or []))
+    if blocked:
+        return blocked
+    unresolved = [item for item in unresolved if prepared.get(item["cut_id"])]
 
     stored_matches: dict[str, dict[str, Any]] = {}
     if project_root is not None and case_id:
@@ -1101,17 +1635,22 @@ def assemble_plan(
             ),
             targets=durations,
         )
+        blocked = _drop_wrong_lamp_colors(prepared, list(approved_script.get("cuts") or []))
+        if blocked:
+            return blocked
         unresolved = [
             item
             for item in unresolved
             if not any(
-                is_selectable(candidate, item["line"])
-                and has_duration_for_target(candidate, durations[item["cut_id"]], file_durations)
+                is_selectable(candidate, item["line"], item["situation"])
+                and has_duration_for_target(
+                    candidate, durations[item["cut_id"]], file_durations, scene_ranges
+                )
                 for candidate in prepared.get(item["cut_id"]) or []
             )
         ]
 
-    if unresolved and (semantic_match_fn is not None or project_root is not None):
+    if unresolved and semantic_match_fn is not None:
         scenes = merge_scene_payloads(
             collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved]),
             catalog_history_payloads(catalog, history),
@@ -1126,38 +1665,163 @@ def assemble_plan(
             return fallback
         matches = fallback.get("matches") if isinstance(fallback.get("matches"), dict) else {}
         apply_semantic_matches(prepared, matches, scenes=scenes, targets=durations)
+        blocked = _drop_wrong_lamp_colors(prepared, list(approved_script.get("cuts") or []))
+        if blocked:
+            return blocked
         if project_root is not None and case_id and int(fallback.get("gemini_calls") or 0) > 0:
             saved = dict(stored_matches)
             saved.update(matches)
             persist_matches(project_root, case_id, saved, gemini_calls=int(fallback.get("gemini_calls") or 0))
+    elif unresolved and project_root is not None and case_id:
+        scenes = merge_scene_payloads(
+            collect_scene_payloads(prepared, [item["cut_id"] for item in unresolved]),
+            catalog_history_payloads(catalog, history),
+        )
+        resolved = plan_jev_resolution(unresolved, scenes, load_jev_results(project_root, case_id))
+        matches = resolved.get("matches") if isinstance(resolved.get("matches"), dict) else {}
+        requests = resolved.get("requests") if isinstance(resolved.get("requests"), list) else []
+        overrides = load_operator_close_shots(project_root, case_id)
+        if overrides and requests:
+            by_id = {str(scene.get("scene_id") or ""): scene for scene in scenes if isinstance(scene, dict)}
+            kept: list[dict[str, Any]] = []
+            for req in requests:
+                cut_id = str(req.get("cut_id") or "")
+                row = overrides.get(cut_id)
+                scene_id = str((row or {}).get("scene_id") or "")
+                allowed = {str(item.get("id") or "") for item in (req.get("candidates") or []) if isinstance(item, dict)}
+                scene = by_id.get(scene_id)
+                if row is None or scene is None or scene_id not in allowed:
+                    kept.append(req)
+                    continue
+                matches[cut_id] = {
+                    "scene_id": scene_id,
+                    "source": scene.get("source"),
+                    "source_in": scene.get("source_in"),
+                    "source_out": scene.get("source_out"),
+                    "reason": str(row.get("reason") or "operator_close_shot"),
+                }
+            requests = kept
+        if matches:
+            apply_semantic_matches(prepared, matches, scenes=scenes, targets=durations)
+            blocked = _drop_wrong_lamp_colors(prepared, list(approved_script.get("cuts") or []))
+            if blocked:
+                return blocked
+            saved = dict(stored_matches)
+            saved.update(matches)
+            persist_matches(project_root, case_id, saved, gemini_calls=0)
+        if locked_sources:
+            requests = [req for req in requests if str(req.get("cut_id") or "") not in locked_sources]
+        if requests:
+            dest = case_root(project_root, case_id) / "jev-rank-requests.json"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(json.dumps({"cuts": requests}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            return {
+                "status": "needs_jev_rank",
+                "path": dest.as_posix(),
+                "cuts": requests,
+            }
 
     cuts: list[dict[str, Any]] = []
     previous = None
     previous_2 = None
     usage = SelectionUsage()
+    holds, primary_holds = adopted_hold_windows(
+        load_matches(project_root, case_id) if project_root is not None and case_id else {},
+        durations,
+        scene_ranges,
+    )
     for cut in approved_script.get("cuts") or []:
         duration = durations[cut["cut_id"]]
-        selected = select_cut(
-            prepared.get(cut["cut_id"]) or [],
-            line=cut["line"],
-            intended_scenario=cut["situation"],
-            duration_seconds=duration,
-            previous=previous,
-            previous_2=previous_2,
-            history=history,
-            file_durations=file_durations,
-            usage=usage,
-        )
-        if selected.get("status") != "OK":
-            return selected
-        item = selected["selection"]
+        video_rate = float(video_rate_by_cut.get(cut["cut_id"]) or 1.0)
+        locked = locked_sources.get(cut["cut_id"])
+        if isinstance(locked, dict) and locked.get("source"):
+            segments = locked.get("segments") if isinstance(locked.get("segments"), list) else None
+            if segments:
+                span = sum(float(seg.get("duration") or 0.0) for seg in segments)
+                first = segments[0]
+                item = {
+                    "source": first["source"],
+                    "material_id": first["source"],
+                    "source_in": first["source_in"],
+                    "in_sec": first["source_in"],
+                    "source_out": first["source_out"],
+                    "out_sec": first["source_out"],
+                    "available_duration": span,
+                    "full_clip": False,
+                    "from_semantic_fallback": True,
+                    "visual_match": True,
+                    "semantic_valid": True,
+                    "semantic_fallback_reason": "operator_color_sources",
+                    "video_segments": segments,
+                }
+            else:
+                start = float(locked.get("source_in") or 0.0)
+                item = {
+                    "source": locked["source"],
+                    "material_id": locked["source"],
+                    "source_in": start,
+                    "in_sec": start,
+                    "source_out": start + float(duration),
+                    "out_sec": start + float(duration),
+                    "available_duration": float(duration),
+                    "full_clip": False,
+                    "from_semantic_fallback": True,
+                    "visual_match": True,
+                    "semantic_valid": True,
+                    "semantic_fallback_reason": "operator_video_0.8" if video_rate != 1.0 else "operator_continuous_shot",
+                }
+        else:
+            selected = select_cut(
+                prepared.get(cut["cut_id"]) or [],
+                line=cut["line"],
+                intended_scenario=cut["situation"],
+                duration_seconds=duration,
+                previous=previous,
+                previous_2=previous_2,
+                history=history,
+                file_durations=file_durations,
+                usage=usage,
+                scene_ranges=scene_ranges,
+                holds=holds,
+                primary_holds=primary_holds,
+            )
+            if selected.get("status") != "OK":
+                return selected
+            item = selected["selection"]
         item["cut_id"] = cut["cut_id"]
+        item["line"] = cut["line"]
         item["material_situation"] = item.get("situation")
         item["situation"] = cut["situation"]
+        item["video_playback_rate"] = video_rate
         cuts.append(item)
         usage.note(item)
         previous_2 = previous
         previous = item
+    proofs = _lamp_color_proofs(project_root, case_id)
+    pending = []
+    for item in cuts:
+        color = requested_lamp_color(str(item.get("line") or ""), str(item.get("situation") or ""))
+        if color is None:
+            continue
+        proof = proofs.get(str(item.get("cut_id") or ""))
+        if _lamp_frame_gap(item, proof if isinstance(proof, dict) else None, color):
+            rng = source_range(item) or (None, None)
+            pending.append(
+                {
+                    "cut_id": item.get("cut_id"),
+                    "line": item.get("line"),
+                    "color": color,
+                    "source": source_id(item),
+                    "source_in": rng[0],
+                    "source_out": rng[1],
+                }
+            )
+    if pending:
+        return hold(
+            "HOLD_LAMP_COLOR_FRAME_REQUIRED",
+            "look at the selected frame and confirm the product lamp is that color before writing the plan",
+            cuts=pending,
+        )
     return {
         "status": "OK",
         "schema": "product_video_assembly_plan.v1",

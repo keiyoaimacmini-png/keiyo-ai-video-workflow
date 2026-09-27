@@ -1,5 +1,5 @@
 ---
-name: product-video-rough-edit-20260919
+name: product-video-rough-edit-20260925
 description: Place approved narration, selected video, and exact telop into a usable rough edit, then stop for the operator. Use only when /product-video dispatches ROUGH_EDIT.
 disable-model-invocation: true
 ---
@@ -19,9 +19,9 @@ ChatCut is execution only. Run `chatcut_steps` in this order, one direction:
 
 1. `import_batch` — unique audio + video paths, max 4 files per `import_media` session; repeat until the plan's batches are done
 2. `place_audio` — one batched `edit_item` `adds` for every cut
-3. `set_playback_rate` — one batched `edit_item` `updates` with `playbackRate=1.2` on those audio items
+3. `set_playback_rate` — one batched `edit_item` `updates` with that plan's `playbackRate` on those audio items. The default is playbackRate 1.2. AN-S152 uses the plan's 1.5.
 4. `place_video` — one batched `edit_item` `adds` from `chatcut_steps`. Most cuts are one video item. If a cut has `video_segments`, place those items back-to-back on the same video track for that narration span only. Do not reselect, loop, freeze, or change playback speed
-5. `caption_preset` — apply saved preset `product-video-center` once
+5. `caption_preset` — apply saved preset `product-video-center` once, then set the shared caption layout to left=108, top=316, width=864, height=287 on the 1080×1920 canvas. That places the glyph-block center at x=540, y=459 (24% from the top), the position the operator set on AN-S176 ②. Do not leave the preset's initial top=1417
 6. `place_captions` — exact frozen line; use `caption_visual_wrap` for display newlines only. Prefer one tool call for all cards. If the public tool accepts only one card, write every card without inspect or replan between writes
 7. `final_verify` — the only verification pass
 
@@ -36,7 +36,7 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/timing.py" --proje
 
 `project_setup` is create/target of this case's ChatCut project. Do not add other metrics.
 
-In `final_verify` only, prove `playbackRate` 1.2 from ChatCut item read-back:
+In `final_verify` only, prove the plan's `playbackRate` from ChatCut item read-back. Pass that rate as `expected_playback_rate` when it is not 1.2:
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/prove_tts_speed.py" --record-json '{"playback_rate":1.2,"speed_readback_source":"chatcut_item"}'

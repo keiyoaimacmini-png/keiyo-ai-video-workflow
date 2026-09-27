@@ -1,5 +1,5 @@
 ---
-name: product-video-narration-20260919
+name: product-video-narration-20260925
 description: Generate Holiday Twist source audio from the frozen approved script. Use only when /product-video dispatches NARRATION.
 disable-model-invocation: true
 ---
@@ -13,7 +13,7 @@ Approved-script cuts are a **queue**. Stay in this Skill until every cut is reco
 Do not chat after a successful cut.
 
 Use only the approved script. CapCut generate is the **source audio**. ChatCut clip `playbackRate` 1.2 is applied later (`${PROJECT_ROOT}/.cursor/skills/product-video/scripts/prove_tts_speed.py` on `inspect_item`). Do not require CapCut generate speed 1.2. Do not FFmpeg-accelerate. Do not record the source as already 1.2x.
-SCRIPT LINE == NARRATION == TELOP. Do not trim, strip, ignore newlines or zero-width characters, or treat visible/OCR/document-HTML text as a match.
+SCRIPT LINE == NARRATION == TELOP. Do not trim, strip, ignore newlines or zero-width characters, or treat visible/OCR/document-HTML text as a match. A cut with `telop_only` true is a caption only. Do not generate TTS for it. The queue skips it.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_queue.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --start
@@ -72,7 +72,7 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_cut.py" 
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/capture_capcut_result_audio.py" --url <new-result-src> --output <task-root>/tts/<cut-id>.mp3
 ```
 
-8. Record the cut with that capture duration. `narration_cut.py --finish-cut` also rejects leftover-length audio (about 11s+ and far above one-line Holiday Twist history). No transcript. No LLM review.
+8. Record the cut with that capture duration. `narration_cut.py --finish-cut` also rejects leftover-length audio (about 11s+ and far above one-line Holiday Twist history). No transcript. No LLM review. The saved file, including the last cut, must be speech of that cut's frozen line. If the capture is a different sentence, do not record it. Generate only that cut again.
 
 ```bash
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/narration_cut.py" --finish-cut --project-root <PROJECT_ROOT> --case-id <CASE_ID> --cut-id <cut-id> --line '<frozen>' --audio-path <path> --capture-json '<capture stdout>' --before-id '<pre>' --after-id '<post>' --timing-json '<monotonic steps>'

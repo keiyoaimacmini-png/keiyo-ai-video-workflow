@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "status": "active",
+  "product_model": "AN-S152",
+  "cta": {
+    "text": "下からチェック！",
+    "literal_match_required": true
+  },
+  "narration": {
+    "default_voice_preset": "ホリデーツイスト",
+    "base_speed": 1.0,
+    "editor_playback_rate": 1.5,
+    "fallback_speed_min": 1.2,
+    "fallback_speed_max": 1.5,
+    "uniform_speed_required": true
+  },
+  "timeline_reconciliation": {
+    "automatic": true,
+    "match_key": "cut_id",
+    "require_caption_count_equals_source_count": true,
+    "require_tts_count_equals_narration_target_caption_count": true,
+    "require_start_alignment": true,
+    "start_alignment": {
+      "head_delta_definition": "caption_start_frame - source_start_frame",
+      "source_start": "exact_cut_start",
+      "tts_start": "exact_cut_start",
+      "caption_start": "exact_or_bounded_positive_1_or_2",
+      "caption_end": "exact",
+      "negative_head_delta_allowed": false,
+      "max_positive_head_delta_frames": 2,
+      "abs_window_not_used": true
+    },
+    "require_containment": true
+  }
+}

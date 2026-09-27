@@ -93,6 +93,7 @@ def load_product_facts_profile(project_root: Path, product_model: str) -> dict[s
         )
     raw_facts = [item.strip() for item in (data.get("verified_facts") or []) if isinstance(item, str) and item.strip()]
     raw_appeals = [item.strip() for item in (data.get("appeal_points") or []) if isinstance(item, str) and item.strip()]
+    raw_rules = [item.strip() for item in (data.get("edit_rules") or []) if isinstance(item, str) and item.strip()]
     proof = prove_usable_product_facts(
         lines_to_block(raw_facts),
         lines_to_block(raw_appeals),
@@ -107,6 +108,7 @@ def load_product_facts_profile(project_root: Path, product_model: str) -> dict[s
         "facts_path": path.as_posix(),
         "verified_facts": raw_facts,
         "appeal_points": raw_appeals,
+        "edit_rules": raw_rules,
         "usable_fact_count": proof["usable_fact_count"],
         "expected_facts_profile_path": path.as_posix(),
     }
