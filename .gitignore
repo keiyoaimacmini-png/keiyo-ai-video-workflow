@@ -18,6 +18,7 @@ out/
 .local/
 
 # Cursor product-video runtime. Never commit these artifacts.
+.cursor/mcp.json
 .runtime/
 inputs/
 outputs/

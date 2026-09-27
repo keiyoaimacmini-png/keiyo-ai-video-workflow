@@ -1,5 +1,5 @@
 ---
-name: product-video-prepare-20260919
+name: product-video-prepare-20260925
 description: Prepare one new isolated product-video case from verified product inputs. Use only when /product-video dispatches PREPARE.
 disable-model-invocation: true
 ---

@@ -17,6 +17,7 @@ Call these scripts by path. All live production helpers live under `/product-vid
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/resolve_product_inputs.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/send_gemini_cli_prompt.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/capture_capcut_result_audio.py`
+- `$PROJECT_ROOT/.cursor/skills/product-video/scripts/validate_tts_audio.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/prove_source_range.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/upload_drive_local_file.py`
 - `$PROJECT_ROOT/.cursor/skills/product-video/scripts/purge_local_working_media.py`

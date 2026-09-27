@@ -24,10 +24,27 @@ from material_index import (
     stamp_matches,
 )
 from paths import emit
+from resolve_product_inputs import default_material_root
 from workflow_state import atomic_write
 
 SCHEMA = "product_video_visual_catalog.v1"
 TOKEN_SPLIT = re.compile(r"[、。！？!?,.・/\s]+")
+_LAMP_COLOR_REQUESTS = (
+    ("青", re.compile(r"青(色|ライト|で光|く光|に光|から)")),
+    ("緑", re.compile(r"緑(色|ライト|で光|く光|に光)")),
+    ("白", re.compile(r"白(色|ライト|で光|く光|く発|に光|って)")),
+)
+_LAMP_COLOR_DENIALS = ("分からない", "ソケット", "映り込み", "手の陰", "覆って", "ナビ")
+# Printed logos and the battery indicator are not the product lamp.
+_NON_LAMP_COLOR = re.compile(
+    r"白色の印字|"
+    r"(?:青|緑|白)色(?:の)?(?:バッテリー|インジケーター|残量)[^。\n]{0,16}|"
+    r"(?:青|緑|白)色に点灯した(?:バッテリー|インジケーター)[^。\n]{0,16}|"
+    r"(?:青|緑|白)色LED(?:\s*\d*つ)?|"
+    r"インジケーター[（(](?:青|緑|白)色[^）)\n]{0,8}[）)]|"
+    r"(?:青|緑|白)色点灯|"
+    r"(?:青|緑|白)色のレンズフレア"
+)
 
 
 def catalog_dir(project_root: Path) -> Path:
@@ -150,6 +167,9 @@ def normalize_scene(raw: dict[str, Any], *, source: str) -> dict[str, Any] | Non
     description = str(raw.get("factual_description") or raw.get("situation") or raw.get("label") or "").strip()
     objects = _strings(raw.get("objects"))
     features = _strings(raw.get("visible_features"))
+    for part in _strings(raw.get("product_parts")):
+        if part not in features:
+            features.append(part)
     tags = _strings(raw.get("semantic_tags") or raw.get("scenario_tags"))
     for tag in tags:
         if tag not in objects and not is_generic_token(tag):
@@ -240,6 +260,53 @@ def scenes_from_history(history: dict[str, Any] | None, source: str) -> list[dic
     return scenes
 
 
+def requested_lamp_color(line: str, intended: str = "") -> str | None:
+    text = f"{line or ''}\n{intended or ''}"
+    hits = [name for name, pattern in _LAMP_COLOR_REQUESTS if pattern.search(text)]
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def _lamp_observation_text(candidate: dict[str, Any]) -> str:
+    scene = candidate.get("catalog_scene") if isinstance(candidate.get("catalog_scene"), dict) else {}
+    visual = candidate.get("visual") if isinstance(candidate.get("visual"), dict) else {}
+    parts: list[str] = []
+    for source in (scene, candidate):
+        if not isinstance(source, dict):
+            continue
+        parts.append(str(source.get("product_state") or ""))
+        parts.append(str(source.get("factual_description") or ""))
+        for key in ("actions", "visible_features"):
+            value = source.get(key)
+            if isinstance(value, list):
+                parts.extend(str(item) for item in value)
+            else:
+                parts.append(str(value or ""))
+    parts.append(str(visual.get("product_state") or ""))
+    parts.append(str(visual.get("action") or ""))
+    return "\n".join(part for part in parts if part.strip())
+
+
+def observed_lamp_color(candidate: dict[str, Any] | None) -> str | None:
+    if not isinstance(candidate, dict):
+        return None
+    text = _NON_LAMP_COLOR.sub("", _lamp_observation_text(candidate))
+    if any(word in text for word in _LAMP_COLOR_DENIALS):
+        return None
+    hits = [name for name, pattern in _LAMP_COLOR_REQUESTS if pattern.search(text)]
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def lamp_color_allowed(candidate: dict[str, Any] | None, line: str, intended: str = "") -> bool:
+    required = requested_lamp_color(line, intended)
+    if required is None:
+        return True
+    return observed_lamp_color(candidate) == required
+
+
 def scene_text(scene: dict[str, Any] | None) -> str:
     if not isinstance(scene, dict):
         return ""
@@ -258,6 +325,8 @@ def scene_text(scene: dict[str, Any] | None) -> str:
 
 def scene_match_score(scene: dict[str, Any] | None, line: str, intended: str) -> int:
     if not isinstance(scene, dict):
+        return 0
+    if not lamp_color_allowed(scene, line, intended):
         return 0
     request = f"{line or ''}\n{intended or ''}"
     hay = scene_text(scene)
@@ -565,7 +634,7 @@ def main() -> int:
         material = (
             Path(args.material_root)
             if args.material_root
-            else root / ".runtime" / "product-video-inputs" / f"{args.product_model}_コピー"
+            else default_material_root(root, args.product_model)
         )
         payload = refresh_catalog(root, args.product_model, material, observations=observations)
     else:

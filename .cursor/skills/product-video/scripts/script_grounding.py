@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import unicodedata
+from pathlib import Path
 from typing import Any
 
 from constants import HOLD_SCRIPT_PRODUCT_GROUNDING
@@ -14,10 +15,11 @@ from workflow_state import hold
 
 FACT_ID_RE = re.compile(r"^F([1-9][0-9]*)$")
 HOOK_OR_CTA = frozenset({"HOOK", "CTA"})
+EVIDENCE_NOTE_RE = re.compile(r"（[^）]*）|\([^)]*\)")
 IDENTIFIER_LINE_RE = re.compile(
     r"(?i)(?:製品型番|商品型番|型番|JAN(?:\s*コード)?|ASIN|ISBN|EAN|SKU|商品コード)"
 )
-MODEL_IN_LINE_RE = re.compile(r"\bAN-[A-Z0-9]{4,6}\b")
+MODEL_IN_LINE_RE = re.compile(r"\bAN-[A-Z0-9]{4,8}\b")
 ASIN_IN_LINE_RE = re.compile(r"\bB0[A-Z0-9]{8}\b")
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 LATIN_RE = re.compile(r"[A-Za-z]{2,}")
@@ -190,25 +192,18 @@ def parse_evidence_ids(raw: str | None) -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
     for part in str(raw).replace("、", ",").split(","):
-        token = part.strip().upper()
+        token = EVIDENCE_NOTE_RE.sub("", part).strip().upper()
+        if not token:
+            return []
         if token.startswith("F") and token[1:].isdigit():
             token = f"F{int(token[1:])}"
         elif token in HOOK_OR_CTA:
             token = token
         else:
-            continue
+            return []
         if token not in seen:
             seen.add(token)
             found.append(token)
-    leftover = str(raw).replace("、", ",")
-    for part in leftover.split(","):
-        token = part.strip()
-        if not token:
-            continue
-        folded = token.upper()
-        if folded in HOOK_OR_CTA or FACT_ID_RE.fullmatch(folded):
-            continue
-        return []
     return found
 
 
@@ -303,6 +298,7 @@ def variant_for_operator(variant: dict[str, Any]) -> dict[str, Any]:
                 "index": cut.get("index"),
                 "situation": cut.get("situation"),
                 "line": cut.get("line"),
+                "telop_only": cut.get("telop_only") is True,
             }
             for cut in variant.get("cuts") or []
         ],
@@ -443,6 +439,158 @@ def prove_scripts_grounding(
         "presentation": present_for_operator(parsed),
         "evidence_id_mismatch": mismatches,
     }
+
+
+BASE_FORBIDDEN_LINE_SUBSTRINGS = ("慶洋エンジニアリング",)
+BASE_POLITE_RE = re.compile(r"です(?!ぐ)|ます|でした|でしょう|ません|ましょう")
+
+
+def _line_has_exclamation(text: str) -> bool:
+    return "！" in text or "!" in text
+
+
+def base_script_line_issues(variants: list[dict[str, Any]]) -> list[str]:
+    """Spoken-line bans that apply to every product."""
+    issues: list[str] = []
+    for variant in variants:
+        variant_id = variant.get("variant_id")
+        title = str(variant.get("title") or "")
+        cuts = variant.get("cuts") or []
+        spoken = [(-1, title)] + [(index, str(cut.get("line") or "")) for index, cut in enumerate(cuts)]
+        for index, text in spoken:
+            where = f"variant {variant_id} title" if index < 0 else f"variant {variant_id} cut {index + 1} line"
+            for token in BASE_FORBIDDEN_LINE_SUBSTRINGS:
+                if token in text:
+                    issues.append(f"{where} contains {token}")
+            if text.strip() and BASE_POLITE_RE.search(_norm_rule_text(text)):
+                issues.append(f"{where} uses polite speech")
+        marks = [_line_has_exclamation(str(cut.get("line") or "")) for cut in cuts]
+        if len(marks) >= 2 and all(marks):
+            issues.append(f"variant {variant_id} puts an exclamation on every line")
+    return issues
+
+
+def load_product_script_rule_profile(project_root: Path, product_model: str) -> dict[str, Any]:
+    if not product_model:
+        return {}
+    path = project_root / "config" / f"product_video_script_rules_{product_model}.v1.json"
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("product_model") != product_model:
+        raise ValueError(f"script rules product_model mismatch: {path.name}")
+    return data
+
+
+def _norm_rule_text(text: str) -> str:
+    return unicodedata.normalize("NFKC", text).replace(" ", "").replace("\u3000", "")
+
+
+def product_script_rule_issues(
+    project_root: Path,
+    product_model: str,
+    variants: list[dict[str, Any]],
+    profile: dict[str, Any] | None = None,
+) -> list[str]:
+    """Spoken-line bans for one product. Empty when that product has no rules file."""
+    loaded = load_product_script_rule_profile(project_root, product_model) if profile is None else profile
+    if not loaded:
+        return []
+    forbidden = [_norm_rule_text(str(item)) for item in loaded.get("forbidden_line_substrings") or [] if str(item).strip()]
+    forbidden_regex = [re.compile(str(item)) for item in loaded.get("forbidden_line_regex") or [] if str(item).strip()]
+    if "forbidden_situation_substrings" in loaded:
+        situation_forbidden = [
+            _norm_rule_text(str(item))
+            for item in loaded.get("forbidden_situation_substrings") or []
+            if str(item).strip()
+        ]
+    else:
+        situation_forbidden = forbidden
+    late_tokens = [_norm_rule_text(str(item)) for item in loaded.get("late_detail_substrings") or [] if str(item).strip()]
+    required_groups: list[list[str]] = []
+    for group in loaded.get("required_any_substrings") or []:
+        if isinstance(group, str):
+            group = [group]
+        options = [_norm_rule_text(str(item)) for item in group if str(item).strip()]
+        if options:
+            required_groups.append(options)
+    fraction = float(loaded.get("late_detail_after_fraction") or 0.5)
+    exclamation_suffix = str(loaded.get("exclamation_only_suffix") or "")
+    telop_only_lines = [str(item).strip() for item in loaded.get("telop_only_lines") or [] if str(item).strip()]
+    issues: list[str] = []
+    for variant in variants:
+        variant_id = variant.get("variant_id")
+        cuts = variant.get("cuts") or []
+        late_start = int(len(cuts) * fraction)
+        chunks: list[tuple[int, str, str]] = []
+        title = str(variant.get("title") or "")
+        if title.strip():
+            chunks.append((-1, "title", title))
+        for index, cut in enumerate(cuts):
+            chunks.append((index, "situation", str(cut.get("situation") or "")))
+            chunks.append((index, "line", str(cut.get("line") or "")))
+        spoken_parts = [title]
+        for index, field, text in chunks:
+            normalized = _norm_rule_text(text)
+            if field in {"title", "line"} and text.strip():
+                spoken_parts.append(text)
+            if not normalized:
+                continue
+            where = f"variant {variant_id} {field}" if index < 0 else f"variant {variant_id} cut {index + 1} {field}"
+            active = forbidden if field in {"title", "line"} else situation_forbidden
+            for token in active:
+                if token in normalized:
+                    issues.append(f"{where} speaks forbidden spec: {token}")
+            if field in {"title", "line"}:
+                for pattern in forbidden_regex:
+                    if pattern.search(normalized):
+                        issues.append(f"{where} speaks forbidden spec: {pattern.pattern}")
+            if index < late_start:
+                for token in late_tokens:
+                    if token in normalized:
+                        issues.append(f"{where} speaks detail too early: {token}")
+            if exclamation_suffix and field == "line":
+                marks = text.count("！") + text.count("!")
+                is_last = index == len(cuts) - 1
+                allowed = exclamation_suffix.count("！") + exclamation_suffix.count("!")
+                if is_last and text.endswith(exclamation_suffix):
+                    if marks != allowed:
+                        issues.append(f"{where} has an exclamation outside {exclamation_suffix}")
+                elif marks:
+                    issues.append(f"{where} has an exclamation outside the final CTA")
+            if exclamation_suffix and field == "title" and ("！" in text or "!" in text):
+                issues.append(f"{where} has an exclamation outside the final CTA")
+            if field == "line" and "かける" in forbidden and "1136" in normalized and "×" not in text:
+                issues.append(f"{where} must write 1136×640")
+            if field == "line" and telop_only_lines and ("アプリ" in text or text.strip() in telop_only_lines):
+                cut = cuts[index]
+                if text.strip() not in telop_only_lines or cut.get("telop_only") is not True:
+                    issues.append(f"{where} must be telop-only: {telop_only_lines[0]}")
+        spoken = _norm_rule_text("\n".join(spoken_parts))
+        for options in required_groups:
+            if not any(token in spoken for token in options):
+                issues.append(f"variant {variant_id} missing required: {' / '.join(options)}")
+        lines = [_norm_rule_text(str(cut.get("line") or "")) for cut in cuts]
+        for pair in loaded.get("must_precede") or []:
+            if not isinstance(pair, dict):
+                continue
+            before = _norm_rule_text(str(pair.get("before") or ""))
+            after = _norm_rule_text(str(pair.get("after") or ""))
+            if not before or not after:
+                continue
+            before_at = next((i for i, line in enumerate(lines) if before in line), None)
+            after_at = next((i for i, line in enumerate(lines) if after in line), None)
+            if pair.get("same_line") is True:
+                named = lines[after_at] if after_at is not None else ""
+                if after_at is None or before not in named or named.find(before) > named.find(after):
+                    issues.append(f"variant {variant_id} needs {pair.get('before')} before {pair.get('after')} in the same cut")
+                elif after_at == 0:
+                    issues.append(f"variant {variant_id} must not open on {pair.get('after')}")
+                if any(before in line and after not in line for line in lines):
+                    issues.append(f"variant {variant_id} splits {pair.get('before')} into its own cut")
+            elif before_at is None or after_at is None or before_at >= after_at:
+                issues.append(f"variant {variant_id} needs {pair.get('before')} before {pair.get('after')}")
+    return issues
 
 
 def main() -> int:

@@ -39,19 +39,22 @@ def freeze_approved_script(project_root: Path, state: dict[str, Any], variant_id
     chosen = next((item for item in variants["variants"] if item["variant_id"] == variant_id), None)
     if chosen is None:
         return hold("HOLD_SCRIPT_VARIANT_MISSING", f"案{variant_id} is not available")
+    frozen_cuts = []
+    for cut in chosen["cuts"]:
+        frozen_cut = {
+            "cut_id": cut["cut_id"],
+            "index": cut["index"],
+            "line": cut["line"],
+            "situation": cut["situation"],
+        }
+        if cut.get("telop_only") is True:
+            frozen_cut["telop_only"] = True
+        frozen_cuts.append(frozen_cut)
     frozen = {
         "schema": "product_video_approved_script.v1",
         "variant_id": variant_id,
         "title": chosen["title"],
-        "cuts": [
-            {
-                "cut_id": cut["cut_id"],
-                "index": cut["index"],
-                "line": cut["line"],
-                "situation": cut["situation"],
-            }
-            for cut in chosen["cuts"]
-        ],
+        "cuts": frozen_cuts,
     }
     text = json.dumps(frozen, ensure_ascii=False, indent=2) + "\n"
     dest = case_root(project_root, state["case_id"]) / "approved-script.json"

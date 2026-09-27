@@ -90,12 +90,14 @@ def start_queue(
     for cut in script.get("cuts") or []:
         cut_id = cut["cut_id"]
         previous = existing.get(cut_id) or {}
+        telop_only = cut.get("telop_only") is True
         cuts.append(
             {
                 "cut_id": cut_id,
                 "line": cut["line"],
-                "status": previous.get("status") or "pending",
-                "clip": previous.get("clip"),
+                "telop_only": telop_only,
+                "status": "telop_only" if telop_only else (previous.get("status") or "pending"),
+                "clip": None if telop_only else previous.get("clip"),
             }
         )
     data["cuts"] = cuts
@@ -105,7 +107,11 @@ def start_queue(
 
 
 def remaining_cuts(data: dict[str, Any]) -> list[dict[str, Any]]:
-    return [item for item in data.get("cuts") or [] if item.get("status") != "recorded"]
+    return [
+        item
+        for item in data.get("cuts") or []
+        if item.get("status") not in {"recorded", "telop_only"}
+    ]
 
 
 def recorded_clips(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -185,11 +191,18 @@ def record_queue_clip(
     source_duration_seconds: float,
     timing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from constants import NARRATION_SPEED
+    from workflow_state import load_state
+
+    raw_rate = load_state(project_root, case_id).get("narration_speed", NARRATION_SPEED)
+    rate = float(raw_rate) if isinstance(raw_rate, (int, float)) and not isinstance(raw_rate, bool) and raw_rate > 0 else NARRATION_SPEED
     clip = record_clip(
         cut_id=cut_id,
         line=line,
         audio_path=audio_path,
         source_duration_seconds=source_duration_seconds,
+        editor_playback_rate=rate,
+        allow_rate=None if rate == NARRATION_SPEED else rate,
     )
     if clip.get("status") != "OK":
         return clip
@@ -233,6 +246,17 @@ def finish_queue(project_root: Path, case_id: str) -> dict[str, Any]:
             "remaining": [item["cut_id"] for item in leftover],
         }
     clips = recorded_clips(data)
+    from validate_tts_audio import validate_paths
+
+    existing = [
+        {"cut_id": str(clip.get("cut_id") or ""), "path": str(clip.get("audio_path") or "")}
+        for clip in clips
+        if isinstance(clip, dict) and clip.get("audio_path") and Path(str(clip.get("audio_path"))).is_file()
+    ]
+    if existing:
+        decoded = validate_paths(existing, project_root=project_root, case_id=case_id)
+        if decoded.get("valid") is not True:
+            return decoded
     written = write_manifest(project_root, case_id, clips)
     data["manifest_written"] = True
     data["recorded"] = [clip.get("cut_id") for clip in clips]

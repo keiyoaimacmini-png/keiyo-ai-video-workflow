@@ -122,6 +122,8 @@ def history_match_score(shot: dict[str, Any], line: str, situation: str) -> int:
         score += 4
     if shot_situation == situation_text and situation_text:
         score += 3
+    if "10本骨" in shot_line and "10本骨" in line_text:
+        score += 2
     hay = f"{line_text}\n{situation_text}"
     for tag in shot.get("semantic_tags") or []:
         text = str(tag).strip()
@@ -154,6 +156,8 @@ def history_close_enough(shot: dict[str, Any], line: str, situation: str) -> boo
     if shot_line and line_text and shot_line == line_text:
         if shot_situation and situation_text and shot_situation != situation_text:
             return bool(overlap)
+        return True
+    if "10本骨" in shot_line and "10本骨" in line_text:
         return True
     return bool(overlap)
 

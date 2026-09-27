@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,6}$")
+MODEL_RE = re.compile(r"^AN-[A-Z0-9]{4,8}$")
 SETTINGS_NAME = "product_video_settings_{model}.v1.json"
 HOLD_MODEL = "HOLD_MODEL_UNVERIFIED"
 HOLD_SETTINGS = "HOLD_PRODUCT_VIDEO_SETTINGS"
@@ -36,7 +36,15 @@ def sha256_file(path: Path) -> str:
 
 
 def default_material_root(project_root: Path, product_model: str) -> Path:
-    return project_root / ".runtime" / "product-video-inputs" / f"{product_model}_コピー"
+    """New products use the model name only. Keep an existing ``<MODEL>_コピー`` folder."""
+    base = project_root / ".runtime" / "product-video-inputs"
+    plain = base / product_model
+    legacy = base / f"{product_model}_コピー"
+    if plain.is_dir() and not plain.is_symlink():
+        return plain
+    if legacy.is_dir() and not legacy.is_symlink():
+        return legacy
+    return plain
 
 
 def resolve_material_root(project_root: Path, product_model: str, configured: str | None) -> Path:
@@ -180,12 +188,19 @@ def self_test() -> int:
         ready = resolve_product_inputs(root, "AN-S999", require_materials=True)
         check("ready-new-model", ready.get("status") == "READY")
         check("settings-path-uses-model", ready.get("settings_path") == settings_path.as_posix())
-        check("material-root-uses-model", ready.get("material_root") == an_dir.as_posix())
+        check("material-root-uses-legacy-when-present", ready.get("material_root") == an_dir.as_posix())
+        plain = root / ".runtime" / "product-video-inputs" / "AN-S999"
+        plain.mkdir()
+        check("material-root-prefers-plain-name", default_material_root(root, "AN-S999") == plain)
+        check("absent-material-root-has-no-copy-suffix", default_material_root(root, "AN-S888").name == "AN-S888")
         check("drive-title-is-model", ready.get("drive_folder_title") == "AN-S999")
         check("delivery-default-drive", ready.get("delivery_mode_default") == "drive")
 
         missing_model = resolve_product_inputs(root, "NOT-A-MODEL")
         check("bad-model-hold", missing_model.get("hold") == HOLD_MODEL)
+        check("s151tle-model-shape", MODEL_RE.fullmatch("AN-S151TLE") is not None)
+        s151 = resolve_product_inputs(root, "AN-S151TLE", require_materials=True)
+        check("s151tle-needs-own-settings", s151.get("hold") == HOLD_SETTINGS)
 
         other = resolve_product_inputs(root, "AN-Z001", require_materials=True)
         check("missing-settings-hold", other.get("hold") == HOLD_SETTINGS)

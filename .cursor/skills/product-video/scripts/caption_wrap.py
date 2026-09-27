@@ -22,6 +22,12 @@ PROTECTED_PHRASES = tuple(
             "サンシェード",
             "コーティング",
             "へたりにくい",
+            "邪魔にならない",
+            "気合い入って",
+            "引っかかる",
+            "入ってない",
+            "やってる",
+            "ならない",
             "パーセント",
             "V字カット",
             "UVカット",
@@ -38,7 +44,7 @@ PROTECTED_PHRASES = tuple(
 )
 UV_MEASURE = re.compile(r"UV約?\d+(?:\.\d+)?(?:パーセント|％|%)")
 UPF_UNIT = re.compile(r"UPF\s?\d+\s*以上")
-NUMBER_UNIT = re.compile(r"約?\d+(?:\.\d+)?(?:パーセント|％|%|本骨|本|秒|枚|分|度|倍|層)")
+NUMBER_UNIT = re.compile(r"約?\d+(?:\.\d+)?(?:パーセント|％|%|パー|本骨|本|秒|枚|分|度|倍|層)")
 KATAKANA_RUN = re.compile(r"[\u30A0-\u30FFー]+")
 TRAIL_PUNCT = set("、。！？!?.,…")
 PARTICLES = (
@@ -177,7 +183,7 @@ def _fix_short_lines(lines: list[str]) -> list[str]:
                 changed = True
                 index += 1
                 continue
-            if nxt is not None and (len(nxt) <= 2 or _is_particle(nxt)):
+            if nxt is not None and (len(nxt) <= 3 or _is_particle(nxt)):
                 merged.append(line + nxt)
                 changed = True
                 index += 2
@@ -193,6 +199,16 @@ def _fix_short_lines(lines: list[str]) -> list[str]:
     return _reattach_leading_punct(fixed)
 
 
+def _is_mid_word(left: str, right: str) -> bool:
+    if not left or not right:
+        return False
+    if right.startswith("る") and left.endswith(("か", "っ", "て", "って")):
+        return True
+    if right.startswith("ない") and left.endswith(("て", "って", "なら")):
+        return True
+    return False
+
+
 def _valid_break(left: str, right: str) -> bool:
     if not left or not right:
         return False
@@ -201,6 +217,10 @@ def _valid_break(left: str, right: str) -> bool:
     if right[0] in TRAIL_PUNCT:
         return False
     if _is_particle(right) or _is_particle(left):
+        return False
+    if _is_mid_word(left, right):
+        return False
+    if len(left) < 5 and _starts_with_protected(right) and left[-1:] not in TRAIL_PUNCT:
         return False
     return True
 
@@ -211,15 +231,16 @@ def _score_break(left: str, right: str, max_line_chars: int) -> int:
         score += 150
     if _ends_with_measure(left):
         score += 120
-    if any(left.endswith(end) for end in CLAUSE_ENDINGS):
+    clause = any(left.endswith(end) for end in CLAUSE_ENDINGS)
+    if clause:
         score += 90
     if _starts_with_protected(right):
         score += 80
-    if any(left.endswith(particle) for particle in PARTICLES):
+    if not clause and any(left.endswith(particle) for particle in PARTICLES):
         score += 50
     score += max(0, 40 - abs(len(left) - max_line_chars) * 5)
     if len(left) > max_line_chars:
-        score -= 40 * (len(left) - max_line_chars)
+        score -= 80 * (len(left) - max_line_chars)
     if right[:1] in CONNECTORS:
         score -= 50
     return score
@@ -236,7 +257,6 @@ def _choose_break(atoms: list[str], max_line_chars: int, *, allow_fit: bool = Fa
     if fits and not allow_fit:
         return None
     window_lo = max(MIN_KEEP_CHARS, max_line_chars - 6)
-    window_hi = max_line_chars + 1
     candidates: list[int] = []
     for index, left in enumerate(prefixes[:-1], start=1):
         right = remaining[len(left) :]
@@ -254,9 +274,13 @@ def _choose_break(atoms: list[str], max_line_chars: int, *, allow_fit: bool = Fa
             or _ends_with_measure(left)
             or _starts_with_protected(right)
         )
-        in_window = window_lo <= len(left) <= window_hi
+        in_window = window_lo <= len(left) <= max_line_chars
         if fits and allow_fit:
-            if strong:
+            if strong and (
+                in_window
+                or (left[-1:] in TRAIL_PUNCT and len(right) >= 8)
+                or (_starts_with_protected(right) and len(left) >= MIN_KEEP_CHARS)
+            ):
                 candidates.append(index)
             continue
         if linguistic or in_window:
@@ -268,6 +292,26 @@ def _choose_break(atoms: list[str], max_line_chars: int, *, allow_fit: bool = Fa
                 candidates.append(index)
     if not candidates:
         return None
+    within = [index for index in candidates if len(prefixes[index - 1]) <= max_line_chars]
+    strong_within = [
+        index
+        for index in within
+        if prefixes[index - 1][-1:] in TRAIL_PUNCT
+        or _ends_with_measure(prefixes[index - 1])
+        or any(prefixes[index - 1].endswith(end) for end in CLAUSE_ENDINGS)
+    ]
+    extra = [
+        index
+        for index in candidates
+        if prefixes[index - 1][-1:] in TRAIL_PUNCT
+        and len(prefixes[index - 1]) <= max_line_chars + 1
+    ]
+    if strong_within:
+        candidates = within
+    elif extra:
+        candidates = list(dict.fromkeys([*within, *extra]))
+    elif within:
+        candidates = within
     best = max(
         candidates,
         key=lambda index: (
@@ -295,20 +339,15 @@ def wrap_caption(frozen: str, *, max_line_chars: int = MAX_LINE_CHARS) -> dict[s
     atoms = _tokenize(frozen)
     lines: list[str] = []
     pending = list(atoms)
-    first = True
     while pending:
         joined = "".join(pending)
         fits = len(joined) <= max_line_chars
-        if fits and not first:
-            lines.append(joined)
-            break
-        split_at = _choose_break(pending, max_line_chars, allow_fit=fits and first)
+        split_at = _choose_break(pending, max_line_chars, allow_fit=fits)
         if split_at is None:
             lines.append(joined)
             break
         lines.append("".join(pending[:split_at]))
         pending = pending[split_at:]
-        first = False
     lines = _fix_short_lines(lines)
     wrapped = "\n".join(lines)
     if unwrap_visual(wrapped) != frozen:

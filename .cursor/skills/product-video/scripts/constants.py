@@ -5,6 +5,7 @@ from __future__ import annotations
 
 SCHEMA = "product_video_state.v1"
 NARRATION_SPEED = 1.2
+TELOP_ONLY_DURATION_SECONDS = 2.0
 MAX_GENERATIONS_PER_CUT = 2
 HOLD_TTS_SPEED_UNVERIFIED = "HOLD_TTS_SPEED_UNVERIFIED"
 HOLD_TTS_INPUT_FIELD_UNVERIFIED = "HOLD_TTS_INPUT_FIELD_UNVERIFIED"
@@ -18,7 +19,9 @@ HOLD_PREFLIGHT_REQUIRED = "HOLD_PREFLIGHT_REQUIRED"
 HOLD_CHATCUT_UNAVAILABLE = "HOLD_CHATCUT_UNAVAILABLE"
 HOLD_SCRIPT_PRODUCT_GROUNDING = "HOLD_SCRIPT_PRODUCT_GROUNDING"
 HOLD_PRODUCT_FACTS_REQUIRED = "HOLD_PRODUCT_FACTS_REQUIRED"
-MAX_SCRIPT_GROUNDING_ATTEMPTS = 2
+HOLD_OPERATOR_PAUSED = "HOLD_OPERATOR_PAUSED"
+HOLD_TTS_DECODE_INVALID = "HOLD_TTS_DECODE_INVALID"
+HOLD_WEAK_VISUAL_MATCH = "HOLD_WEAK_VISUAL_MATCH"
 MIN_USABLE_PRODUCT_FACTS = 3
 MAX_TRANSIENT_RETRIES = 3
 HUMAN_HOLD_CODES = frozenset(
@@ -31,6 +34,8 @@ HUMAN_HOLD_CODES = frozenset(
         "HOLD_INPUT_MATERIALS_REQUIRED",
         "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
         "HOLD_DRIVE_SCOPE_AMBIGUOUS",
+        "HOLD_OPERATOR_PAUSED",
+        HOLD_WEAK_VISUAL_MATCH,
     }
 )
 TRANSIENT_HOLD_CODES = frozenset(
@@ -92,7 +97,7 @@ SKILL_FOR_STAGE = {
 }
 
 # Stable public entrypoint folder / slash command. Stage Skills are dated folders.
-SKILL_VERSION_DATE = "20260919"
+SKILL_VERSION_DATE = "20260925"
 ENTRY_SKILL = "product-video"
 LOGICAL_STAGE_SKILLS = tuple(SKILL_FOR_STAGE.values())
 REMOVED_SKILL_DIRS = (
@@ -202,6 +207,7 @@ OWNED_HELPERS = {
     "resolve_product_inputs": "resolve_product_inputs.py",
     "send_gemini_cli_prompt": "send_gemini_cli_prompt.py",
     "capture_capcut_result_audio": "capture_capcut_result_audio.py",
+    "validate_tts_audio": "validate_tts_audio.py",
     "prove_source_range": "prove_source_range.py",
     "upload_drive_local_file": "upload_drive_local_file.py",
     "purge_local_working_media": "purge_local_working_media.py",
@@ -234,6 +240,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/resolve_product_inputs.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
     (".cursor/skills/product-video/scripts/capture_capcut_result_audio.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/validate_tts_audio.py", "ROUGH_EDIT"),
     (".cursor/skills/product-video/scripts/prove_source_range.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/upload_drive_local_file.py", "DELIVERY"),
     (".cursor/skills/product-video/scripts/purge_local_working_media.py", "DELIVERY"),

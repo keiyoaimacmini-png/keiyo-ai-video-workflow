@@ -18,10 +18,10 @@ VARIANT_RE = re.compile(
 )
 DURATION_RE = re.compile(r"想定完成尺：\s*約\s*(\d+)\s*秒")
 CUT_RE = re.compile(
-    r"カット\s*(\d+)\s*"
+    r"カット\s*(\d+)[^\n]*\s*"
     r"(?:根拠ID\s*[：:]\s*([^\n]+)\s*)?"
-    r"シチュエーション：\s*「(.*?)」\s*"
-    r"セリフ：\s*「(.*?)」",
+    r"シチュエーション：\s*(?:「(.*?)」|(.*?))\s*"
+    r"セリフ：\s*(?:「(.*?)」|([^\n]+))",
     re.DOTALL,
 )
 
@@ -46,8 +46,8 @@ def parse_gemini_scripts(text: str) -> dict[str, Any]:
                     "cut_id": f"c{cut.group(1)}",
                     "index": int(cut.group(1)),
                     "evidence_ids": parse_evidence_ids(cut.group(2)),
-                    "situation": cut.group(3).strip(),
-                    "line": cut.group(4).strip(),
+                    "situation": (cut.group(3) or cut.group(4) or "").strip(),
+                    "line": (cut.group(5) or cut.group(6) or "").strip(),
                 }
             )
         if not cuts:

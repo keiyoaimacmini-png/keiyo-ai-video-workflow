@@ -121,8 +121,11 @@ def validate_state(data: dict[str, Any], case_id: str | None = None) -> list[str
         errors.append("case_id mismatch")
     if data.get("current_stage") not in STAGES:
         errors.append("current_stage invalid")
-    if data.get("narration_speed") != NARRATION_SPEED:
-        errors.append("narration_speed must be 1.2")
+    allowed_rates = {NARRATION_SPEED}
+    if data.get("product_model") == "AN-S152":
+        allowed_rates.add(1.5)
+    if data.get("narration_speed") not in allowed_rates:
+        errors.append("narration_speed must be 1.2" if 1.5 not in allowed_rates else "narration_speed must be 1.5 for AN-S152")
     completed = data.get("completed_stages")
     if not isinstance(completed, list) or any(item not in STAGES for item in completed):
         errors.append("completed_stages invalid")

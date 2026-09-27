@@ -20,6 +20,7 @@ from material_duration import (
     sidecar_paths,
 )
 from paths import emit
+from resolve_product_inputs import default_material_root
 from workflow_state import atomic_write
 
 SCHEMA = "product_video_material_index.v1"
@@ -579,7 +580,7 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.project_root)
     if args.refresh:
-        material = Path(args.material_root) if args.material_root else root / ".runtime" / "product-video-inputs" / f"{args.product_model}_コピー"
+        material = Path(args.material_root) if args.material_root else default_material_root(root, args.product_model)
         payload = refresh_index(root, args.product_model, material)
     else:
         index = load_index(root, args.product_model)

@@ -1,5 +1,5 @@
 ---
-name: product-video-delivery-20260919
+name: product-video-delivery-20260925
 description: Export, verify, Drive-upload, read back, then purge after the operator says 完成・格納してください. Use only when /product-video dispatches DELIVERY.
 disable-model-invocation: true
 ---
@@ -30,7 +30,7 @@ If Drive is READY: export → upload → read-back → COMPLETE → purge.
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/upload_drive_local_file.py" --project-root <PROJECT_ROOT> --local-path <export> --title <filename> --parent-title <MODEL> --mime-type video/mp4
 ```
 
-5. Read back the new Drive file (exact name, MIME, size, parent title, time). COMPLETE only after that verification.
+5. Read back the new Drive file (exact name, MIME, size, parent title, time). The parent is the model-titled folder. When more than one folder has that exact title, use the one directly under `完成動画`. Do not upload into a model folder under `動画素材保存用`. COMPLETE only after that verification.
 6. Record the **final** timeline's adopted source/range into product-level shot history. Use the editor timeline after operator picture swaps, not the first ASSEMBLY draft. Do not store the completed export. Do not modify source videos.
 
 ```bash

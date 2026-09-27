@@ -8,14 +8,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from assembly import assemble_plan, write_plan
+from assembly import assemble_plan, enforce_visual_match_gate, write_plan
 from caption_wrap import wrap_caption
-from constants import NARRATION_SPEED
+from constants import NARRATION_SPEED, TELOP_ONLY_DURATION_SECONDS
 from approved_shots import load_history
 from material_index import candidates_from_index, load_aliases, load_index
 from visual_catalog import load_catalog
 from paths import case_root, emit
-from prove_tts_speed import clip_target_duration
+from prove_tts_speed import case_allow_narration_rate, clip_target_duration, load_playback_override
 from script_fidelity import assert_immutable, load_approved_script
 from workflow_state import hold
 
@@ -55,39 +55,54 @@ def cut_video_segments(cut: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _unique_paths(values: list[Any]) -> list[str]:
+    files: list[str] = []
+    seen: set[str] = set()
+    for path in values:
+        if isinstance(path, str) and path and path not in seen:
+            seen.add(path)
+            files.append(path)
+    return files
+
+
+def _import_batches(files: list[str]) -> list[list[str]]:
+    return [files[index : index + IMPORT_BATCH_SIZE] for index in range(0, len(files), IMPORT_BATCH_SIZE)]
+
+
 def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
     cuts = [item for item in plan.get("cuts") or [] if isinstance(item, dict)]
     fps = int(plan.get("fps") or FPS)
-    files: list[str] = []
-    seen: set[str] = set()
-    for cut in cuts:
-        paths = [cut.get("narration_audio_path")]
-        paths.extend(seg.get("source") for seg in cut_video_segments(cut))
-        for path in paths:
-            if isinstance(path, str) and path and path not in seen:
-                seen.add(path)
-                files.append(path)
-    batches = [files[index : index + IMPORT_BATCH_SIZE] for index in range(0, len(files), IMPORT_BATCH_SIZE)]
+    audio_files = _unique_paths(
+        [
+            cut.get("narration_audio_path")
+            for cut in cuts
+            if cut.get("telop_only") is not True
+        ]
+    )
+    video_files = _unique_paths(
+        [seg.get("source") for cut in cuts for seg in cut_video_segments(cut)]
+    )
     audio_adds = []
     rate_updates = []
     video_adds = []
     captions = []
     for cut in cuts:
-        audio_adds.append(
-            {
-                "cut_id": cut["cut_id"],
-                "type": "audio",
-                "path": cut.get("narration_audio_path"),
-                "fromFrame": cut.get("timeline_start_frame"),
-                "durationInFrames": cut.get("duration_frames"),
-            }
-        )
-        rate_updates.append(
-            {
-                "cut_id": cut["cut_id"],
-                "playbackRate": NARRATION_SPEED,
-            }
-        )
+        if cut.get("telop_only") is not True and cut.get("narration_audio_path"):
+            audio_adds.append(
+                {
+                    "cut_id": cut["cut_id"],
+                    "type": "audio",
+                    "path": cut.get("narration_audio_path"),
+                    "fromFrame": cut.get("timeline_start_frame"),
+                    "durationInFrames": cut.get("duration_frames"),
+                }
+            )
+            rate_updates.append(
+                {
+                    "cut_id": cut["cut_id"],
+                    "playbackRate": cut.get("editor_playback_rate") or NARRATION_SPEED,
+                }
+            )
         cursor = float(cut.get("timeline_start_seconds") or 0.0)
         remaining = float(cut.get("target_duration_seconds") or 0.0)
         if remaining <= 0 and cut.get("duration_frames"):
@@ -105,19 +120,21 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             start_frame = _seconds_to_frame(cursor, fps)
             end_frame = _seconds_to_frame(cursor + use, fps)
-            video_adds.append(
-                {
-                    "cut_id": cut["cut_id"],
-                    "segment_index": index,
-                    "type": "video",
-                    "path": seg.get("source"),
-                    "fromFrame": start_frame,
-                    "durationInFrames": max(1, end_frame - start_frame),
-                    "sourceStartFromInSeconds": seg.get("source_in"),
-                    "timeline_start_seconds": cursor,
-                    "duration": use,
-                }
-            )
+            video_add = {
+                "cut_id": cut["cut_id"],
+                "segment_index": index,
+                "type": "video",
+                "path": seg.get("source"),
+                "fromFrame": start_frame,
+                "durationInFrames": max(1, end_frame - start_frame),
+                "sourceStartFromInSeconds": seg.get("source_in"),
+                "timeline_start_seconds": cursor,
+                "duration": use,
+            }
+            video_rate = seg.get("video_playback_rate")
+            if isinstance(video_rate, (int, float)) and not isinstance(video_rate, bool) and float(video_rate) != 1.0:
+                video_add["playbackRate"] = float(video_rate)
+            video_adds.append(video_add)
             cursor += use
             remaining -= use
         captions.append(
@@ -130,12 +147,22 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     steps: list[dict[str, Any]] = []
-    for batch in batches:
-        steps.append({"op": "import_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
+    if audio_files:
+        steps.append({"op": "validate_tts", "paths": audio_files, "helper": "validate_tts_audio.py"})
+        for batch in _import_batches(audio_files):
+            steps.append({"op": "import_audio_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
     if audio_adds:
         steps.append({"op": "place_audio", "adds": audio_adds})
     if rate_updates:
-        steps.append({"op": "set_playback_rate", "updates": rate_updates, "playbackRate": NARRATION_SPEED})
+        steps.append(
+            {
+                "op": "set_playback_rate",
+                "updates": rate_updates,
+                "playbackRate": rate_updates[0]["playbackRate"] if rate_updates else NARRATION_SPEED,
+            }
+        )
+    for batch in _import_batches(video_files):
+        steps.append({"op": "import_video_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
     if video_adds:
         steps.append({"op": "place_video", "adds": video_adds})
         steps.append({"op": "caption_preset", "preset": CAPTION_PRESET, "action": "preset_apply"})
@@ -151,6 +178,7 @@ def build_edit_plan(
     narration_manifest: dict[str, Any],
     *,
     fps: int = FPS,
+    allow_rate: float | None = None,
 ) -> dict[str, Any]:
     clips = {clip["cut_id"]: clip for clip in narration_manifest.get("clips") or []}
     selected = {cut["cut_id"]: cut for cut in assembly_plan.get("cuts") or []}
@@ -162,15 +190,23 @@ def build_edit_plan(
         fidelity = assert_immutable(line, line, role="edit_plan_line")
         if fidelity.get("status") != "OK":
             return fidelity
-        clip = clips.get(cut_id)
-        if not clip:
+        telop_only = cut.get("telop_only") is True
+        clip = None if telop_only else clips.get(cut_id)
+        if not telop_only and not clip:
             return hold("HOLD_NARRATION_DURATION", f"missing narration duration for {cut_id}")
-        target = clip_target_duration(clip)
-        if target.get("status") != "OK":
-            return hold(
-                target.get("hold") or "HOLD_NARRATION_DURATION",
-                target.get("reason") or f"invalid editorial duration for {cut_id}",
-            )
+        if telop_only:
+            target = {
+                "status": "OK",
+                "source_duration_seconds": TELOP_ONLY_DURATION_SECONDS,
+                "target_duration_seconds": TELOP_ONLY_DURATION_SECONDS,
+            }
+        else:
+            target = clip_target_duration(clip, allow_rate=allow_rate)
+            if target.get("status") != "OK":
+                return hold(
+                    target.get("hold") or "HOLD_NARRATION_DURATION",
+                    target.get("reason") or f"invalid editorial duration for {cut_id}",
+                )
         picture = selected.get(cut_id)
         if not isinstance(picture, dict):
             return hold("HOLD_ASSEMBLY_PLAN", f"missing assembly cut {cut_id}")
@@ -178,13 +214,17 @@ def build_edit_plan(
         if wrap.get("status") != "OK":
             return wrap
         duration = float(target["target_duration_seconds"])
+        video_rate = picture.get("video_playback_rate")
+        if not isinstance(video_rate, (int, float)) or isinstance(video_rate, bool) or float(video_rate) <= 0:
+            video_rate = 1.0
+        video_rate = float(video_rate)
         start = cursor
         end = start + duration
         segments = []
         cursor_seg = start
         remaining = duration
         raw_segments = picture.get("video_segments") if isinstance(picture.get("video_segments"), list) else []
-        if raw_segments:
+        if raw_segments and video_rate == 1.0:
             for seg in raw_segments:
                 if not isinstance(seg, dict) or not seg.get("source"):
                     continue
@@ -208,25 +248,37 @@ def build_edit_plan(
                 cursor_seg += use
                 remaining -= use
         if not segments:
+            source_in = picture.get("source_in") if picture.get("source_in") is not None else picture.get("in_sec")
+            source_out = picture.get("source_out") if picture.get("source_out") is not None else picture.get("out_sec")
+            source_span = None
+            if isinstance(source_in, (int, float)) and isinstance(source_out, (int, float)) and not isinstance(source_in, bool) and not isinstance(source_out, bool):
+                source_span = float(source_out) - float(source_in)
+            use_source = duration * video_rate
+            if source_span is not None and source_span > 0:
+                use_source = min(source_span, use_source)
+            use_timeline = use_source / video_rate
+            if source_span is not None and isinstance(source_in, (int, float)) and not isinstance(source_in, bool):
+                source_out = float(source_in) + use_source
             segments = [
                 {
                     "source": picture.get("source") or picture.get("material_id") or picture.get("path"),
-                    "source_in": picture.get("source_in") if picture.get("source_in") is not None else picture.get("in_sec"),
-                    "source_out": picture.get("source_out") if picture.get("source_out") is not None else picture.get("out_sec"),
+                    "source_in": source_in,
+                    "source_out": source_out,
                     "timeline_start": start,
-                    "duration": duration,
+                    "duration": use_timeline,
+                    "video_playback_rate": video_rate,
                 }
             ]
         available = sum(float(seg.get("duration") or 0.0) for seg in segments)
-        if picture.get("available_duration") is not None and not raw_segments:
-            available = float(picture.get("available_duration"))
         item = {
             "cut_id": cut_id,
             "line": line,
             "situation": cut.get("situation"),
-            "narration_audio_path": clip.get("audio_path"),
+            "telop_only": telop_only,
+            "narration_audio_path": None if telop_only else clip.get("audio_path"),
             "source_duration_seconds": target["source_duration_seconds"],
-            "editor_playback_rate": NARRATION_SPEED,
+            "editor_playback_rate": None if telop_only else target.get("editor_playback_rate", NARRATION_SPEED),
+            "video_playback_rate": video_rate,
             "target_duration_seconds": duration,
             "video_source": segments[0].get("source"),
             "source_in": segments[0].get("source_in"),
@@ -240,6 +292,9 @@ def build_edit_plan(
             "duration_frames": max(1, _seconds_to_frame(end, fps) - _seconds_to_frame(start, fps)),
             "caption_text": wrap["caption_text"],
             "caption_visual_wrap": wrap["caption_visual_wrap"],
+            "visual_match": picture.get("visual_match"),
+            "visual_match_score": int(picture.get("visual_match_score") or 0) if picture.get("visual_match_score") is not None else picture.get("visual_match_score"),
+            "operator_visual_match_accepted": picture.get("operator_visual_match_accepted") is True,
         }
         if item["available_duration"] is not None and float(item["available_duration"]) + 1e-9 < duration:
             return hold(
@@ -252,14 +307,20 @@ def build_edit_plan(
         "status": "OK",
         "schema": SCHEMA,
         "fps": fps,
-        "editor_playback_rate": NARRATION_SPEED,
+        "editor_playback_rate": cuts[0].get("editor_playback_rate") if cuts else NARRATION_SPEED,
         "reselect_in_editor": False,
         "cuts": cuts,
     }
+    steps = chatcut_execution_steps(plan)
     plan["import_batches"] = [
-        step["paths"] for step in chatcut_execution_steps(plan) if step.get("op") == "import_batch"
+        step["paths"]
+        for step in steps
+        if step.get("op") in {"import_audio_batch", "import_video_batch", "import_batch"}
     ]
-    plan["chatcut_steps"] = chatcut_execution_steps(plan)
+    plan["audio_import_batches"] = [step["paths"] for step in steps if step.get("op") == "import_audio_batch"]
+    plan["video_import_batches"] = [step["paths"] for step in steps if step.get("op") == "import_video_batch"]
+    plan["audio_then_video_lock"] = True
+    plan["chatcut_steps"] = steps
     return plan
 
 
@@ -317,8 +378,31 @@ def assemble_and_plan(
     )
     if assembled.get("status") != "OK":
         return assembled
+    durations = {
+        str(clip["cut_id"]): float(clip_target_duration(clip).get("target_duration_seconds") or 0)
+        for clip in narration_manifest.get("clips") or []
+        if isinstance(clip, dict) and clip.get("cut_id")
+    }
+    gated = enforce_visual_match_gate(
+        assembled,
+        candidates=candidates,
+        file_durations=file_durations,
+        project_root=root,
+        case_id=case_id,
+        durations=durations,
+    )
+    if gated.get("status") != "OK":
+        return gated
+    assembled = gated
     write_plan(root, case_id, assembled)
-    planned = build_edit_plan(script, assembled, narration_manifest)
+    override = load_playback_override(root, case_id)
+    allow_rate = case_allow_narration_rate(root, case_id)
+    planned = build_edit_plan(
+        script,
+        assembled,
+        narration_manifest,
+        allow_rate=allow_rate if isinstance(allow_rate, float) else None,
+    )
     if planned.get("status") != "OK":
         return planned
     path = write_edit_plan(root, case_id, planned)
@@ -335,7 +419,7 @@ def main() -> int:
     args = parser.parse_args()
     payload = assemble_and_plan(Path(args.project_root), args.case_id, product_model=args.product_model)
     emit(payload)
-    return 0 if payload.get("status") == "OK" else 2
+    return 0 if payload.get("status") in {"OK", "needs_jev_rank"} else 2
 
 
 if __name__ == "__main__":
