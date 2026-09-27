@@ -246,6 +246,17 @@ def finish_queue(project_root: Path, case_id: str) -> dict[str, Any]:
             "remaining": [item["cut_id"] for item in leftover],
         }
     clips = recorded_clips(data)
+    from validate_tts_audio import validate_paths
+
+    existing = [
+        {"cut_id": str(clip.get("cut_id") or ""), "path": str(clip.get("audio_path") or "")}
+        for clip in clips
+        if isinstance(clip, dict) and clip.get("audio_path") and Path(str(clip.get("audio_path"))).is_file()
+    ]
+    if existing:
+        decoded = validate_paths(existing, project_root=project_root, case_id=case_id)
+        if decoded.get("valid") is not True:
+            return decoded
     written = write_manifest(project_root, case_id, clips)
     data["manifest_written"] = True
     data["recorded"] = [clip.get("cut_id") for clip in clips]

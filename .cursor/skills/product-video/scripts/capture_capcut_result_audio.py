@@ -25,6 +25,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from validate_tts_audio import validate_audio_file
+
 
 HOLD_BYTES = "HOLD_CAPCUT_TTS_RESULT_BYTES_UNAVAILABLE"
 USER_AGENT = "Mozilla/5.0"
@@ -46,47 +48,6 @@ def hold(reason: str) -> dict[str, str]:
     return {"status": "HOLD", "hold": HOLD_BYTES, "reason": reason}
 
 
-def probe_audio(path: Path) -> dict[str, Any]:
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "stream=codec_name,codec_type,sample_rate,channels",
-            "-show_entries",
-            "format=duration,size,format_name",
-            "-of",
-            "json",
-            str(path),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        raise ValueError(result.stderr.strip() or "ffprobe failed")
-    payload = json.loads(result.stdout)
-    streams = [
-        stream
-        for stream in (payload.get("streams") or [])
-        if isinstance(stream, dict) and stream.get("codec_type") == "audio"
-    ]
-    if not streams:
-        raise ValueError("audio stream missing")
-    duration = float((payload.get("format") or {}).get("duration") or 0)
-    if duration <= 0:
-        raise ValueError("audio duration missing")
-    stream = streams[0]
-    return {
-        "codec_name": stream.get("codec_name"),
-        "sample_rate": int(stream["sample_rate"]) if stream.get("sample_rate") else None,
-        "channels": int(stream["channels"]) if stream.get("channels") else None,
-        "duration_seconds": duration,
-        "format_name": (payload.get("format") or {}).get("format_name"),
-    }
-
-
 def download_bytes(url: str, dest: Path) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -105,7 +66,9 @@ def capture(url: str, dest: Path) -> dict[str, Any]:
         return hold("refusing to overwrite existing TTS working file")
     try:
         download_bytes(url, dest)
-        probe = probe_audio(dest)
+        probe = validate_audio_file(dest)
+        if probe.get("valid") is not True:
+            raise ValueError(probe.get("reason") or "decode check failed")
     except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError) as exc:
         if dest.exists():
             dest.unlink()

@@ -27,10 +27,12 @@ from assembly import (  # noqa: E402
     as_full_clip,
     assemble_plan,
     duration_passes,
+    enforce_visual_match_gate,
     looks_similar,
     select_cut,
     SelectionUsage,
     stitch_meaning_match,
+    visual_match_passes,
 )
 from approved_shots import load_history, record_shots  # noqa: E402
 from caption_wrap import unwrap_visual, wrap_caption  # noqa: E402
@@ -1824,6 +1826,9 @@ def test_material_index_and_edit_plan(root: Path) -> None:
             "c1": [
                 {
                     "semantic_valid": True,
+                    "from_semantic_fallback": True,
+                    "visual_match": True,
+                    "visual_match_score": 1,
                     "supported_line": line,
                     "situation": situation,
                     "scenario_tags": [situation],
@@ -1851,6 +1856,10 @@ def test_material_index_and_edit_plan(root: Path) -> None:
     check("edit-plan-one-place-video", ops.count("place_video") == 1)
     check("edit-plan-one-place-captions", ops.count("place_captions") == 1)
     check("edit-plan-final-verify-last", ops[-1] == "final_verify")
+    check("edit-plan-validate-tts-first-audio", ops.index("validate_tts") < ops.index("place_audio"))
+    check("edit-plan-audio-before-video-import", ops.index("import_audio_batch") < ops.index("import_video_batch"))
+    check("edit-plan-audio-place-before-video", ops.index("place_audio") < ops.index("place_video"))
+    check("edit-plan-audio-then-video-lock", planned.get("audio_then_video_lock") is True)
     audio_step = next(step for step in planned.get("chatcut_steps") or [] if step.get("op") == "place_audio")
     check("edit-plan-audio-adds-batched", isinstance(audio_step.get("adds"), list) and len(audio_step.get("adds") or []) == 1)
     telop_plan = build_edit_plan(
@@ -1869,8 +1878,24 @@ def test_material_index_and_edit_plan(root: Path) -> None:
         },
         {
             "cuts": [
-                {"cut_id": "c1", "source": "a.mov", "source_in": 0.0, "source_out": 4.0, "available_duration": 4.0},
-                {"cut_id": "c2", "source": "b.mov", "source_in": 0.0, "source_out": 4.0, "available_duration": 4.0},
+                {
+                    "cut_id": "c1",
+                    "source": "a.mov",
+                    "source_in": 0.0,
+                    "source_out": 4.0,
+                    "available_duration": 4.0,
+                    "visual_match": True,
+                    "visual_match_score": 1,
+                },
+                {
+                    "cut_id": "c2",
+                    "source": "b.mov",
+                    "source_in": 0.0,
+                    "source_out": 4.0,
+                    "available_duration": 4.0,
+                    "visual_match": True,
+                    "visual_match_score": 1,
+                },
             ]
         },
         manifest,
@@ -1894,6 +1919,8 @@ def test_material_index_and_edit_plan(root: Path) -> None:
                     "cut_id": "c1",
                     "narration_audio_path": "a1.mp3",
                     "video_source": "v1.mov",
+                    "visual_match": True,
+                    "visual_match_score": 1,
                     "timeline_start_frame": 0,
                     "duration_frames": 10,
                     "source_in": 0.0,
@@ -1904,6 +1931,8 @@ def test_material_index_and_edit_plan(root: Path) -> None:
                     "cut_id": "c2",
                     "narration_audio_path": "a2.mp3",
                     "video_source": "v2.mov",
+                    "visual_match": True,
+                    "visual_match_score": 1,
                     "timeline_start_frame": 10,
                     "duration_frames": 12,
                     "source_in": 1.0,
@@ -1912,6 +1941,16 @@ def test_material_index_and_edit_plan(root: Path) -> None:
                 },
             ]
         }
+    )
+    batched_ops = [step.get("op") for step in batched]
+    check("edit-plan-steps-validate-tts", "validate_tts" in batched_ops)
+    check(
+        "edit-plan-steps-audio-then-video",
+        batched_ops.index("validate_tts")
+        < batched_ops.index("import_audio_batch")
+        < batched_ops.index("place_audio")
+        < batched_ops.index("import_video_batch")
+        < batched_ops.index("place_video"),
     )
     audio_adds = next(step["adds"] for step in batched if step.get("op") == "place_audio")
     rate_updates = next(step["updates"] for step in batched if step.get("op") == "set_playback_rate")
@@ -3976,6 +4015,7 @@ def test_git_tracked_helpers() -> None:
         ("resolve_product_inputs", ".cursor/skills/product-video/scripts/resolve_product_inputs.py"),
         ("send_gemini_cli_prompt", ".cursor/skills/product-video/scripts/send_gemini_cli_prompt.py"),
         ("capture_capcut_result_audio", ".cursor/skills/product-video/scripts/capture_capcut_result_audio.py"),
+        ("validate_tts_audio", ".cursor/skills/product-video/scripts/validate_tts_audio.py"),
         ("prove_source_range", ".cursor/skills/product-video/scripts/prove_source_range.py"),
         ("upload_drive_local_file", ".cursor/skills/product-video/scripts/upload_drive_local_file.py"),
         ("purge_local_working_media", ".cursor/skills/product-video/scripts/purge_local_working_media.py"),
@@ -4003,16 +4043,147 @@ def test_git_tracked_helpers() -> None:
     check("rough-skill-uses-chatcut-playbackRate", "playbackRate" in rough_skill and "prove_tts_speed.py" in rough_skill)
     check("rough-skill-one-pass", "one-pass" in rough_skill and "final_verify" in rough_skill)
     check("rough-skill-no-per-cut-inspect", "Do not call `inspect_item` after each write" in rough_skill)
+    check("rough-skill-gate-a", "validate_tts" in rough_skill and "validate_tts_audio.py" in rough_skill)
+    check("rough-skill-gate-c", "import_audio_batch" in rough_skill and "import_video_batch" in rough_skill)
+    check("rough-skill-gate-d", "MUST** Gate D" in rough_skill or "MUST Gate D" in rough_skill)
+    check("narration-skill-gate-a", "validate_tts_audio.py" in narration_skill)
     check("narration-skill-uses-attempts", "product-video/scripts/tts_attempts.py" in narration_skill)
     check("narration-skill-uses-session", "product-video/scripts/tts_session.py" in narration_skill)
     check("narration-skill-uses-capture", "product-video/scripts/capture_capcut_result_audio.py" in narration_skill)
     assembly_skill = skill_md("product-video-assembly").read_text(encoding="utf-8")
+    check("assembly-skill-gate-b", "HOLD_WEAK_VISUAL_MATCH" in assembly_skill)
     check("assembly-skill-uses-history", "product-video/scripts/approved_shots.py" in assembly_skill)
     check("assembly-skill-uses-visual-catalog", "product-video/scripts/visual_catalog.py" in assembly_skill)
     check("assembly-skill-history-first", "approved-shot history" in assembly_skill)
     delivery_skill = skill_md("product-video-delivery").read_text(encoding="utf-8")
     check("delivery-skill-records-history", "approved_shots.py" in delivery_skill and "--record-final" in delivery_skill)
     check("delivery-skill-keeps-history", "product-video-approved-shots" in delivery_skill)
+
+
+def test_placement_gates(root: Path) -> None:
+    from validate_tts_audio import HOLD_TTS_DECODE_INVALID, mark_invalid, validate_audio_file
+
+    gates = (REPO / ".cursor" / "skills" / "product-video" / "references" / "placement-gates.md").read_text(
+        encoding="utf-8"
+    )
+    resume = (REPO / ".cursor" / "skills" / "product-video" / "references" / "an-s152-tts-resume.md").read_text(
+        encoding="utf-8"
+    )
+    entry = (REPO / ".cursor" / "skills" / "product-video" / "SKILL.md").read_text(encoding="utf-8")
+    check("gates-doc-a", "Gate A" in gates and "validate_tts_audio.py" in gates and "duration > 0" in gates)
+    check("gates-doc-b", "Gate B" in gates and "HOLD_WEAK_VISUAL_MATCH" in gates)
+    check("gates-doc-c", "Gate C" in gates and "import_audio_batch" in gates and "import_video_batch" in gates)
+    check("gates-doc-d", "Gate D" in gates and "30" in gates and "heartbeat" in gates.lower())
+    check("gates-entry-points-doc", "placement-gates.md" in entry)
+    check("resume-ans152-project", "1efe9c90-a18b-4655-abc8-93a5284067c3" in resume)
+    check("resume-ans152-rate", "1.5" in resume)
+    check("resume-ans152-c7", "c7" in resume and "visual_match" in resume)
+    check("resume-ans152-rough-ok", "粗編集OK" in resume)
+    weak = enforce_visual_match_gate(
+        {
+            "status": "OK",
+            "cuts": [
+                {
+                    "cut_id": "c7",
+                    "line": "浄水した水がボトルに入る",
+                    "situation": "ボトルへ注ぐ",
+                    "source": "weak.mov",
+                    "material_id": "weak-c7",
+                    "source_in": 1.0,
+                    "source_out": 4.0,
+                    "visual_match": False,
+                    "visual_match_score": 0,
+                    "target_duration_seconds": 2.5,
+                }
+            ],
+        }
+    )
+    check("gate-b-holds-score-0", weak.get("hold") == "HOLD_WEAK_VISUAL_MATCH")
+    check("gate-b-reports-cut", (weak.get("cuts") or [{}])[0].get("cut_id") == "c7")
+    check("gate-b-reports-score", (weak.get("cuts") or [{}])[0].get("visual_match_score") == 0)
+    adopted = enforce_visual_match_gate(
+        {
+            "status": "OK",
+            "cuts": [
+                {
+                    "cut_id": "c7",
+                    "line": "浄水した水がボトルに入る",
+                    "situation": "ボトルへ注ぐ",
+                    "source": "weak.mov",
+                    "material_id": "weak-c7",
+                    "source_in": 1.0,
+                    "source_out": 4.0,
+                    "visual_match": False,
+                    "visual_match_score": 0,
+                    "target_duration_seconds": 2.5,
+                }
+            ],
+        },
+        candidates={
+            "c7": [
+                {
+                    "source": "alt.mov",
+                    "material_id": "alt-c7",
+                    "source_in": 0.0,
+                    "source_out": 5.0,
+                    "available_duration": 5.0,
+                    "source_duration_seconds": 8.0,
+                    "visual_match": True,
+                    "visual_match_score": 2,
+                    "from_semantic_fallback": True,
+                    "from_visual_catalog": True,
+                    "semantic_valid": True,
+                    "catalog_scene": {
+                        "objects": ["ボトル"],
+                        "actions": ["注ぐ"],
+                        "factual_description": "浄水がボトルに入る",
+                    },
+                }
+            ]
+        },
+    )
+    check("gate-b-adopts-alternate", adopted.get("status") == "OK" and (adopted.get("cuts") or [{}])[0].get("material_id") == "alt-c7")
+    case_id = "pv-AN-S152-gate-a"
+    (root / "outputs" / case_id / "tts").mkdir(parents=True, exist_ok=True)
+    accepted = root / "outputs" / case_id / "operator-visual-match.json"
+    accepted.write_text(json.dumps({"cuts": {"c7": {"accepted": True, "reason": "keep"}}}), encoding="utf-8")
+    operator = enforce_visual_match_gate(
+        {
+            "status": "OK",
+            "cuts": [
+                {
+                    "cut_id": "c7",
+                    "source": "weak.mov",
+                    "visual_match": False,
+                    "visual_match_score": 0,
+                }
+            ],
+        },
+        project_root=root,
+        case_id=case_id,
+    )
+    check("gate-b-operator-accept", operator.get("status") == "OK" and (operator.get("cuts") or [{}])[0].get("operator_visual_match_accepted") is True)
+    check("visual-match-pass-true", visual_match_passes({"visual_match": True, "visual_match_score": 1}) is True)
+    check("visual-match-fail-zero", visual_match_passes({"visual_match": False, "visual_match_score": 0}) is False)
+    good = root / "outputs" / case_id / "tts" / "good.wav"
+    ffmpeg = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.3", str(good)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if ffmpeg.returncode != 0:
+        check("gate-a-ffmpeg-available", False)
+        return
+    ok = validate_audio_file(good)
+    check("gate-a-real-wav-passes", ok.get("valid") is True and float(ok.get("duration_seconds") or 0) > 0)
+    fake_mp3 = root / "outputs" / case_id / "tts" / "c1.mp3"
+    fake_mp3.write_bytes(b"not-an-audio-file-just-bytes")
+    bad = validate_audio_file(fake_mp3)
+    check("gate-a-mp3-name-not-trusted", bad.get("valid") is not True and bad.get("hold") == HOLD_TTS_DECODE_INVALID)
+    marked = mark_invalid(root, case_id, cut_id="c1", path=fake_mp3, reason="broken aac payload")
+    check("gate-a-marks-invalid", marked.get("regenerate") is True and not fake_mp3.exists())
+    check("gate-a-quarantines", Path(str(marked.get("quarantined_path") or "")).is_file())
 
 
 def test_forbidden_state() -> None:
@@ -4517,6 +4688,7 @@ def main() -> int:
         test_narration_queue(root)
         test_narration_atomic_cut()
         test_material_index_and_edit_plan(root)
+        test_placement_gates(root)
         test_semantic_folder_aliases(root)
         test_visual_catalog_onboarding(root)
         test_selection_quality_case_cuts()

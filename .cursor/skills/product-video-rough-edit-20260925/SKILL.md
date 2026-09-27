@@ -15,22 +15,28 @@ Read `edit-plan.json`. Execute it. Do not reselect video. Do not rewrite telop. 
 
 This stage is **one-pass**. Stay in `product-video-rough-edit` until `final_verify` finishes. Do not return to `/product-video` dispatch between steps. Do not ask the LLM for a new plan. Do not write a per-cut receipt. Do not chat per cut.
 
-ChatCut is execution only. Run `chatcut_steps` in this order, one direction:
+**MUST** follow `${PROJECT_ROOT}/.cursor/skills/product-video/references/placement-gates.md` gates A–D. AN-S152 TTS-only resume: `references/an-s152-tts-resume.md`.
 
-1. `import_batch` — unique audio + video paths, max 4 files per `import_media` session; repeat until the plan's batches are done
-2. `place_audio` — one batched `edit_item` `adds` for every cut
-3. `set_playback_rate` — one batched `edit_item` `updates` with that plan's `playbackRate` on those audio items. The default is playbackRate 1.2. AN-S152 uses the plan's 1.5.
-4. `place_video` — one batched `edit_item` `adds` from `chatcut_steps`. Most cuts are one video item. If a cut has `video_segments`, place those items back-to-back on the same video track for that narration span only. Do not reselect, loop, freeze, or change playback speed
-5. `caption_preset` — apply saved preset `product-video-center` once, then set the shared caption layout to left=108, top=316, width=864, height=287 on the 1080×1920 canvas. That places the glyph-block center at x=540, y=459 (24% from the top), the position the operator set on AN-S176 ②. Do not leave the preset's initial top=1417
-6. `place_captions` — exact frozen line; use `caption_visual_wrap` for display newlines only. Prefer one tool call for all cards. If the public tool accepts only one card, write every card without inspect or replan between writes
-7. `final_verify` — the only verification pass
+ChatCut is execution only. Run `chatcut_steps` in this order, one direction. Do not reorder. Do not mix audio and video in one import session.
+
+1. `validate_tts` — **MUST** Gate A. Run `validate_tts_audio.py --manifest` on every narration file. ffprobe must show an audio stream and duration > 0; ffmpeg must decode a sample. Extension/name is not a pass. A `.mp3` that is broken AAC **MUST** fail. On fail: stop that audio, mark it invalid, regenerate that cut on CapCut, re-validate. Do not import a failed file.
+2. `import_audio_batch` — valid audio only, max 4 files per `import_media` session
+3. `place_audio` — one batched `edit_item` `adds` for every cut
+4. `set_playback_rate` — one batched `edit_item` `updates` with that plan's `playbackRate` on those audio items. The default is playbackRate 1.2. AN-S152 uses the plan's 1.5.
+5. `import_video_batch` — **MUST** wait until audio is valid and placed (Gate C). Video-only batches, max 4. If audio is still invalid or regenerating, keep video placement deferred and do not tell the operator 粗編集 is done.
+6. `place_video` — one batched `edit_item` `adds` from `chatcut_steps`. Most cuts are one video item. If a cut has `video_segments`, place those items back-to-back on the same video track for that narration span only. Do not reselect, loop, freeze, or change playback speed
+7. `caption_preset` — apply saved preset `product-video-center` once, then set the shared caption layout to left=108, top=316, width=864, height=287 on the 1080×1920 canvas. That places the glyph-block center at x=540, y=459 (24% from the top), the position the operator set on AN-S176 ②. Do not leave the preset's initial top=1417
+8. `place_captions` — exact frozen line; use `caption_visual_wrap` for display newlines only. Prefer one tool call for all cards. If the public tool accepts only one card, write every card without inspect or replan between writes
+9. `final_verify` — the only verification pass
+
+Do not run video placement and TTS regeneration as parallel tracks. A half-finished ChatCut project with video and no valid audio is provisional, not done.
 
 If a public ChatCut tool can process multiple items in one call, batch them. Never place → inspect → next cut → replan. Do not call `inspect_item` after each write. `inspect_item` may be 1-item-only; still wait until `final_verify` and then confirm all cuts together (`preview_timeline` first when that shows every item).
 
 Record speed metrics only. After each step above, mark start/end (no chat):
 
 ```bash
-python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/timing.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --mark-step-start <project_setup|import|place_audio|playback_rate|place_video|caption_preset|place_captions|final_verify>
+python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/timing.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --mark-step-start <project_setup|validate_tts|import_audio|place_audio|playback_rate|import_video|place_video|caption_preset|place_captions|final_verify>
 python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/timing.py" --project-root <PROJECT_ROOT> --case-id <CASE_ID> --mark-step-end <same-step>
 ```
 
@@ -46,7 +52,7 @@ Record timeline start/end and measured playback duration from ChatCut. Do not co
 
 Visual wrap only; do not add, delete, or reorder characters. `unwrap(caption_visual_wrap) == approved line`.
 
-Do not run AI craft scoring or a subjective final visual-quality review. Do not require `粗編集OK`. Do not chat progress between execution steps.
+Do not run AI craft scoring or a subjective final visual-quality review. Do not require `粗編集OK`. Do not chat a per-cut receipt. **MUST** Gate D: if placement/import/regenerate is expected to take >30s, emit a short heartbeat at least every ~30s (stage name + what just finished + next step). Do not stay silent through ChatCut import or CapCut regenerate.
 
 When a usable rough edit exists, save the receipt, complete `ROUGH_EDIT` (this sets `WAITING_FOR_OPERATOR`), and tell the user the `on_success_message_ja` from dispatch (or `operator_message_ja` from the helper). That is one message. If Drive is not READY, the same message already includes the Drive login hint. Do not send a second message. Do not ask for extra operator steps.
 

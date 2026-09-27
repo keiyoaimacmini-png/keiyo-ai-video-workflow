@@ -5,11 +5,33 @@ from __future__ import annotations
 
 from typing import Any
 
+from assembly import visual_match_passes
 from constants import NARRATION_SPEED, operator_rough_message
 from caption_wrap import unwrap_visual
 from prove_tts_speed import clip_target_duration, prove_editorial_timing, prove_tts_speed
 from script_fidelity import assert_immutable
 from workflow_state import hold
+
+
+AUDIO_LOCK_OPS = ("validate_tts", "import_audio_batch", "place_audio", "set_playback_rate")
+VIDEO_LOCK_OPS = ("import_video_batch", "place_video", "caption_preset", "place_captions")
+
+
+def audio_then_video_locked(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    ops = [step.get("op") for step in steps if isinstance(step, dict) and step.get("op")]
+    if "place_video" in ops and "place_audio" in ops:
+        if ops.index("place_video") < ops.index("place_audio"):
+            return hold("HOLD_AUDIO_VIDEO_ORDER", "place_video must not run before place_audio")
+    if "import_video_batch" in ops and "import_audio_batch" in ops:
+        if ops.index("import_video_batch") < ops.index("import_audio_batch"):
+            return hold("HOLD_AUDIO_VIDEO_ORDER", "video import must wait until audio import is planned")
+    if "place_audio" in ops and "validate_tts" not in ops:
+        return hold("HOLD_TTS_DECODE_INVALID", "validate_tts must run before place_audio")
+    last_audio = max((ops.index(op) for op in AUDIO_LOCK_OPS if op in ops), default=-1)
+    first_video = min((ops.index(op) for op in VIDEO_LOCK_OPS if op in ops), default=len(ops))
+    if last_audio >= 0 and first_video < last_audio:
+        return hold("HOLD_AUDIO_VIDEO_ORDER", "video/caption placement must wait until audio is locked")
+    return {"status": "OK", "audio_then_video_lock": True}
 
 
 def telop_matches(approved_line: str, telop: str) -> dict[str, Any]:
@@ -91,6 +113,9 @@ def execute_from_edit_plan(
         return hold("HOLD_EDITOR_PROJECT_UNVERIFIED", "editor project identity is required")
     if not isinstance(edit_plan, dict) or edit_plan.get("schema") != "product_video_edit_plan.v1":
         return hold("HOLD_ASSEMBLY_PLAN", "edit-plan.json is required before ChatCut placement")
+    order = audio_then_video_locked(list(edit_plan.get("chatcut_steps") or []))
+    if order.get("status") != "OK":
+        return order
     telop_by_cut = {item["cut_id"]: item.get("text") for item in placed_telops or [] if isinstance(item, dict)}
     placed: list[dict[str, Any]] = []
     for cut in edit_plan.get("cuts") or []:
@@ -99,6 +124,16 @@ def execute_from_edit_plan(
         wrapped = cut.get("caption_visual_wrap") or telop
         if unwrap_visual(str(wrapped)) != line:
             return hold("HOLD_SCRIPT_LINE_IMMUTABLE", f"{cut['cut_id']} visual wrap changed frozen characters")
+        if cut.get("visual_match") is False or cut.get("visual_match_score") == 0:
+            if not visual_match_passes(cut):
+                return hold(
+                    "HOLD_WEAK_VISUAL_MATCH",
+                    f"{cut['cut_id']} visual_match is below threshold; resolve before ChatCut placement",
+                    cut_id=cut["cut_id"],
+                    visual_match=cut.get("visual_match"),
+                    visual_match_score=cut.get("visual_match_score"),
+                    current_asset=cut.get("video_source") or cut.get("material"),
+                )
         matched = telop_matches(line, str(telop))
         if matched.get("status") != "OK":
             return matched

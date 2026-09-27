@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from assembly import assemble_plan, write_plan
+from assembly import assemble_plan, enforce_visual_match_gate, write_plan
 from caption_wrap import wrap_caption
 from constants import NARRATION_SPEED, TELOP_ONLY_DURATION_SECONDS
 from approved_shots import load_history
@@ -55,19 +55,33 @@ def cut_video_segments(cut: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _unique_paths(values: list[Any]) -> list[str]:
+    files: list[str] = []
+    seen: set[str] = set()
+    for path in values:
+        if isinstance(path, str) and path and path not in seen:
+            seen.add(path)
+            files.append(path)
+    return files
+
+
+def _import_batches(files: list[str]) -> list[list[str]]:
+    return [files[index : index + IMPORT_BATCH_SIZE] for index in range(0, len(files), IMPORT_BATCH_SIZE)]
+
+
 def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
     cuts = [item for item in plan.get("cuts") or [] if isinstance(item, dict)]
     fps = int(plan.get("fps") or FPS)
-    files: list[str] = []
-    seen: set[str] = set()
-    for cut in cuts:
-        paths = [cut.get("narration_audio_path")]
-        paths.extend(seg.get("source") for seg in cut_video_segments(cut))
-        for path in paths:
-            if isinstance(path, str) and path and path not in seen:
-                seen.add(path)
-                files.append(path)
-    batches = [files[index : index + IMPORT_BATCH_SIZE] for index in range(0, len(files), IMPORT_BATCH_SIZE)]
+    audio_files = _unique_paths(
+        [
+            cut.get("narration_audio_path")
+            for cut in cuts
+            if cut.get("telop_only") is not True
+        ]
+    )
+    video_files = _unique_paths(
+        [seg.get("source") for cut in cuts for seg in cut_video_segments(cut)]
+    )
     audio_adds = []
     rate_updates = []
     video_adds = []
@@ -133,8 +147,10 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     steps: list[dict[str, Any]] = []
-    for batch in batches:
-        steps.append({"op": "import_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
+    if audio_files:
+        steps.append({"op": "validate_tts", "paths": audio_files, "helper": "validate_tts_audio.py"})
+        for batch in _import_batches(audio_files):
+            steps.append({"op": "import_audio_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
     if audio_adds:
         steps.append({"op": "place_audio", "adds": audio_adds})
     if rate_updates:
@@ -145,6 +161,8 @@ def chatcut_execution_steps(plan: dict[str, Any]) -> list[dict[str, Any]]:
                 "playbackRate": rate_updates[0]["playbackRate"] if rate_updates else NARRATION_SPEED,
             }
         )
+    for batch in _import_batches(video_files):
+        steps.append({"op": "import_video_batch", "paths": batch, "max_files": IMPORT_BATCH_SIZE})
     if video_adds:
         steps.append({"op": "place_video", "adds": video_adds})
         steps.append({"op": "caption_preset", "preset": CAPTION_PRESET, "action": "preset_apply"})
@@ -274,6 +292,9 @@ def build_edit_plan(
             "duration_frames": max(1, _seconds_to_frame(end, fps) - _seconds_to_frame(start, fps)),
             "caption_text": wrap["caption_text"],
             "caption_visual_wrap": wrap["caption_visual_wrap"],
+            "visual_match": picture.get("visual_match"),
+            "visual_match_score": int(picture.get("visual_match_score") or 0) if picture.get("visual_match_score") is not None else picture.get("visual_match_score"),
+            "operator_visual_match_accepted": picture.get("operator_visual_match_accepted") is True,
         }
         if item["available_duration"] is not None and float(item["available_duration"]) + 1e-9 < duration:
             return hold(
@@ -290,10 +311,16 @@ def build_edit_plan(
         "reselect_in_editor": False,
         "cuts": cuts,
     }
+    steps = chatcut_execution_steps(plan)
     plan["import_batches"] = [
-        step["paths"] for step in chatcut_execution_steps(plan) if step.get("op") == "import_batch"
+        step["paths"]
+        for step in steps
+        if step.get("op") in {"import_audio_batch", "import_video_batch", "import_batch"}
     ]
-    plan["chatcut_steps"] = chatcut_execution_steps(plan)
+    plan["audio_import_batches"] = [step["paths"] for step in steps if step.get("op") == "import_audio_batch"]
+    plan["video_import_batches"] = [step["paths"] for step in steps if step.get("op") == "import_video_batch"]
+    plan["audio_then_video_lock"] = True
+    plan["chatcut_steps"] = steps
     return plan
 
 
@@ -351,6 +378,22 @@ def assemble_and_plan(
     )
     if assembled.get("status") != "OK":
         return assembled
+    durations = {
+        str(clip["cut_id"]): float(clip_target_duration(clip).get("target_duration_seconds") or 0)
+        for clip in narration_manifest.get("clips") or []
+        if isinstance(clip, dict) and clip.get("cut_id")
+    }
+    gated = enforce_visual_match_gate(
+        assembled,
+        candidates=candidates,
+        file_durations=file_durations,
+        project_root=root,
+        case_id=case_id,
+        durations=durations,
+    )
+    if gated.get("status") != "OK":
+        return gated
+    assembled = gated
     write_plan(root, case_id, assembled)
     override = load_playback_override(root, case_id)
     allow_rate = case_allow_narration_rate(root, case_id)

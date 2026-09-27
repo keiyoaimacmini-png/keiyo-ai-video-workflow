@@ -20,6 +20,8 @@ HOLD_CHATCUT_UNAVAILABLE = "HOLD_CHATCUT_UNAVAILABLE"
 HOLD_SCRIPT_PRODUCT_GROUNDING = "HOLD_SCRIPT_PRODUCT_GROUNDING"
 HOLD_PRODUCT_FACTS_REQUIRED = "HOLD_PRODUCT_FACTS_REQUIRED"
 HOLD_OPERATOR_PAUSED = "HOLD_OPERATOR_PAUSED"
+HOLD_TTS_DECODE_INVALID = "HOLD_TTS_DECODE_INVALID"
+HOLD_WEAK_VISUAL_MATCH = "HOLD_WEAK_VISUAL_MATCH"
 MIN_USABLE_PRODUCT_FACTS = 3
 MAX_TRANSIENT_RETRIES = 3
 HUMAN_HOLD_CODES = frozenset(
@@ -33,6 +35,7 @@ HUMAN_HOLD_CODES = frozenset(
         "HOLD_DRIVE_LOCAL_BYTES_UNAVAILABLE",
         "HOLD_DRIVE_SCOPE_AMBIGUOUS",
         "HOLD_OPERATOR_PAUSED",
+        HOLD_WEAK_VISUAL_MATCH,
     }
 )
 TRANSIENT_HOLD_CODES = frozenset(
@@ -204,6 +207,7 @@ OWNED_HELPERS = {
     "resolve_product_inputs": "resolve_product_inputs.py",
     "send_gemini_cli_prompt": "send_gemini_cli_prompt.py",
     "capture_capcut_result_audio": "capture_capcut_result_audio.py",
+    "validate_tts_audio": "validate_tts_audio.py",
     "prove_source_range": "prove_source_range.py",
     "upload_drive_local_file": "upload_drive_local_file.py",
     "purge_local_working_media": "purge_local_working_media.py",
@@ -236,6 +240,7 @@ RUNTIME_HELPER_RELS = (
     (".cursor/skills/product-video/scripts/resolve_product_inputs.py", "PREPARE"),
     (".cursor/skills/product-video/scripts/send_gemini_cli_prompt.py", "SCRIPT"),
     (".cursor/skills/product-video/scripts/capture_capcut_result_audio.py", "NARRATION"),
+    (".cursor/skills/product-video/scripts/validate_tts_audio.py", "ROUGH_EDIT"),
     (".cursor/skills/product-video/scripts/prove_source_range.py", "ASSEMBLY"),
     (".cursor/skills/product-video/scripts/upload_drive_local_file.py", "DELIVERY"),
     (".cursor/skills/product-video/scripts/purge_local_working_media.py", "DELIVERY"),

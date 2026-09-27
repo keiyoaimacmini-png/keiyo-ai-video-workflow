@@ -33,9 +33,12 @@ ROUGH_EDIT_METRIC_KEYS = (
 )
 ROUGH_EDIT_STEP_TO_KEY = {
     "project_setup": "chatcut_project_setup_seconds",
+    "validate_tts": "validate_tts_seconds",
     "import": "import_seconds",
+    "import_audio": "import_seconds",
     "place_audio": "place_audio_seconds",
     "playback_rate": "playback_rate_seconds",
+    "import_video": "import_video_seconds",
     "place_video": "place_video_seconds",
     "caption_preset": "caption_preset_seconds",
     "place_captions": "place_captions_seconds",

@@ -32,8 +32,11 @@ from workflow_state import hold
 
 DURATION_EPS = 1e-9
 MAX_SEGMENTS_PER_CUT = 2
+MIN_VISUAL_MATCH_SCORE = 1
 CONTENT_MATCH_RELAX_FILENAME = "content-match-relax.v1.json"
 OPERATOR_CLOSE_SHOTS_FILENAME = "operator-close-shots.json"
+OPERATOR_VISUAL_MATCH_FILENAME = "operator-visual-match.json"
+HOLD_WEAK_VISUAL_MATCH = "HOLD_WEAK_VISUAL_MATCH"
 GESTURE_MATCH_TOKENS = ("人差し指を立て", "疑問顔")
 TALKING_HEAD_DESC_TOKENS = ("カメラに向かい話す顔", "疑問顔")
 COVERAGE_PATTERNS = (
@@ -532,6 +535,185 @@ def as_full_clip(
     clone["from_approved_history"] = False
     clone["full_clip"] = True
     return clone
+
+
+def visual_match_passes(cut: dict[str, Any] | None) -> bool:
+    if not isinstance(cut, dict):
+        return False
+    if cut.get("telop_only") is True:
+        return True
+    if cut.get("operator_visual_match_accepted") is True:
+        return True
+    score = int(cut.get("visual_match_score") or 0)
+    return cut.get("visual_match") is True and score >= MIN_VISUAL_MATCH_SCORE
+
+
+def load_operator_visual_match(project_root: Path | None, case_id: str | None) -> dict[str, dict[str, Any]]:
+    if project_root is None or not case_id:
+        return {}
+    path = case_root(Path(project_root), case_id) / OPERATOR_VISUAL_MATCH_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    cuts = data.get("cuts") if isinstance(data, dict) else None
+    if not isinstance(cuts, dict):
+        return {}
+    found: dict[str, dict[str, Any]] = {}
+    for cut_id, row in cuts.items():
+        if isinstance(row, dict):
+            found[str(cut_id)] = row
+    return found
+
+
+def _alternate_preview(item: dict[str, Any]) -> dict[str, Any]:
+    start = item.get("source_in") if item.get("source_in") is not None else item.get("in_sec")
+    end = item.get("source_out") if item.get("source_out") is not None else item.get("out_sec")
+    return {
+        "source": source_id(item) or item.get("source") or item.get("material_id"),
+        "material_id": item.get("material_id"),
+        "source_in": start,
+        "source_out": end,
+        "visual_match": item.get("visual_match"),
+        "visual_match_score": int(item.get("visual_match_score") or 0),
+    }
+
+
+def propose_visual_alternates(
+    candidates: list[dict[str, Any]],
+    *,
+    line: str,
+    intended_scenario: str,
+    duration_seconds: float,
+    current: dict[str, Any] | None = None,
+    file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    annotated = [annotate_visual_match(item, line, intended_scenario) for item in candidates if isinstance(item, dict)]
+    strong = [item for item in annotated if visual_match_passes(item)]
+    eligible = duration_eligible(strong, duration_seconds, file_durations, scene_ranges)
+    current_key = range_key(current) if isinstance(current, dict) else None
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, float, float] | str] = set()
+    for item in eligible:
+        key = range_key(item) or source_id(item)
+        if not key or key == current_key or key in seen:
+            continue
+        seen.add(key)
+        rows.append(_alternate_preview(item))
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def adopt_visual_alternate(
+    candidates: list[dict[str, Any]],
+    *,
+    line: str,
+    intended_scenario: str,
+    duration_seconds: float,
+    current: dict[str, Any] | None = None,
+    file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
+) -> dict[str, Any] | None:
+    annotated = [annotate_visual_match(item, line, intended_scenario) for item in candidates if isinstance(item, dict)]
+    strong = [item for item in annotated if visual_match_passes(item)]
+    eligible = duration_eligible(strong, duration_seconds, file_durations, scene_ranges)
+    current_key = range_key(current) if isinstance(current, dict) else None
+    for item in eligible:
+        key = range_key(item)
+        if key is not None and key == current_key:
+            continue
+        if visual_match_passes(item):
+            return item
+    return None
+
+
+def enforce_visual_match_gate(
+    plan: dict[str, Any],
+    *,
+    candidates: dict[str, list[dict[str, Any]]] | None = None,
+    file_durations: dict[str, float] | None = None,
+    scene_ranges: dict[str, list[tuple[float, float]]] | None = None,
+    project_root: Path | None = None,
+    case_id: str | None = None,
+    durations: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(plan, dict) or plan.get("status") not in {None, "OK"}:
+        return plan
+    overrides = load_operator_visual_match(project_root, case_id)
+    weak: list[dict[str, Any]] = []
+    updated: list[dict[str, Any]] = []
+    for cut in plan.get("cuts") or []:
+        if not isinstance(cut, dict):
+            continue
+        item = dict(cut)
+        cut_id = str(item.get("cut_id") or "")
+        override = overrides.get(cut_id) or {}
+        if override.get("accepted") is True:
+            item["operator_visual_match_accepted"] = True
+            item["visual_match_hold"] = "operator_accepted"
+            updated.append(item)
+            continue
+        if visual_match_passes(item):
+            updated.append(item)
+            continue
+        target = float((durations or {}).get(cut_id) or item.get("target_duration_seconds") or item.get("available_duration") or 0.0)
+        pool = list((candidates or {}).get(cut_id) or [])
+        adopted = adopt_visual_alternate(
+            pool,
+            line=str(item.get("line") or ""),
+            intended_scenario=str(item.get("situation") or item.get("intended_scenario") or ""),
+            duration_seconds=target,
+            current=item,
+            file_durations=file_durations,
+            scene_ranges=scene_ranges,
+        )
+        if adopted is not None:
+            replacement = dict(adopted)
+            replacement["cut_id"] = cut_id
+            replacement["line"] = item.get("line")
+            replacement["situation"] = item.get("situation")
+            replacement["material_situation"] = replacement.get("situation")
+            replacement["video_playback_rate"] = item.get("video_playback_rate")
+            replacement["visual_match_hold"] = "catalog_alternate"
+            updated.append(replacement)
+            continue
+        alternates = propose_visual_alternates(
+            pool,
+            line=str(item.get("line") or ""),
+            intended_scenario=str(item.get("situation") or item.get("intended_scenario") or ""),
+            duration_seconds=target,
+            current=item,
+            file_durations=file_durations,
+            scene_ranges=scene_ranges,
+        )
+        weak.append(
+            {
+                "cut_id": cut_id,
+                "visual_match": item.get("visual_match"),
+                "visual_match_score": int(item.get("visual_match_score") or 0),
+                "current_asset": source_id(item) or item.get("material_id"),
+                "source_in": item.get("source_in") if item.get("source_in") is not None else item.get("in_sec"),
+                "source_out": item.get("source_out") if item.get("source_out") is not None else item.get("out_sec"),
+                "proposed_alternates": alternates,
+            }
+        )
+        updated.append(item)
+    if weak:
+        return hold(
+            HOLD_WEAK_VISUAL_MATCH,
+            "weak visual_match must be replaced or confirmed before ChatCut placement",
+            cuts=weak,
+        )
+    gated = dict(plan)
+    gated["status"] = "OK"
+    gated["cuts"] = updated
+    gated["visual_match_gate"] = "passed"
+    return gated
 
 
 def load_operator_close_shots(project_root: Path | None, case_id: str | None) -> dict[str, dict[str, Any]]:

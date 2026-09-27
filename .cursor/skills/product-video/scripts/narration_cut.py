@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from pathlib import Path
 from typing import Any
 
 from classify_capcut_credit import NEW_CONTRACT_FLAGS
@@ -337,6 +338,19 @@ def finish_cut(
     proved = prove_duration(line, float(duration))
     if proved.get("adopt") is not True:
         return proved
+    audio = Path(audio_path)
+    if audio.is_file():
+        from validate_tts_audio import mark_invalid, validate_audio_file
+
+        decoded = validate_audio_file(audio)
+        if decoded.get("valid") is not True:
+            return mark_invalid(
+                Path(project_root),
+                case_id,
+                cut_id=cut_id,
+                path=audio,
+                reason=str(decoded.get("reason") or "narration file failed decode"),
+            )
     recorded_attempt = record_generation_attempt(
         project_root,
         case_id,
