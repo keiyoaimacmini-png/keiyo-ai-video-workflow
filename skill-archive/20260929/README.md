@@ -8,3 +8,4 @@
 - 各 CHANGES.md / QUESTIONS.md : 変更内容と判断の記録
 
 注意: 受理条件の自動強制は未実装（コード側の対応項目は common/CHANGES.md 末尾）。
+- `telop-design/` : AIテロップ生成システムの設計書（設計段階・未実装。正本は Obsidian の product-video-materials/共通/テロップ/）

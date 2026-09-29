@@ -98,6 +98,9 @@ python3 "${PROJECT_ROOT}/.cursor/skills/product-video/scripts/dispatch.py" --pro
 
 After READY, do not bounce back for routine environment checks. `案Nで台本OK` continues NARRATION → ASSEMBLY → ROUGH_EDIT → WAITING_FOR_OPERATOR in this turn. During NARRATION, stay in the current stage until the queue helper says `queue_complete`; do not re-dispatch between cuts. During ROUGH_EDIT, run `edit-plan.json` `chatcut_steps` in one pass and follow 02 の Gate C. `完成・格納してください` continues only after Drive is READY; then DELIVERY → Drive read-back → COMPLETE → purge in this turn. If Drive is still not READY, do not export; use the single delivery instruction and wait for the same phrase.
 
+## テロップ設計（設計段階）
+設計書の正本は Obsidian `product-video-materials/共通/テロップ/`。Phase 1 の間は現行の固定字幕位置と ChatCut の字幕手順が有効。設計書の内容は、有効化(コード対応)まで現行動作を変えない。
+
 ## Retries
 
 Transient MCP/CLI/connection failures: retry up to 3 times (namespace re-resolve, reconnect, tool list refresh if the host allows it). Do not loop. Do not retry login, CAPTCHA, 2FA, account choice, purchase, or missing materials. If recovery works, continue silently.

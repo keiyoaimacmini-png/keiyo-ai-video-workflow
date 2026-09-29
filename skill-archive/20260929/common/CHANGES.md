@@ -102,3 +102,10 @@
 ## 今回の決定反映
 
 1. `04_工程_rough-edit.md` の完了メッセージ本文を1つに統一し、送信回数を1回に維持した。Drive未準備時の `Drive格納準備` / `upload_drive_local_file.py --login` 本文は、`dispatch が同じメッセージへ差し込む。Drive の正本は 04_工程_delivery.md` という参照に置き換えた。`QUESTIONS.md` は `決定済み: 1=A残す, 2=B, 3=A, 4=A` として反映した。
+
+## テロップ設計の取り込み（設計段階）
+
+- `03_共通_Gemini台本テンプレ.md`: 末尾に新節を追加。テロップ設計用メタデータの要点を定義し、既存本体は不変。
+- `01_共通_product-video司令塔.md`: `Retries` 前に短い節を追加。
+- `04_工程_rough-edit.md`: 字幕手順8の直後に注記1行を、リスト内の継続行として挿入。
+- `03_共通_Gemini台本テンプレ.md`: 追記節の先頭に「共通ビュー限定。gemini-script-instructions.md へ写さない（写すと注記ごとGeminiに届き、script_stage.py が解析できない行が混ざる）」を1行追加。

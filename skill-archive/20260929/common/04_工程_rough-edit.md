@@ -26,6 +26,7 @@ ChatCut is execution only. Run `chatcut_steps` in this order, one direction. Do 
 6. `place_video` — one batched `edit_item` `adds` from `chatcut_steps`. Most cuts are one video item. If a cut has `video_segments`, place those items back-to-back on the same video track for that narration span only. Do not reselect, loop, freeze, or change playback speed.
 7. `caption_preset` — apply saved preset `product-video-center` once, then set the shared caption layout to left=108, top=316, width=864, height=287 on the 1080×1920 canvas. This is the operator-adjusted standard value. Do not leave the preset's initial top=1417.
 8. `place_captions` — exact frozen line; use `caption_visual_wrap` for display newlines only. Prefer one tool call for all cards. If the public tool accepts only one card, write every card without inspect or replan between writes.
+   注記: Telop JSON を実行対象に加える設計は設計段階。有効化まで現行の手順に従う。
 9. `final_verify` — the only verification pass.
 
 Do not run video placement and TTS regeneration as parallel tracks. A half-finished ChatCut project with video and no valid audio is provisional, not done.

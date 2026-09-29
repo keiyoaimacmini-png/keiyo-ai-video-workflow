@@ -155,3 +155,15 @@ HOOK / CTA 以外のカットは、原則1個以上のF-IDを付ける。
 - 「面白い」と「欲しい」が両立している
 - です・ますを使っていない
 - 「！」を全カットに付けていない
+
+■テロップ設計用メタデータ（設計段階・未有効）
+共通ビュー限定。`references/gemini-script-instructions.md`（実際に Gemini へ送るプロンプト）へ写さない。写すとこの注記ごと Gemini に届き、script_stage.py が解析できない行が混ざる
+この節は設計段階。有効化にはコード側(台本の出力解析・検査)の対応が必要。有効化されるまで Gemini へは送らない
+各カットの末尾にのみ次を追加する:
+- 役割: HOOK / RE_HOOK / PROBLEM / EMPATHY / EXPLAIN / BENEFIT / PROOF / COMPARE / REACTION / HUMOR / CTA から1つ
+- 意図: 1行
+- 感情: NEUTRAL / POSITIVE / EXCITED / SURPRISE / POSITIVE_SURPRISE / CURIOSITY / EMPATHY / RELIEF / CAUTION / HUMOR から1つ
+- 重要度: NORMAL / HIGH / VERY_HIGH から1つ。VERY_HIGH は乱用しない(主にHOOK、RE_HOOK、重要メリット、強い比較、CTA)
+- 強調候補: 最大2個。セリフ本文に実在する語句のみ、言い換え禁止。不要なら「なし」。短いHOOK等で全文が重要な場合のみ「全文」
+- 映像ヒント: 例 スマホ / 商品本体 / 操作する手元 / 車内 / 人物リアクション
+禁止: セリフ本文に絵文字を入れない。フォント・色・モーション・テロップ位置・改行位置を決めない。
