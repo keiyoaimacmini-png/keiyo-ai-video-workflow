@@ -1,0 +1,41 @@
+{
+  "text": "2つの違いを見比べてみよう",
+  "type": "COMPARE",
+  "importance": "VERY_HIGH",
+  "font": {
+    "family": "bold_square",
+    "weight": 900
+  },
+  "text_style": {
+    "base_color": "white",
+    "outline": {
+      "color": "black",
+      "width": 8
+    }
+  },
+  "emphasis": {
+    "mode": "partial",
+    "items": [
+      {
+        "text": "2つの違い",
+        "color": "yellow"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "type": "text",
+      "value": "2つの違いを見比べてみよう"
+    }
+  ],
+  "animation": {
+    "in": "pop",
+    "out": "cut"
+  },
+  "position": {
+    "x": 0.5,
+    "y": 0.2
+  },
+  "start": 0.0,
+  "end": 2.5
+}

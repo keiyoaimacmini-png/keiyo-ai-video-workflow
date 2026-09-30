@@ -1,0 +1,46 @@
+{
+  "text": "これスマホだけで簡単に操作できる",
+  "type": "EMPHASIS",
+  "importance": "HIGH",
+  "font": {
+    "family": "bold_square",
+    "weight": 900
+  },
+  "text_style": {
+    "base_color": "white",
+    "outline": {
+      "color": "black",
+      "width": 8
+    }
+  },
+  "emphasis": {
+    "mode": "partial",
+    "items": [
+      {
+        "text": "スマホだけで",
+        "color": "yellow"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "type": "text",
+      "value": "これスマホだけで簡単に操作できる"
+    },
+    {
+      "type": "emoji",
+      "value": "📱",
+      "animation": "pop"
+    }
+  ],
+  "animation": {
+    "in": "soft_slide",
+    "out": "fade_short"
+  },
+  "position": {
+    "x": 0.5,
+    "y": 0.2
+  },
+  "start": 0.0,
+  "end": 2.5
+}

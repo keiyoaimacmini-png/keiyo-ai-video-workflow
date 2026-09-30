@@ -1,0 +1,46 @@
+{
+  "text": "下からチェック！",
+  "type": "CTA",
+  "importance": "VERY_HIGH",
+  "font": {
+    "family": "rounded_bold",
+    "weight": 700
+  },
+  "text_style": {
+    "base_color": "white",
+    "outline": {
+      "color": "black",
+      "width": 8
+    }
+  },
+  "emphasis": {
+    "mode": "full",
+    "items": [
+      {
+        "text": "下からチェック！",
+        "color": "yellow"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "type": "text",
+      "value": "下からチェック！"
+    },
+    {
+      "type": "emoji",
+      "value": "✅",
+      "animation": "pop"
+    }
+  ],
+  "animation": {
+    "in": "pop",
+    "out": "fade_short"
+  },
+  "position": {
+    "x": 0.5,
+    "y": 0.2
+  },
+  "start": 0.0,
+  "end": 2.5
+}

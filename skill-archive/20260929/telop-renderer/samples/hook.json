@@ -1,0 +1,41 @@
+{
+  "text": "徹底比較！",
+  "type": "HOOK",
+  "importance": "VERY_HIGH",
+  "font": {
+    "family": "bold_square",
+    "weight": 900
+  },
+  "text_style": {
+    "base_color": "white",
+    "outline": {
+      "color": "black",
+      "width": 8
+    }
+  },
+  "emphasis": {
+    "mode": "full",
+    "items": [
+      {
+        "text": "徹底比較！",
+        "color": "yellow"
+      }
+    ]
+  },
+  "elements": [
+    {
+      "type": "text",
+      "value": "徹底比較！"
+    }
+  ],
+  "animation": {
+    "in": "pop",
+    "out": "fade_short"
+  },
+  "position": {
+    "x": 0.5,
+    "y": 0.2
+  },
+  "start": 0.0,
+  "end": 2.5
+}

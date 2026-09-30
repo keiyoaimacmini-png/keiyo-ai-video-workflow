@@ -1,0 +1,36 @@
+{
+  "text": "毎日の操作もすぐにわかる",
+  "type": "NORMAL",
+  "importance": "NORMAL",
+  "font": {
+    "family": "rounded_bold",
+    "weight": 700
+  },
+  "text_style": {
+    "base_color": "white",
+    "outline": {
+      "color": "black",
+      "width": 8
+    }
+  },
+  "emphasis": {
+    "mode": "none",
+    "items": []
+  },
+  "elements": [
+    {
+      "type": "text",
+      "value": "毎日の操作もすぐにわかる"
+    }
+  ],
+  "animation": {
+    "in": "soft_slide",
+    "out": "cut"
+  },
+  "position": {
+    "x": 0.5,
+    "y": 0.2
+  },
+  "start": 0.0,
+  "end": 2.5
+}

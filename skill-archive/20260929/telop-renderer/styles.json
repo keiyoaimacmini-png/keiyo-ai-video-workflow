@@ -1,0 +1,93 @@
+{
+  "schema_version": "phase1",
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "aspect": "9:16"
+  },
+  "frame": {
+    "left": 108,
+    "top": 316,
+    "width": 864,
+    "height": 287,
+    "padding": 24
+  },
+  "fonts": {
+    "rounded_bold": {
+      "family": "Hiragino Maru Gothic ProN",
+      "weight": 700,
+      "note": "Mac system font, runtime reference only"
+    },
+    "bold_square": {
+      "family": "Hiragino Kaku Gothic StdN",
+      "weight": 900,
+      "note": "Mac system font, W8 family, runtime reference only"
+    },
+    "emoji": {
+      "family": "Apple Color Emoji",
+      "note": "Mac system font, runtime reference only"
+    }
+  },
+  "type_styles": {
+    "NORMAL": {
+      "font_family": "rounded_bold",
+      "font_weight": 700,
+      "font_size": 82,
+      "line_height": 1.12
+    },
+    "HOOK": {
+      "font_family": "bold_square",
+      "font_weight": 900,
+      "font_size": 104,
+      "line_height": 1.06
+    },
+    "EMPHASIS": {
+      "font_family": "bold_square",
+      "font_weight": 900,
+      "font_size": 82,
+      "line_height": 1.10
+    },
+    "COMPARE": {
+      "font_family": "bold_square",
+      "font_weight": 900,
+      "font_size": 88,
+      "line_height": 1.08
+    },
+    "CTA": {
+      "font_family": "rounded_bold",
+      "font_weight": 700,
+      "font_size": 90,
+      "line_height": 1.08
+    }
+  },
+  "colors": {
+    "white": "#FFFFFF",
+    "black": "#000000",
+    "yellow": "#FFE04A",
+    "red": "#FF3B4F",
+    "pink": "#FF70B7",
+    "pale_orange": "#FFB86B"
+  },
+  "color_rules": {
+    "base": ["white", "yellow", "red", "pink", "pale_orange"],
+    "emphasis": ["yellow", "red", "pink", "pale_orange"],
+    "outline": "black",
+    "max_content_colors": 2,
+    "avoided": ["dark_navy", "dark_blue", "dark_purple"],
+    "semantic_hints": {
+      "default": "white",
+      "emphasis": "yellow",
+      "caution": "red",
+      "price": ["red", "yellow"],
+      "cute": "pink",
+      "auxiliary": "pale_orange"
+    }
+  },
+  "emoji_allowlist": ["🔥", "✨", "📱", "🚗", "⚠️", "🎁", "💡", "💧", "🔋", "😳", "👀", "✅"],
+  "motions": {
+    "in": ["pop", "soft_slide"],
+    "out": ["fade_short", "cut"],
+    "element": ["pop"],
+    "all": ["pop", "soft_slide", "fade_short", "cut"]
+  }
+}
